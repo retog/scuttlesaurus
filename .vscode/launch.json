@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "Launch App",
+            "type": "pwa-node",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.ts",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "deno",
+            "runtimeArgs": [
+                "run",
+                "--inspect=127.0.0.1:9229",
+                "--allow-all",
+                "--unstable"
+            ],
+            "attachSimplePort": 9229
+        },
+        {
+            "name": "Launch Chrome",
+            "request": "launch",
+            "type": "pwa-chrome",
+            "url": "http://localhost:8080",
+            "webRoot": "${workspaceFolder}"
+        }
+    ]
+}
