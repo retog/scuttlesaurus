@@ -4,6 +4,8 @@ import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 //https://github.com/denosaurs/sodium/blob/master/API.md
 import sodium from "https://deno.land/x/sodium/basic.ts";
 
+const network_identifier = base64.toUint8Array("1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=");
+
 const privateKey = ed.utils.randomPrivateKey();
 const publicKey = await ed.getPublicKey(privateKey);
 
@@ -49,9 +51,9 @@ router
   })*/
     /*const conn = await Deno.connect({ hostname: "192.168.1.6", port: 8008 });
     await conn.write(clientHello());
-    const buf = new Uint8Array(1024);
-    await conn.read(buf);
-    log('Server - received:', base64.fromUint8Array(buf))
+    const serverResponse = new Uint8Array(1024);
+    await conn.read(serverResponse);
+    log('Server - received:', base64.fromUint8Array(serverResponse))
     // Respond
     await conn.write(new TextEncoder().encode('pong'))
     conn.close();
@@ -72,22 +74,31 @@ router
     ${logMessages.join('\n')}
     Hello World! By @${base64.fromUint8Array(publicKey)}.ed25519 and also ${base64.fromUint8Array(key)}`;*/
   })
-  .get("/shake-hands/:addressParam", async (context) => {
-    if (!context.params.addressParam) {
-      context.response.status = 400
+  .get("/shake-hands/:addressParam", async (ctx) => {
+    ctx.response.type = 'html'
+    if (!ctx.params.addressParam) {
+      ctx.response.status = 400
     } else {
-      const addressString = context.params.addressParam.replaceAll('_','/')
+      const addressString = ctx.params.addressParam.replaceAll('_','/')
       const address = parseAddress(addressString)
       const conn = await Deno.connect({ hostname: address.host, port: address.port});
-      await conn.write(clientHello());
-      const buf = new Uint8Array(1024);
-      await conn.read(buf);
-      log('Server - received:', base64.fromUint8Array(buf))
+      const hello = clientHello()
+      await conn.write(hello);
+      const serverResponse = new Uint8Array(64);
+      await conn.read(serverResponse);
+      const server_hmac = serverResponse.subarray(0, 32)
+      const server_ephemeral_pk = serverResponse.subarray(32, 64)
+      const verification = sodium.crypto_auth_verify(server_hmac, server_ephemeral_pk, network_identifier)
+      log('Server - received:', base64.fromUint8Array(serverResponse))
       // Respond
       await conn.write(new TextEncoder().encode('pong'))
       conn.close();
       log(base64.fromUint8Array(clientHello()));
-      context.response.body = `${JSON.stringify(address)} shaking ${addressString} `;
+      ctx.response.body = `${JSON.stringify(address)} shaking ${addressString}<p> 
+      Sent: ${hello}<p>
+      Got: ${serverResponse}<p>
+      Verification: ${verification}
+      `;
     }
   });
 
@@ -140,7 +151,6 @@ for await (const r of l) {
 
 function clientHello() {
   const client_ephemeral_pk = sodium.crypto_auth_keygen();
-  const network_identifier = base64.toUint8Array("1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=");
   const hmac = sodium.crypto_auth(client_ephemeral_pk, network_identifier)
   const clientHelloMessage = new Uint8Array(hmac.length + client_ephemeral_pk.length)
   clientHelloMessage.set(hmac)
