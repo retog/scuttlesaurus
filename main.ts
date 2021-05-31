@@ -1,4 +1,4 @@
-import { Application } from "https://deno.land/x/oak/mod.ts";
+import { Application, Router } from "https://deno.land/x/oak/mod.ts";
 import * as ed from 'https://deno.land/x/ed25519/mod.ts';
 import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 //https://github.com/denosaurs/sodium/blob/master/API.md
@@ -39,6 +39,58 @@ let [m2, tag2] = [sodium.to_string(r2.message), r2.tag];
 console.log(m1);
 console.log(m2);
 
+const router = new Router();
+router
+  .get("/", (ctx) => {
+    /*l.send(clientHello(),{
+    port: 8008,
+    hostname: '192.168.1.6',
+    transport: "udp" 
+  })*/
+    /*const conn = await Deno.connect({ hostname: "192.168.1.6", port: 8008 });
+    await conn.write(clientHello());
+    const buf = new Uint8Array(1024);
+    await conn.read(buf);
+    log('Server - received:', base64.fromUint8Array(buf))
+    // Respond
+    await conn.write(new TextEncoder().encode('pong'))
+    conn.close();
+    log(base64.fromUint8Array(clientHello()));*/
+    let responseBody = ''
+    responseBody += `<h1>SBB Peers</h1>`
+    log(JSON.stringify(peerAddresses))
+    for (const [host, addresses] of peerAddresses) {
+      responseBody += `<li>${host}
+        <ul>
+          ${addresses.map(v => `<li>${v}<a href="/shake-hands/${v.replaceAll('/','_')}">shake hands</a></li>`)}
+        </ul>  
+      </li>`
+    }
+    ctx.response.type = 'html'
+    ctx.response.body = responseBody
+    /*`
+    ${logMessages.join('\n')}
+    Hello World! By @${base64.fromUint8Array(publicKey)}.ed25519 and also ${base64.fromUint8Array(key)}`;*/
+  })
+  .get("/shake-hands/:addressParam", async (context) => {
+    if (!context.params.addressParam) {
+      context.response.status = 400
+    } else {
+      const addressString = context.params.addressParam.replaceAll('_','/')
+      const address = parseAddress(addressString)
+      const conn = await Deno.connect({ hostname: address.host, port: address.port});
+      await conn.write(clientHello());
+      const buf = new Uint8Array(1024);
+      await conn.read(buf);
+      log('Server - received:', base64.fromUint8Array(buf))
+      // Respond
+      await conn.write(new TextEncoder().encode('pong'))
+      conn.close();
+      log(base64.fromUint8Array(clientHello()));
+      context.response.body = `${JSON.stringify(address)} shaking ${addressString} `;
+    }
+  });
+
 const app = new Application();
 
 // Logger
@@ -63,29 +115,14 @@ function log(...msg: any[]) {
 }
 
 
+const peerAddresses: Map<string, string[]> = new Map()
+
+
 const l = Deno.listenDatagram({ port: 8008, hostname: "0.0.0.0", transport: "udp" });
 console.log(`Listening on ${(l.addr as Deno.NetAddr).hostname}:${(l.addr as Deno.NetAddr).port}.`);
 
-// Hello World!
-app.use(async (ctx, next) => {
-  /*l.send(clientHello(),{
-    port: 8008,
-    hostname: '192.168.1.6',
-    transport: "udp" 
-  })*/
-  const conn = await Deno.connect({ hostname: "192.168.1.6", port: 8008 });
-  await conn.write(clientHello());
-  const buf = new Uint8Array(1024);
-  await conn.read(buf);
-  log('Server - received:', base64.fromUint8Array(buf))
-  // Respond
-  await conn.write(new TextEncoder().encode('pong'))
-  conn.close();
-  log(base64.fromUint8Array(clientHello()));
-  ctx.response.body = `
-  ${logMessages.join('\n')}
-  Hello World! By @${base64.fromUint8Array(publicKey)}.ed25519 and also ${base64.fromUint8Array(key)}`;
-});
+app.use(router.routes());
+app.use(router.allowedMethods());
 
 app.listen({ port: 8000 });
 
@@ -94,6 +131,7 @@ for await (const r of l) {
   const multiAddress = (new TextDecoder()).decode(r[0])
   const addresses = multiAddress.split(';')
   addresses.forEach(log)
+  peerAddresses.set((r[1] as Deno.NetAddr).hostname, addresses)
   log(`got UDP packet ${multiAddress} from ${(r[1] as Deno.NetAddr).hostname}:${(r[1] as Deno.NetAddr).port}.`);
 }
 
@@ -108,4 +146,11 @@ function clientHello() {
   clientHelloMessage.set(hmac)
   clientHelloMessage.set(client_ephemeral_pk, hmac.length)
   return clientHelloMessage
+}
+
+function parseAddress(addr: string) {
+  const sections = addr.split(':')
+  const [protocol, host, portshs, key] = sections
+  const port = parseInt(portshs.split('~')[0])
+  return {protocol, host, port, key}
 }
