@@ -6,11 +6,16 @@ import sodium from "https://deno.land/x/sodium/basic.ts";
 
 const network_identifier = base64.toUint8Array("1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=");
 
+await sodium.ready;
+
+const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array")
+//const client_ephemeral_pk = clientEphemeralKeyPair.
+
+
 const privateKey = ed.utils.randomPrivateKey();
 const publicKey = await ed.getPublicKey(privateKey);
 
 
-await sodium.ready;
 
 const key = sodium.crypto_secretstream_xchacha20poly1305_keygen();
 
@@ -89,6 +94,16 @@ router
       const server_hmac = serverResponse.subarray(0, 32)
       const server_ephemeral_pk = serverResponse.subarray(32, 64)
       const verification = sodium.crypto_auth_verify(server_hmac, server_ephemeral_pk, network_identifier)
+      const shared_secret_ab = sodium.crypto_scalarmult(
+        clientEphemeralKeyPair.privateKey,
+        server_ephemeral_pk
+      )
+      
+      const shared_secret_aB = sodium.crypto_scalarmult(
+        clientEphemeralKeyPair.privateKey,
+        sodium.crypto_sign_ed25519_pk_to_curve25519(base64.toUint8Array(address.key))
+      )
+
       log('Server - received:', base64.fromUint8Array(serverResponse))
       // Respond
       await conn.write(new TextEncoder().encode('pong'))
@@ -150,11 +165,10 @@ for await (const r of l) {
 
 
 function clientHello() {
-  const client_ephemeral_pk = sodium.crypto_auth_keygen();
-  const hmac = sodium.crypto_auth(client_ephemeral_pk, network_identifier)
-  const clientHelloMessage = new Uint8Array(hmac.length + client_ephemeral_pk.length)
+  const hmac = sodium.crypto_auth(clientEphemeralKeyPair.publicKey, network_identifier)
+  const clientHelloMessage = new Uint8Array(hmac.length + clientEphemeralKeyPair.publicKey.length)
   clientHelloMessage.set(hmac)
-  clientHelloMessage.set(client_ephemeral_pk, hmac.length)
+  clientHelloMessage.set(clientEphemeralKeyPair.publicKey, hmac.length)
   return clientHelloMessage
 }
 
