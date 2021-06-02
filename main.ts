@@ -100,18 +100,55 @@ router
         clientEphemeralKeyPair.privateKey,
         sodium.crypto_sign_ed25519_pk_to_curve25519(base64.toUint8Array(address.key))
       )
-      authenticate(conn, base64.toUint8Array(address.key), shared_secret_ab, shared_secret_aB)
+      const server_longterm_pk = base64.toUint8Array(address.key)
+      const detached_signature_A = authenticate(conn, server_longterm_pk, shared_secret_ab, shared_secret_aB)
       
+      const shared_secret_Ab = sodium.crypto_scalarmult(
+        sodium.crypto_sign_ed25519_sk_to_curve25519(clientLongtermKeyPair.privateKey),
+        server_ephemeral_pk
+      )
+
+      const serverResponse2 = new Uint8Array(80); //why 80?
+      await conn.read(serverResponse2);
+
+      const detached_signature_B = sodium.crypto_box_open_easy_afternm(
+        serverResponse2,
+        new Uint8Array(24),
+        sodium.crypto_hash_sha256(
+          concat(
+            network_identifier,
+            shared_secret_ab,
+            shared_secret_aB,
+            shared_secret_Ab
+          )
+        )
+      )
+
+      const verification2 = sodium.crypto_sign_verify_detached(
+        detached_signature_B,
+        concat(
+          network_identifier,
+          detached_signature_A,
+          clientLongtermKeyPair.publicKey,
+          sodium.crypto_hash_sha256(shared_secret_ab)
+        ),
+        server_longterm_pk
+      )
 
       log('Server - received:', base64.fromUint8Array(serverResponse))
       // Respond
       await conn.write(new TextEncoder().encode('pong'))
       conn.close();
       log(base64.fromUint8Array(clientHello()));
-      ctx.response.body = `${JSON.stringify(address)} shaking ${addressString}<p> 
+      ctx.response.body = `
+      Client id: @${base64.fromUint8Array(clientLongtermKeyPair.publicKey)}.ed25519<p>
+      ${JSON.stringify(address)} shaking ${addressString}<p> 
       Sent: ${hello}<p>
       Got: ${serverResponse}<p>
-      Verification: ${verification}
+      Verification: ${verification}<p>
+      Then got: ${serverResponse2}<p>
+      detached_signature_B: ${detached_signature_B}<br/>
+      Verification2: ${verification2}<p>
       `;
     }
   });
@@ -213,4 +250,5 @@ function authenticate(conn: Deno.Conn,server_longterm_pk: Uint8Array,
   const nonce = new Uint8Array(24)
   const boxKey = sodium.crypto_hash_sha256(concat(network_identifier, shared_secret_ab, shared_secret_aB))
   conn.write(sodium.crypto_secretbox_easy(boxMsg, nonce, boxKey))
+  return detached_signature_A
 }
