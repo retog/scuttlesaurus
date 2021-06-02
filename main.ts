@@ -1,21 +1,18 @@
-import { Application, Router } from "https://deno.land/x/oak/mod.ts";
-import * as ed from 'https://deno.land/x/ed25519/mod.ts';
+import { Application, Router, isHttpError, Status } from "https://deno.land/x/oak/mod.ts";
 import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 //https://github.com/denosaurs/sodium/blob/master/API.md
-import sodium from "https://deno.land/x/sodium/basic.ts";
+import sodium from "https://deno.land/x/sodium/sumo.ts";
 
 const network_identifier = base64.toUint8Array("1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=");
 
 await sodium.ready;
 
+const clientLongtermKeyPair = sodium.crypto_sign_keypair("uint8array")
+
+
 const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array")
-//const client_ephemeral_pk = clientEphemeralKeyPair.
 
-
-const privateKey = ed.utils.randomPrivateKey();
-const publicKey = await ed.getPublicKey(privateKey);
-
-
+/*
 
 const key = sodium.crypto_secretstream_xchacha20poly1305_keygen();
 
@@ -44,7 +41,7 @@ let r2 = sodium.crypto_secretstream_xchacha20poly1305_pull(state_in, c2);
 let [m2, tag2] = [sodium.to_string(r2.message), r2.tag];
 
 console.log(m1);
-console.log(m2);
+console.log(m2);*/
 
 const router = new Router();
 router
@@ -103,6 +100,8 @@ router
         clientEphemeralKeyPair.privateKey,
         sodium.crypto_sign_ed25519_pk_to_curve25519(base64.toUint8Array(address.key))
       )
+      authenticate(conn, base64.toUint8Array(address.key), shared_secret_ab, shared_secret_aB)
+      
 
       log('Server - received:', base64.fromUint8Array(serverResponse))
       // Respond
@@ -132,6 +131,19 @@ app.use(async (ctx, next) => {
   await next();
   const ms = Date.now() - start;
   ctx.response.headers.set("X-Response-Time", `${ms}ms`);
+});
+
+app.use(async (ctx, next) => {
+  try {
+    await next();
+  } catch (err) {
+    ctx.response.body = err.toString()
+    if (isHttpError(err)) {
+      ctx.response.status = err.status
+    } else {
+      ctx.response.status = Status.InternalServerError
+    }
+  }
 });
 
 const logMessages: string[] = []
@@ -177,4 +189,28 @@ function parseAddress(addr: string) {
   const [protocol, host, portshs, key] = sections
   const port = parseInt(portshs.split('~')[0])
   return {protocol, host, port, key}
+}
+
+function concat(...elems : Uint8Array[]) : Uint8Array{
+  const result = new Uint8Array(elems.reduce((sum, elem) => sum+(elem.length), 0))
+  let pos = 0
+  for (const elem of elems) {
+    result.set(elem, pos)
+    pos += elem.length
+  }
+  return result
+}
+
+function authenticate(conn: Deno.Conn,server_longterm_pk: Uint8Array,
+      shared_secret_ab: Uint8Array,shared_secret_aB: Uint8Array) {
+  // 3. Client authenticate
+  const shared_secret_ab_sha256 = sodium.crypto_hash_sha256(shared_secret_ab)
+  const msg  = concat(network_identifier, server_longterm_pk,shared_secret_ab_sha256)
+  const detached_signature_A = sodium.crypto_sign_detached(msg, clientLongtermKeyPair.privateKey)
+  const boxMsg = new Uint8Array(detached_signature_A.length + clientLongtermKeyPair.publicKey.length)
+  boxMsg.set(detached_signature_A)
+  boxMsg.set(clientLongtermKeyPair.publicKey, detached_signature_A.length)
+  const nonce = new Uint8Array(24)
+  const boxKey = sodium.crypto_hash_sha256(concat(network_identifier, shared_secret_ab, shared_secret_aB))
+  conn.write(sodium.crypto_secretbox_easy(boxMsg, nonce, boxKey))
 }
