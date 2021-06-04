@@ -1,15 +1,5 @@
-FROM mcr.microsoft.com/vscode/devcontainers/rust
-
-RUN cargo install deno
-
-# ENV DENO_INSTALL=/deno
-# RUN mkdir -p /deno \
-#    && curl -fsSL https://deno.land/x/install/install.sh | sh \
-#    && chown -R vscode /deno
-
-#ENV PATH=${DENO_INSTALL}/bin:${PATH} \
-#    DENO_DIR=${DENO_INSTALL}/.cache/deno
-
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#    && apt-get -y install --no-install-recommends <your-package-list-here>
+FROM denoland/deno:1.10.3
+RUN apt update
+RUN yes | apt install git
+RUN mkdir /home/deno && chown deno /home/deno
+USER deno
