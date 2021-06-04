@@ -1,6 +1,5 @@
 import { Application, Router, isHttpError, Status } from "https://deno.land/x/oak/mod.ts";
 import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
-//https://github.com/denosaurs/sodium/blob/master/API.md
 import sodium from "https://deno.land/x/sodium/sumo.ts";
 
 const network_identifier = base64.toUint8Array("1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=");
@@ -12,54 +11,10 @@ const clientLongtermKeyPair = sodium.crypto_sign_keypair("uint8array")
 
 const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array")
 
-/*
-
-const key = sodium.crypto_secretstream_xchacha20poly1305_keygen();
-
-let res = sodium.crypto_secretstream_xchacha20poly1305_init_push(key);
-let [state_out, header] = [res.state, res.header];
-let c1 = sodium.crypto_secretstream_xchacha20poly1305_push(
-  state_out,
-  sodium.from_string("message 1"),
-  null,
-  sodium.crypto_secretstream_xchacha20poly1305_TAG_MESSAGE,
-);
-let c2 = sodium.crypto_secretstream_xchacha20poly1305_push(
-  state_out,
-  sodium.from_string("message 2"),
-  null,
-  sodium.crypto_secretstream_xchacha20poly1305_TAG_FINAL,
-);
-
-let state_in = sodium.crypto_secretstream_xchacha20poly1305_init_pull(
-  header,
-  key,
-);
-let r1 = sodium.crypto_secretstream_xchacha20poly1305_pull(state_in, c1);
-let [m1, tag1] = [sodium.to_string(r1.message), r1.tag];
-let r2 = sodium.crypto_secretstream_xchacha20poly1305_pull(state_in, c2);
-let [m2, tag2] = [sodium.to_string(r2.message), r2.tag];
-
-console.log(m1);
-console.log(m2);*/
 
 const router = new Router();
 router
   .get("/", (ctx) => {
-    /*l.send(clientHello(),{
-    port: 8008,
-    hostname: '192.168.1.6',
-    transport: "udp" 
-  })*/
-    /*const conn = await Deno.connect({ hostname: "192.168.1.6", port: 8008 });
-    await conn.write(clientHello());
-    const serverResponse = new Uint8Array(1024);
-    await conn.read(serverResponse);
-    log('Server - received:', base64.fromUint8Array(serverResponse))
-    // Respond
-    await conn.write(new TextEncoder().encode('pong'))
-    conn.close();
-    log(base64.fromUint8Array(clientHello()));*/
     let responseBody = ''
     responseBody += `<h1>SBB Peers</h1>`
     log(JSON.stringify(peerAddresses))
@@ -72,9 +27,6 @@ router
     }
     ctx.response.type = 'html'
     ctx.response.body = responseBody
-    /*`
-    ${logMessages.join('\n')}
-    Hello World! By @${base64.fromUint8Array(publicKey)}.ed25519 and also ${base64.fromUint8Array(key)}`;*/
   })
   .get("/shake-hands/:addressParam", async (ctx) => {
     ctx.response.type = 'html'
