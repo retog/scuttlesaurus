@@ -78,7 +78,7 @@ app.use(async (ctx, next) => {
 
 const logMessages: string[] = []
 
-function log(...msg: any[]) {
+function log(...msg: {toString: () => string}[]) {
   logMessages.push(msg.map(o => o.toString()).join(', '))
 }
 
