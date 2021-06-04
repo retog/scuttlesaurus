@@ -21,7 +21,7 @@ router
     for (const [host, addresses] of peerAddresses) {
       responseBody += `<li>${host}
         <ul>
-          ${addresses.map(v => `<li>${v}<a href="/shake-hands/${v.replaceAll('/','_')}">shake hands</a></li>`)}
+          ${addresses.map(v => `<li>${v}<a href="/shake-hands/${v.replaceAll('/', '_')}">shake hands</a></li>`)}
         </ul>  
       </li>`
     }
@@ -33,9 +33,9 @@ router
     if (!ctx.params.addressParam) {
       ctx.response.status = 400
     } else {
-      const addressString = ctx.params.addressParam.replaceAll('_','/')
+      const addressString = ctx.params.addressParam.replaceAll('_', '/')
       const address = parseAddress(addressString)
-      const conn = await Deno.connect({ hostname: address.host, port: address.port});
+      const conn = await Deno.connect({ hostname: address.host, port: address.port });
       const hello = clientHello()
       await conn.write(hello);
       const serverResponse = new Uint8Array(64);
@@ -47,14 +47,14 @@ router
         clientEphemeralKeyPair.privateKey,
         server_ephemeral_pk
       )
-      
+
       const shared_secret_aB = sodium.crypto_scalarmult(
         clientEphemeralKeyPair.privateKey,
         sodium.crypto_sign_ed25519_pk_to_curve25519(base64.toUint8Array(address.key))
       )
       const server_longterm_pk = base64.toUint8Array(address.key)
       const detached_signature_A = authenticate(conn, server_longterm_pk, shared_secret_ab, shared_secret_aB)
-      
+
       const shared_secret_Ab = sodium.crypto_scalarmult(
         sodium.crypto_sign_ed25519_sk_to_curve25519(clientLongtermKeyPair.privateKey),
         server_ephemeral_pk
@@ -177,11 +177,11 @@ function parseAddress(addr: string) {
   const sections = addr.split(':')
   const [protocol, host, portshs, key] = sections
   const port = parseInt(portshs.split('~')[0])
-  return {protocol, host, port, key}
+  return { protocol, host, port, key }
 }
 
-function concat(...elems : Uint8Array[]) : Uint8Array{
-  const result = new Uint8Array(elems.reduce((sum, elem) => sum+(elem.length), 0))
+function concat(...elems: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(elems.reduce((sum, elem) => sum + (elem.length), 0))
   let pos = 0
   for (const elem of elems) {
     result.set(elem, pos)
@@ -190,11 +190,11 @@ function concat(...elems : Uint8Array[]) : Uint8Array{
   return result
 }
 
-function authenticate(conn: Deno.Conn,server_longterm_pk: Uint8Array,
-      shared_secret_ab: Uint8Array,shared_secret_aB: Uint8Array) {
+function authenticate(conn: Deno.Conn, server_longterm_pk: Uint8Array,
+  shared_secret_ab: Uint8Array, shared_secret_aB: Uint8Array) {
   // 3. Client authenticate
   const shared_secret_ab_sha256 = sodium.crypto_hash_sha256(shared_secret_ab)
-  const msg  = concat(network_identifier, server_longterm_pk,shared_secret_ab_sha256)
+  const msg = concat(network_identifier, server_longterm_pk, shared_secret_ab_sha256)
   const detached_signature_A = sodium.crypto_sign_detached(msg, clientLongtermKeyPair.privateKey)
   const boxMsg = new Uint8Array(detached_signature_A.length + clientLongtermKeyPair.publicKey.length)
   boxMsg.set(detached_signature_A)
