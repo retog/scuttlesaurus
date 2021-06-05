@@ -38,10 +38,8 @@ router
       ${JSON.stringify(address)} shaking ${addressString}<p> 
       Sent: ${connection.hello}<p>
       Got: ${connection.serverResponse}<p>
-      Verification: ${connection.verification}<p>
       Then got: ${connection.serverResponse2}<p>
       detached_signature_B: ${connection.detached_signature_B}<br/>
-      Verification2: ${connection.verification2}<p>
       `;
     }
   });

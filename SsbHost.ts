@@ -46,7 +46,9 @@ export default class SsbHost {
         await conn.read(serverResponse);
         const server_hmac = serverResponse.subarray(0, 32)
         const server_ephemeral_pk = serverResponse.subarray(32, 64)
-        const verification = sodium.crypto_auth_verify(server_hmac, server_ephemeral_pk, this.network_identifier)
+        if (!sodium.crypto_auth_verify(server_hmac, server_ephemeral_pk, this.network_identifier)) {
+            throw new Error('Verification of the server\'s first response failed')
+        }
         const shared_secret_ab = sodium.crypto_scalarmult(
             clientEphemeralKeyPair.privateKey,
             server_ephemeral_pk
@@ -91,11 +93,15 @@ export default class SsbHost {
             server_longterm_pk
         )
 
+        if (!verification2) {
+            throw new Error('Verification of the server\'s second response failed')
+        }
+
         // Respond
         await conn.write(new TextEncoder().encode('pong'))
         conn.close(); //not yet actually
         const connection = {
-            hello, serverResponse, verification, serverResponse2, detached_signature_B, verification2
+            hello, serverResponse, serverResponse2, detached_signature_B
         }
         return connection
     }
