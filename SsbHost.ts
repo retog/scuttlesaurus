@@ -1,5 +1,5 @@
 import * as base64 from 'https://denopkg.com/chiefbiiko/base64/mod.ts';
-import sodium from 'https://deno.land/x/sodium/sumo.ts';
+import sodium from 'https://deno.land/x/sodium@0.2.0/sumo.ts';
 import { concat } from './util.ts'
 
 

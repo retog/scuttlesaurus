@@ -1,4 +1,4 @@
-import { Application, Router, isHttpError, Status } from "https://deno.land/x/oak/mod.ts";
+import { Application, Router, isHttpError, Status } from "https://deno.land/x/oak@v7.5.0/mod.ts";
 import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 import SsbHost from './SsbHost.ts'
 import { parseAddress } from './util.ts'
