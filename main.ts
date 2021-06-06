@@ -13,7 +13,9 @@ const router = new Router();
 router
   .get("/", (ctx) => {
     let responseBody = ''
-    responseBody += `<h1>SBB Peers</h1>`
+    responseBody += `<h1>SBB Peers</h1>
+    This Host: ${host.id}
+    `
     log(JSON.stringify(peerAddresses))
     for (const [host, addresses] of peerAddresses) {
       responseBody += `<li>${host}

@@ -9,6 +9,7 @@ await sodium.ready;
 export default class SsbHost {
     network_identifier = base64.toUint8Array('1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=')
     clientLongtermKeyPair = sodium.crypto_sign_keypair('uint8array')
+    id = '@'+base64.fromUint8Array(this.clientLongtermKeyPair.publicKey)
 
     async connect(address: { protocol: string, host: string, port: number, key: string }) {
         const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array")
