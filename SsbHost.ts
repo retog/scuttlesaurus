@@ -97,11 +97,64 @@ export default class SsbHost {
             throw new Error('Verification of the server\'s second response failed')
         }
 
-        // Respond
-        await conn.write(new TextEncoder().encode('pong'))
-        conn.close(); //not yet actually
+        const serverToClientKey = sodium.crypto_hash_sha256(concat(sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
+                concat(
+                    this.network_identifier,
+                    shared_secret_ab,
+                    shared_secret_aB,
+                    shared_secret_Ab
+                )
+            )), this.clientLongtermKeyPair.publicKey))
+
+        const network_identifier = this.network_identifier
+        const nonce = sodium.crypto_auth(clientEphemeralKeyPair.publicKey, network_identifier).slice(0,24)
+        function increment(bytes: Uint8Array) {
+            let pos = bytes.length-1
+            bytes[pos]++
+            if (bytes[pos] === 0) {
+                pos--
+                if (pos < 0) {
+                    return
+                }
+            } else {
+                return
+            }
+        }
         const connection = {
-            hello, serverResponse, serverResponse2, detached_signature_B
+            closed: false,
+            hello, serverResponse, serverResponse2, detached_signature_B,
+            async* [Symbol.asyncIterator]() {
+                while (!this.closed) {
+                    yield this.read()
+                }
+            },
+            async read() {
+                const headerBox = new Uint8Array(34)
+                await conn.read(headerBox)
+                const header = sodium.crypto_box_open_easy_afternm(
+                    headerBox,
+                    nonce,
+                    serverToClientKey
+                )
+                increment(nonce)
+                const bodyLength = header[0]*0xFF+header[1]
+                const authenticationbBodyTag = header.slice(2)
+                const encryptedBody = new Uint8Array(bodyLength)
+                await conn.read(encryptedBody)
+                const plainTextBody = sodium.crypto_box_open_easy_afternm(
+                    concat(authenticationbBodyTag,encryptedBody),
+                    nonce,
+                    serverToClientKey
+                )
+                increment(nonce)
+                return plainTextBody
+            },
+            async close() {
+                this.closed = true
+                //TODO send real goodbye
+                await conn.write(new TextEncoder().encode('pong'))
+                conn.close();
+            }
         }
         return connection
     }

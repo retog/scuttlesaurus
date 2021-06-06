@@ -32,7 +32,7 @@ router
       const addressString = ctx.params.addressParam.replaceAll('_', '/')
       const address = parseAddress(addressString)      
       const connection = await host.connect(address)
-
+      const firstData = await connection.read()
       ctx.response.body = `
       Client id: @${base64.fromUint8Array(host.clientLongtermKeyPair.publicKey)}.ed25519<p>
       ${JSON.stringify(address)} shaking ${addressString}<p> 
@@ -40,7 +40,9 @@ router
       Got: ${connection.serverResponse}<p>
       Then got: ${connection.serverResponse2}<p>
       detached_signature_B: ${connection.detached_signature_B}<br/>
+      firstData = ${firstData} as string ${new TextDecoder().decode(firstData)}
       `;
+      connection.close()
     }
   });
 
