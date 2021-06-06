@@ -2,6 +2,7 @@ import { Application, Router, isHttpError, Status } from "https://deno.land/x/oa
 import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 import SsbHost from './SsbHost.ts'
 import { parseAddress } from './util.ts'
+import udpPeerDiscoverer from './udpPeerDiscoverer.ts'
 
 
 const host = new SsbHost()
@@ -82,25 +83,13 @@ function log(...msg: {toString: () => string}[]) {
   logMessages.push(msg.map(o => o.toString()).join(', '))
 }
 
-
-const peerAddresses: Map<string, string[]> = new Map()
-
-
-const l = Deno.listenDatagram({ port: 8008, hostname: "0.0.0.0", transport: "udp" });
-console.log(`Listening on ${(l.addr as Deno.NetAddr).hostname}:${(l.addr as Deno.NetAddr).port}.`);
-
 app.use(router.routes());
 app.use(router.allowedMethods());
 
 app.listen({ port: 8000 });
 
+const peerAddresses: Map<string, string[]> = new Map()
 
-for await (const r of l) {
-  const multiAddress = (new TextDecoder()).decode(r[0])
-  const addresses = multiAddress.split(';')
-  addresses.forEach(log)
-  peerAddresses.set((r[1] as Deno.NetAddr).hostname, addresses)
-  log(`got UDP packet ${multiAddress} from ${(r[1] as Deno.NetAddr).hostname}:${(r[1] as Deno.NetAddr).port}.`);
+for await (const peer of udpPeerDiscoverer) {
+  peerAddresses.set(peer.hostname, peer.addresses)
 }
-
-
