@@ -1,9 +1,7 @@
 import { Application, Router, isHttpError, Status } from "https://deno.land/x/oak@v7.5.0/mod.ts";
-import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 import SsbHost from './SsbHost.ts'
-import { parseAddress } from './util.ts'
 import udpPeerDiscoverer from './udpPeerDiscoverer.ts'
-
+import connectionPage from './connectionPage.ts'
 
 const host = new SsbHost()
 
@@ -33,19 +31,7 @@ router
       ctx.response.status = 400
     } else {
       const addressString = ctx.params.addressParam.replaceAll('_', '/')
-      const address = parseAddress(addressString)      
-      const connection = await host.connect(address)
-      const firstData = await connection.read()
-      ctx.response.body = `
-      Client id: @${base64.fromUint8Array(host.clientLongtermKeyPair.publicKey)}.ed25519<p>
-      ${JSON.stringify(address)} shaking ${addressString}<p> 
-      Sent: ${connection.hello}<p>
-      Got: ${connection.serverResponse}<p>
-      Then got: ${connection.serverResponse2}<p>
-      detached_signature_B: ${connection.detached_signature_B}<br/>
-      firstData = ${firstData} as string ${new TextDecoder().decode(firstData)}
-      `;
-      connection.close()
+      await connectionPage(addressString, host, ctx.response)
     }
   });
 
