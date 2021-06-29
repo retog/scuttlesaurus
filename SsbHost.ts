@@ -5,12 +5,23 @@ import { concat } from "./util.ts";
 
 await sodium.ready;
 
+interface BoxConnection {
+  read: () => Promise<Uint8Array>;
+  [Symbol.asyncIterator]: () => AsyncGenerator<Uint8Array>;
+  write: (message: Uint8Array) => Promise<void>;
+  close: () => void;
+}
+
+export type { BoxConnection };
+
 export default class SsbHost {
   network_identifier = base64.toUint8Array(
     "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
   );
   clientLongtermKeyPair = sodium.crypto_sign_keypair("uint8array");
   id = "@" + base64.fromUint8Array(this.clientLongtermKeyPair.publicKey);
+
+  connections: BoxConnection[] = [];
 
   async connect(
     address: { protocol: string; host: string; port: number; key: string },
@@ -154,11 +165,30 @@ export default class SsbHost {
       ),
     );
 
+    const clientToServerKey = sodium.crypto_hash_sha256(
+      concat(
+        sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
+          concat(
+            this.network_identifier,
+            shared_secret_ab,
+            shared_secret_aB,
+            shared_secret_Ab,
+          ),
+        )),
+        server_longterm_pk,
+      ),
+    );
+
     const network_identifier = this.network_identifier;
-    const nonce = sodium.crypto_auth(
+    const serverToClientNonce = sodium.crypto_auth(
       clientEphemeralKeyPair.publicKey,
       network_identifier,
     ).slice(0, 24);
+    const clientToServerNonce = sodium.crypto_auth(
+      server_ephemeral_pk,
+      network_identifier,
+    ).slice(0, 24);
+
     function increment(bytes: Uint8Array) {
       let pos = bytes.length - 1;
       bytes[pos]++;
@@ -179,29 +209,56 @@ export default class SsbHost {
       detached_signature_B,
       async *[Symbol.asyncIterator]() {
         while (!this.closed) {
-          yield this.read();
+          const nextValue = await this.read();
+          if (nextValue.length > 0) {
+            yield nextValue;
+          }
         }
       },
       async read() {
         const headerBox = new Uint8Array(34);
-        await conn.read(headerBox);
+        const bytesRead = await conn.read(headerBox);
+        if (bytesRead === null) {
+          return new Uint8Array(0);
+        }
         const header = sodium.crypto_box_open_easy_afternm(
           headerBox,
-          nonce,
+          serverToClientNonce,
           serverToClientKey,
         );
-        increment(nonce);
+        increment(serverToClientNonce);
         const bodyLength = header[0] * 0xFF + header[1];
-        const authenticationbBodyTag = header.slice(2);
+        const authenticationBodyTag = header.slice(2);
         const encryptedBody = new Uint8Array(bodyLength);
         await conn.read(encryptedBody);
-        const plainTextBody = sodium.crypto_box_open_easy_afternm(
-          concat(authenticationbBodyTag, encryptedBody),
-          nonce,
+        const decodedBody = sodium.crypto_box_open_easy_afternm(
+          concat(authenticationBodyTag, encryptedBody),
+          serverToClientNonce,
           serverToClientKey,
         );
-        increment(nonce);
-        return plainTextBody;
+        increment(serverToClientNonce);
+        return decodedBody;
+      },
+      async write(message: Uint8Array) {
+        const encryptedMessage = sodium.crypto_box_easy_afternm(
+          message,
+          clientToServerNonce,
+          clientToServerKey,
+        );
+        increment(clientToServerNonce);
+        const messageLengh = message.length;
+        const messageLenghUiA = new Uint8Array([
+          messageLengh >> 8,
+          messageLengh % 0xFF,
+        ]);
+        const authenticationBodyTag = encryptedMessage.slice(0, 16);
+        const encryptedHeader = sodium.crypto_box_easy_afternm(
+          concat(messageLenghUiA, authenticationBodyTag),
+          clientToServerNonce,
+          clientToServerKey,
+        );
+        increment(clientToServerNonce);
+        await conn.write(concat(encryptedHeader, encryptedMessage.slice(16)));
       },
       async close() {
         this.closed = true;
@@ -210,6 +267,7 @@ export default class SsbHost {
         conn.close();
       },
     };
+    this.connections.push(connection);
     return connection;
   }
 }

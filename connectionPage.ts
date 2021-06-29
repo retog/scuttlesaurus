@@ -11,6 +11,8 @@ export default async function (
   const address = parseAddress(addressString);
   const connection = await host.connect(address);
   const firstData = await connection.read();
+  const secondData = await connection.read();
+  const thirdData = await connection.read();
   response.body = `
     Client id: @${
     base64.fromUint8Array(host.clientLongtermKeyPair.publicKey)
@@ -20,7 +22,15 @@ export default async function (
     Got: ${connection.serverResponse}<p>
     Then got: ${connection.serverResponse2}<p>
     detached_signature_B: ${connection.detached_signature_B}<br/>
-    firstData = ${firstData} as string ${new TextDecoder().decode(firstData)}
+    firstData = ${firstData} as string ${
+    new TextDecoder().decode(firstData)
+  }<br/>
+    secondData = ${secondData} as string ${
+    new TextDecoder().decode(secondData)
+  }<br/>
+    thirdData = ${thirdData} as string ${
+    new TextDecoder().decode(thirdData)
+  }<br/>
     `;
   connection.close();
 }
