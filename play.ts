@@ -1,4 +1,4 @@
-import SsbHost from "./SsbHost.ts";
+import SsbHost, { RpcBodyType } from "./SsbHost.ts";
 import { parseAddress } from "./util.ts";
 //import udpPeerDiscoverer from "./udpPeerDiscoverer.ts";
 
@@ -22,7 +22,19 @@ async function monitorConnection() {
 monitorConnection();
 
 console.log("sending a message...");
+/*boxConnection.sendRpcMessage({
+  "name": ["blobs", "createWants"],
+  "args": [],
+  "type": "source",
+}, {
+  bodyType: RpcBodyType.json,
+});*/
 
-boxConnection.write(
-  encoder.encode('{"name":["blobs","createWants"],"args":[],"type":"source"}'),
-);
+boxConnection.sendRpcMessage({
+    "name": ["createHistoryStream"],
+    "type": "source",
+    "args": [{"id": "@bEhA+VRRIf8mTO474KlSuYTObJACRYZqkwxCl4Id4fk=.ed25519"}]
+  }, {
+    bodyType: RpcBodyType.json,
+  });
+
