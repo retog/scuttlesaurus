@@ -255,12 +255,15 @@ export default class SsbHost {
         return decodedBody;
       },
       async write(message: Uint8Array) {
+        const headerNonce = new Uint8Array(clientToServerNonce)
+        increment(clientToServerNonce);
+        const bodyNonce = new Uint8Array(clientToServerNonce);
+        increment(clientToServerNonce);
         const encryptedMessage = sodium.crypto_box_easy_afternm(
           message,
-          clientToServerNonce,
+          bodyNonce,
           clientToServerKey,
         );
-        increment(clientToServerNonce);
         const messageLengh = message.length;
         const messageLenghUiA = new Uint8Array([
           messageLengh >> 8,
@@ -269,10 +272,10 @@ export default class SsbHost {
         const authenticationBodyTag = encryptedMessage.slice(0, 16);
         const encryptedHeader = sodium.crypto_box_easy_afternm(
           concat(messageLenghUiA, authenticationBodyTag),
-          clientToServerNonce,
+          headerNonce,
           clientToServerKey,
         );
-        increment(clientToServerNonce);
+        
         await conn.write(concat(encryptedHeader, encryptedMessage.slice(16)));
       },
       requestCounter: 0,
