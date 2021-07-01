@@ -255,7 +255,7 @@ export default class SsbHost {
         return decodedBody;
       },
       async write(message: Uint8Array) {
-        const headerNonce = new Uint8Array(clientToServerNonce)
+        const headerNonce = new Uint8Array(clientToServerNonce);
         increment(clientToServerNonce);
         const bodyNonce = new Uint8Array(clientToServerNonce);
         increment(clientToServerNonce);
@@ -275,7 +275,7 @@ export default class SsbHost {
           headerNonce,
           clientToServerKey,
         );
-        
+
         await conn.write(concat(encryptedHeader, encryptedMessage.slice(16)));
       },
       requestCounter: 0,
