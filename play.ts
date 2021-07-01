@@ -1,9 +1,7 @@
 import SsbHost, { RpcBodyType } from "./SsbHost.ts";
 import { parseAddress } from "./util.ts";
-//import udpPeerDiscoverer from "./udpPeerDiscoverer.ts";
 
 const decoder = new TextDecoder();
-const encoder = new TextEncoder();
 const host = new SsbHost();
 
 if (Deno.args.length !== 1) {
