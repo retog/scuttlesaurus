@@ -1,7 +1,7 @@
 // deno-lint-ignore-file camelcase
 import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat } from "./util.ts";
+import { concat, readBytes } from "./util.ts";
 
 await sodium.ready;
 
@@ -206,14 +206,16 @@ export default class SsbHost {
 
     function increment(bytes: Uint8Array) {
       let pos = bytes.length - 1;
-      bytes[pos]++;
-      if (bytes[pos] === 0) {
-        pos--;
-        if (pos < 0) {
+      while (true) {
+        bytes[pos]++;
+        if (bytes[pos] === 0) {
+          pos--;
+          if (pos < 0) {
+            return;
+          }
+        } else {
           return;
         }
-      } else {
-        return;
       }
     }
     const connection = {
@@ -231,11 +233,7 @@ export default class SsbHost {
         }
       },
       async read() {
-        const headerBox = new Uint8Array(34);
-        const bytesRead = await conn.read(headerBox);
-        if (bytesRead === null) {
-          return new Uint8Array(0);
-        }
+        const headerBox = await readBytes(conn, 34);
         const header = sodium.crypto_box_open_easy_afternm(
           headerBox,
           serverToClientNonce,
@@ -244,8 +242,7 @@ export default class SsbHost {
         increment(serverToClientNonce);
         const bodyLength = header[0] * 0x100 + header[1];
         const authenticationBodyTag = header.slice(2);
-        const encryptedBody = new Uint8Array(bodyLength);
-        await conn.read(encryptedBody);
+        const encryptedBody = await readBytes(conn, bodyLength);
         const decodedBody = sodium.crypto_box_open_easy_afternm(
           concat(authenticationBodyTag, encryptedBody),
           serverToClientNonce,
