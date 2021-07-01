@@ -242,7 +242,7 @@ export default class SsbHost {
           serverToClientKey,
         );
         increment(serverToClientNonce);
-        const bodyLength = header[0] * 0xFF + header[1];
+        const bodyLength = header[0] * 0x100 + header[1];
         const authenticationBodyTag = header.slice(2);
         const encryptedBody = new Uint8Array(bodyLength);
         await conn.read(encryptedBody);
