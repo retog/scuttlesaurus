@@ -31,10 +31,10 @@ console.log("sending a message...");
 });*/
 
 boxConnection.sendRpcMessage({
-    "name": ["createHistoryStream"],
-    "type": "source",
-    "args": [{"id": "@bEhA+VRRIf8mTO474KlSuYTObJACRYZqkwxCl4Id4fk=.ed25519"}]
-  }, {
-    bodyType: RpcBodyType.json,
-  });
-
+  "name": ["createHistoryStream"],
+  "type": "source",
+  "args": [{ "id": "@bEhA+VRRIf8mTO474KlSuYTObJACRYZqkwxCl4Id4fk=.ed25519" }],
+}, {
+  bodyType: RpcBodyType.json,
+  isStream: true,
+});
