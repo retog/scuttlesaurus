@@ -335,7 +335,7 @@ export default class SsbHost {
 
         await conn.write(byeMessage);
         conn.close();
-        _host.connections = _host.connections.filter(e => e !== this);
+        _host.connections = _host.connections.filter((e) => e !== this);
       },
     };
     this.connections.push(connection);
