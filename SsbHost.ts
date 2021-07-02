@@ -41,6 +41,8 @@ export default class SsbHost {
   async connect(
     address: { protocol: string; host: string; port: number; key: string },
   ) {
+    // deno-lint-ignore no-this-alias
+    const _host = this;
     const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
     const conn = await Deno.connect({
       hostname: address.host,
@@ -325,9 +327,15 @@ export default class SsbHost {
       },
       async close() {
         this.closed = true;
-        //TODO send real goodbye
-        await conn.write(new TextEncoder().encode("pong"));
+        const byeMessage = sodium.crypto_box_easy_afternm(
+          new Uint8Array(18),
+          clientToServerNonce,
+          clientToServerKey,
+        );
+
+        await conn.write(byeMessage);
         conn.close();
+        _host.connections = _host.connections.filter(e => e !== this);
       },
     };
     this.connections.push(connection);
