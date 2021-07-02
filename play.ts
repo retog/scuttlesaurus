@@ -1,5 +1,6 @@
 import SsbHost, { RpcBodyType } from "./SsbHost.ts";
 import { parseAddress } from "./util.ts";
+import { delay } from "https://deno.land/std@0.100.0/async/mod.ts";
 
 const decoder = new TextDecoder();
 const host = new SsbHost();
@@ -16,11 +17,21 @@ const address = parseAddress(
 const boxConnection = await host.connect(
   address,
 );
+let lastActivity = Date.now();
 async function monitorConnection() {
   let i = 0;
-  for await (const message of boxConnection) {
-    console.log(i++, message);
-    console.log("as text", decoder.decode(message));
+  try {
+    for await (const message of boxConnection) {
+      lastActivity = Date.now();
+      console.log(i++, message);
+      console.log("as text", decoder.decode(message));
+    }
+  } catch (e) {
+    if (e.name === "Interrupted") {
+      // ignore
+    } else {
+      throw e;
+    }
   }
 }
 
@@ -43,3 +54,15 @@ boxConnection.sendRpcMessage({
   bodyType: RpcBodyType.json,
   isStream: true,
 });
+
+const waitForInactivity = async () => {
+  if (Date.now() - lastActivity > 5000) {
+    return;
+  } else {
+    await delay(5000);
+    await waitForInactivity();
+  }
+};
+
+await waitForInactivity();
+boxConnection.close();
