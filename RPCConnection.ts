@@ -13,29 +13,55 @@ export interface ResponseStream {
   read: () => Record<string, unknown>;
 }
 
+function parseHeader(
+  header: Uint8Array,
+): {
+  partOfStream: boolean;
+  endOrError: boolean;
+  bodyType: RpcBodyType;
+  bodyLength: number;
+  requestNumber: number;
+} {
+  const flags = header[0];
+  const partOfStream = !!(flags & 0b1000);
+  const endOrError = !!(flags & 0b100);
+  const bodyType: RpcBodyType = flags & 0b11;
+  const bodyLength = bytes2NumberUnsigned(header.subarray(1, 5));
+  const requestNumber = bytes2NumberSigned(header.subarray(5));
+  return { partOfStream, endOrError, bodyType, bodyLength, requestNumber };
+}
+
 export default class RPCConnection {
   constructor(public boxConnection: BoxConnection) {
     this.requestCounter = 0;
     const monitorConnection = async () => {
       try {
         while (true) {
-          const header = await boxConnection.read(); //readBytes(boxConnection,9);
-          if (header.length !== 9) {
-            throw new Error("expected 9 header bytes, got " + header);
+          const headerBytes = await boxConnection.read(); //readBytes(boxConnection,9);
+          if (headerBytes.length !== 9) {
+            throw new Error("expected 9 headerBytes bytes, got " + headerBytes);
           }
-          const flags = header[0];
-          const partOfStream: boolean = !!(flags & 0b1000);
-          const endOrError: boolean = !!(flags & 0b100);
-          const bodyType: RpcBodyType = flags & 0b11;
-          const bodyLength = bytes2NumberUnsigned(header.subarray(1, 5));
-          const requestNumber = bytes2NumberSigned(header.subarray(5));
+          const header = parseHeader(headerBytes);
           const body = await boxConnection.read(); //readBytes(boxConnection,9);
-          if (body.length !== bodyLength) {
+          if (body.length !== header.bodyLength) {
             throw new Error(
-              `expected a body of ${bodyLength} bytes, got ${body}`,
+              `expected a body of length ${header.bodyLength} but got ${body.length}`,
             );
           }
-          console.log(`got request number ${requestNumber}: ${body}`);
+          if (header.requestNumber < 0) {
+            const listener = this.responseStreamListeners.get(
+              -header.requestNumber,
+            );
+            if (!listener) {
+              throw new Error(
+                `Got request with unexpected number ${header.requestNumber}`,
+              );
+            }
+            listener(body);
+          } else {
+            //TODO handle incoming requests
+            //console.log(`got request number ${header.requestNumber}: ${body}`);
+          }
         }
       } catch (e) {
         if (e.name === "Interrupted") {
@@ -47,11 +73,15 @@ export default class RPCConnection {
     };
     monitorConnection();
   }
+  private responseStreamListeners: Map<
+    number,
+    ((message: Uint8Array) => void)
+  > = new Map();
   sendSourceRequest = async (request: {
     name: string[];
     args: Record<string, unknown>[];
   }) => {
-    await this.sendRpcMessage({
+    const requestNumber = await this.sendRpcMessage({
       name: request.name,
       args: request.args,
       "type": "source",
@@ -59,9 +89,28 @@ export default class RPCConnection {
       bodyType: RpcBodyType.json,
       isStream: true,
     });
-    //listening to requestNumber * -1 incoming messages
-    //shold we this.boxConnection.read before sending request?
-    //Yes, to be sure a delayed ending of the write operation doesn't cause incoming packages to get lost. No, all incoming packages are read by rpcconnection
+    const buffer: Uint8Array[] = [];
+    const bufferer = (message: Uint8Array) => {
+      buffer.push(message);
+    };
+    this.responseStreamListeners.set(requestNumber, bufferer);
+    return {
+      read: () => {
+        if (buffer.length > 0) {
+          return Promise.resolve(buffer.shift());
+        } else {
+          return new Promise<Uint8Array>((resolve, _reject) => {
+            this.responseStreamListeners.set(
+              requestNumber,
+              (message: Uint8Array) => {
+                this.responseStreamListeners.set(requestNumber, bufferer);
+                resolve(message);
+              },
+            );
+          });
+        }
+      },
+    };
   };
   requestCounter;
   sendRpcMessage = async (
@@ -106,9 +155,10 @@ export default class RPCConnection {
       5,
     );
     //or write twice?
-    //const message = concat(header, payload);
+    //const message = concat(headerBytes, payload);
     //await this.write(message);
     await this.boxConnection.write(header);
     await this.boxConnection.write(payload);
+    return requestNumber;
   };
 }

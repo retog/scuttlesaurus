@@ -42,10 +42,14 @@ monitorConnection();*/
 
 console.log("sending a message...");
 
-rpcConnection.sendSourceRequest({
+const historyStream = await rpcConnection.sendSourceRequest({
   "name": ["createHistoryStream"],
   "args": [{ "id": `@${address.key}.ed25519` }],
 });
+while (true) {
+  const msg = await historyStream.read();
+  console.log(decoder.decode(msg));
+}
 /*
 const waitForInactivity = async () => {
   if (Date.now() - lastActivity > 5000) {
