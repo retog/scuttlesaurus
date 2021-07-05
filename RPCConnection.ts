@@ -42,7 +42,7 @@ export default class RPCConnection {
             throw new Error("expected 9 headerBytes bytes, got " + headerBytes);
           }
           const header = parseHeader(headerBytes);
-          const body = await boxConnection.read(); //readBytes(boxConnection,9);
+          const body = await boxConnection.readTill(header.bodyLength); //readBytes(boxConnection,9);
           if (body.length !== header.bodyLength) {
             throw new Error(
               `expected a body of length ${header.bodyLength} but got ${body.length}`,

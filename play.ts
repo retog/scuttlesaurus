@@ -48,7 +48,7 @@ const historyStream = await rpcConnection.sendSourceRequest({
 });
 while (true) {
   const msg = await historyStream.read();
-  console.log(decoder.decode(msg));
+  console.log(JSON.stringify(JSON.parse(decoder.decode(msg)), undefined, 2));
 }
 /*
 const waitForInactivity = async () => {

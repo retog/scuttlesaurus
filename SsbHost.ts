@@ -7,6 +7,7 @@ await sodium.ready;
 
 interface BoxConnection {
   read: () => Promise<Uint8Array>;
+  readTill: (length: number) => Promise<Uint8Array>;
   [Symbol.asyncIterator]: () => AsyncGenerator<Uint8Array>;
   write: (message: Uint8Array) => Promise<void>;
   close: () => void;
@@ -218,6 +219,24 @@ export default class SsbHost {
             yield nextValue;
           }
         }
+      },
+      async readTill(length: number) {
+        const chunks: Uint8Array[] = [];
+        while (
+          chunks.reduce((previous, chunk) => previous + chunk.length, 0) <
+            length
+        ) {
+          chunks.push(await this.read());
+        }
+        if (
+          chunks.reduce((previous, chunk) => previous + chunk.length, 0) >
+            length
+        ) {
+          throw new Error(
+            `Requested number of bytes doesn't match the received chunks`,
+          );
+        }
+        return concat(...chunks);
       },
       async read() {
         const headerBox = await readBytes(conn, 34);
