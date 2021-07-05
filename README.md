@@ -2,7 +2,6 @@
 
 ![](https://tokei.rs/b1/github/retog/deno-ssb-experiments)
 
-
 Both [Deno](https://deno.land/) and the
 [Scuttlebutt Protocol](https://ssbc.github.io/scuttlebutt-protocol-guide/) are
 new to me. My primary goal of this project is to learn about them, so I'm trying

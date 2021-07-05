@@ -1,6 +1,7 @@
-import SsbHost, { RpcBodyType } from "./SsbHost.ts";
+import SsbHost, { BoxConnection } from "./SsbHost.ts";
 import { parseAddress } from "./util.ts";
 import { delay } from "https://deno.land/std@0.100.0/async/mod.ts";
+import RPCConnection from "./RPCConnection.ts";
 
 const decoder = new TextDecoder();
 const host = new SsbHost();
@@ -14,11 +15,13 @@ const address = parseAddress(
   addressString,
 );
 
-const boxConnection = await host.connect(
+const boxConnection: BoxConnection = await host.connect(
   address,
 );
+
+const rpcConnection = new RPCConnection(boxConnection);
 let lastActivity = Date.now();
-async function monitorConnection() {
+/*async function monitorConnection() {
   let i = 0;
   try {
     for await (const message of boxConnection) {
@@ -35,26 +38,15 @@ async function monitorConnection() {
   }
 }
 
-monitorConnection();
+monitorConnection();*/
 
 console.log("sending a message...");
-/*boxConnection.sendRpcMessage({
-  "name": ["blobs", "createWants"],
-  "args": [],
-  "type": "source",
-}, {
-  bodyType: RpcBodyType.json,
-});*/
 
-boxConnection.sendRpcMessage({
+rpcConnection.sendSourceRequest({
   "name": ["createHistoryStream"],
-  "type": "source",
   "args": [{ "id": `@${address.key}.ed25519` }],
-}, {
-  bodyType: RpcBodyType.json,
-  isStream: true,
 });
-
+/*
 const waitForInactivity = async () => {
   if (Date.now() - lastActivity > 5000) {
     return;
@@ -66,3 +58,4 @@ const waitForInactivity = async () => {
 
 await waitForInactivity();
 boxConnection.close();
+*/

@@ -13,6 +13,18 @@
       ]
     },
     {
+      "name": "Play with localhost",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
+      "attachSimplePort": 9229,
+      "args": [
+        "net:localhost:8008~shs:+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI="
+      ]
+    },
+    {
       "name": "Webapp",
       "type": "pwa-node",
       "request": "launch",

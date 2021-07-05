@@ -5,25 +5,10 @@ import { concat, readBytes } from "./util.ts";
 
 await sodium.ready;
 
-export enum RpcBodyType {
-  binary = 0b00,
-  utf8 = 0b01,
-  json = 0b10,
-}
-
 interface BoxConnection {
   read: () => Promise<Uint8Array>;
   [Symbol.asyncIterator]: () => AsyncGenerator<Uint8Array>;
   write: (message: Uint8Array) => Promise<void>;
-  sendRpcMessage: (
-    body: Record<string, unknown> | string | Uint8Array,
-    options: {
-      isStream?: boolean;
-      endOrError?: boolean;
-      bodyType: RpcBodyType;
-      inReplyTo?: number;
-    },
-  ) => Promise<void>;
   close: () => void;
 }
 
@@ -276,54 +261,6 @@ export default class SsbHost {
         );
 
         await conn.write(concat(encryptedHeader, encryptedMessage.slice(16)));
-      },
-      requestCounter: 0,
-      async sendRpcMessage(
-        body: Record<string, unknown> | string | Uint8Array,
-        options: {
-          isStream?: boolean;
-          endOrError?: boolean;
-          bodyType: RpcBodyType;
-          inReplyTo?: number;
-        },
-      ) {
-        function isUint8Array(
-          v: Record<string, unknown> | string | Uint8Array,
-        ): v is Uint8Array {
-          return v.constructor.prototype === Uint8Array.prototype;
-        }
-        function isString(
-          v: Record<string, unknown> | string | Uint8Array,
-        ): v is string {
-          return v.constructor.prototype === String.prototype;
-        }
-        const payload: Uint8Array = isUint8Array(body)
-          ? body
-          : isString(body)
-          ? new TextEncoder().encode(body)
-          : new TextEncoder().encode(JSON.stringify(body));
-        const flags = (options.isStream ? 0b1000 : 0) | (options.endOrError
-          ? 0b100
-          : 0) |
-          options.bodyType;
-        const requestNumber = options.inReplyTo
-          ? options.inReplyTo * -1
-          : ++this.requestCounter;
-        const header = new Uint8Array(9);
-        header[0] = flags;
-        header.set(
-          new Uint8Array(new Uint32Array([payload.length]).buffer).reverse(),
-          1,
-        );
-        header.set(
-          new Uint8Array(new Uint32Array([requestNumber]).buffer).reverse(),
-          5,
-        );
-        //or write twice?
-        //const message = concat(header, payload);
-        //await this.write(message);
-        await this.write(header);
-        await this.write(payload);
       },
       async close() {
         this.closed = true;

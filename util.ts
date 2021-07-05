@@ -5,6 +5,19 @@ export function parseAddress(addr: string) {
   return { protocol, host, port, key };
 }
 
+export function bytes2NumberUnsigned(bytes: Uint8Array): number {
+  return bytes.length === 0 ? 0 : bytes[0] * Math.pow(0x100, bytes.length - 1) +
+    bytes2NumberUnsigned(bytes.subarray(1));
+}
+
+export function bytes2NumberSigned(bytes: Uint8Array): number {
+  return bytes[0] & 0b10000000
+    ? -Math.pow(2, 7 + (bytes.length - 1) * 8) + (0b01111111 &
+          bytes[0]) * Math.pow(0x100, bytes.length - 1) +
+      bytes2NumberUnsigned(bytes.subarray(1))
+    : bytes2NumberUnsigned(bytes);
+}
+
 export function concat(...elems: Uint8Array[]): Uint8Array {
   const result = new Uint8Array(
     elems.reduce((sum, elem) => sum + (elem.length), 0),
