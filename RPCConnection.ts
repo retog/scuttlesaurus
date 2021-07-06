@@ -1,7 +1,7 @@
 import { BoxConnection } from "./SsbHost.ts";
 import { bytes2NumberSigned, bytes2NumberUnsigned } from "./util.ts";
 
-const decoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 export enum RpcBodyType {
   binary = 0b00,
@@ -118,9 +118,9 @@ export default class RPCConnection {
     options: {
       isStream?: boolean;
       endOrError?: boolean;
-      bodyType: RpcBodyType;
+      bodyType?: RpcBodyType;
       inReplyTo?: number;
-    },
+    } = {},
   ) => {
     function isUint8Array(
       v: Record<string, unknown> | string | Uint8Array,
@@ -132,15 +132,23 @@ export default class RPCConnection {
     ): v is string {
       return v.constructor.prototype === String.prototype;
     }
-    const payload: Uint8Array = isUint8Array(body)
-      ? body
-      : isString(body)
-      ? new TextEncoder().encode(body)
-      : new TextEncoder().encode(JSON.stringify(body));
+    const getPayload = () => {
+      if (isUint8Array(body)) {
+        if (!options.bodyType) options.bodyType = RpcBodyType.binary;
+        return body
+      }
+      if (isString(body)) {
+        if (!options.bodyType) options.bodyType = RpcBodyType.utf8;
+        return textEncoder.encode(body)
+      }
+      if (!options.bodyType) options.bodyType = RpcBodyType.json;
+      return textEncoder.encode(JSON.stringify(body));
+    }
+    const payload: Uint8Array = getPayload();
     const flags = (options.isStream ? 0b1000 : 0) | (options.endOrError
       ? 0b100
       : 0) |
-      options.bodyType;
+      options.bodyType!;
     const requestNumber = options.inReplyTo
       ? options.inReplyTo * -1
       : ++this.requestCounter;
