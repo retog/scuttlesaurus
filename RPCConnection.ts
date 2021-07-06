@@ -1,6 +1,7 @@
 import { BoxConnection } from "./SsbHost.ts";
 import { bytes2NumberSigned, bytes2NumberUnsigned } from "./util.ts";
 
+const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
 export enum RpcBodyType {
@@ -13,15 +14,17 @@ export interface ResponseStream {
   read: () => Record<string, unknown>;
 }
 
-function parseHeader(
-  header: Uint8Array,
-): {
+export type Header = {
   partOfStream: boolean;
   endOrError: boolean;
   bodyType: RpcBodyType;
   bodyLength: number;
   requestNumber: number;
-} {
+};
+
+function parseHeader(
+  header: Uint8Array,
+): Header {
   const flags = header[0];
   const partOfStream = !!(flags & 0b1000);
   const endOrError = !!(flags & 0b100);
@@ -57,7 +60,7 @@ export default class RPCConnection {
                 `Got request with unexpected number ${header.requestNumber}`,
               );
             }
-            listener(body);
+            listener(body, header);
           } else {
             //TODO handle incoming requests
             //console.log(`got request number ${header.requestNumber}: ${body}`);
@@ -75,11 +78,11 @@ export default class RPCConnection {
   }
   private responseStreamListeners: Map<
     number,
-    ((message: Uint8Array) => void)
+    ((message: Uint8Array, header: Header) => void)
   > = new Map();
   sendSourceRequest = async (request: {
     name: string[];
-    args: Record<string, unknown>[];
+    args: unknown;
   }) => {
     const requestNumber = await this.sendRpcMessage({
       name: request.name,
@@ -112,8 +115,36 @@ export default class RPCConnection {
       },
     };
   };
+  sendAsyncRequest = async (request: {
+    name: string[];
+    args: unknown;
+  }) => {
+    const requestNumber = await this.sendRpcMessage({
+      name: request.name,
+      args: request.args,
+      "type": "async",
+    }, {
+      bodyType: RpcBodyType.json,
+      isStream: false,
+    });
+    return new Promise((resolve, _reject) => {
+      this.responseStreamListeners.set(
+        requestNumber,
+        (message: Uint8Array, header: Header) => {
+          this.responseStreamListeners.delete(requestNumber);
+          resolve(
+            header.bodyType === RpcBodyType.json
+              ? JSON.parse(textDecoder.decode(message))
+              : header.bodyType === RpcBodyType.utf8
+              ? textDecoder.decode(message)
+              : message,
+          );
+        },
+      );
+    });
+  };
   requestCounter;
-  sendRpcMessage = async (
+  private sendRpcMessage = async (
     body: Record<string, unknown> | string | Uint8Array,
     options: {
       isStream?: boolean;
@@ -135,15 +166,15 @@ export default class RPCConnection {
     const getPayload = () => {
       if (isUint8Array(body)) {
         if (!options.bodyType) options.bodyType = RpcBodyType.binary;
-        return body
+        return body;
       }
       if (isString(body)) {
         if (!options.bodyType) options.bodyType = RpcBodyType.utf8;
-        return textEncoder.encode(body)
+        return textEncoder.encode(body);
       }
       if (!options.bodyType) options.bodyType = RpcBodyType.json;
       return textEncoder.encode(JSON.stringify(body));
-    }
+    };
     const payload: Uint8Array = getPayload();
     const flags = (options.isStream ? 0b1000 : 0) | (options.endOrError
       ? 0b100

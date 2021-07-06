@@ -46,11 +46,21 @@ const historyStream = await rpcConnection.sendSourceRequest({
   "name": ["createHistoryStream"],
   "args": [{ "id": `@${address.key}.ed25519` }],
 });
-while (true) {
-  const msg = await historyStream.read();
-  console.log(JSON.stringify(JSON.parse(decoder.decode(msg)), undefined, 2));
-}
-/*
+(async () => {
+  while (true) {
+    const msg = await historyStream.read();
+    lastActivity = Date.now();
+    console.log(JSON.stringify(JSON.parse(decoder.decode(msg)), undefined, 2));
+  }
+})();
+
+const hasBlob = await rpcConnection.sendAsyncRequest({
+  "name": ["blobs", "has"],
+  "args": ["&cnuH8kTYmu2O685OruWm8TVNR7tKfItKCP+L+pDE8xs=.sha256"],
+});
+
+console.log(hasBlob);
+
 const waitForInactivity = async () => {
   if (Date.now() - lastActivity > 5000) {
     return;
@@ -62,4 +72,3 @@ const waitForInactivity = async () => {
 
 await waitForInactivity();
 boxConnection.close();
-*/
