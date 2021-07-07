@@ -57,7 +57,8 @@ const historyStream = await rpcConnection.sendSourceRequest({
         feedDir + "/" +
           (msg as { value: Record<string, string> }).value!.sequence! + ".json",
       );
-      msgFile.write(textEncoder.encode(JSON.stringify(msg, undefined, 2)));
+      await msgFile.write(textEncoder.encode(JSON.stringify(msg, undefined, 2)));
+      msgFile.close();
       lastActivity = Date.now();
       /*console.log(
         JSON.stringify(msg, undefined, 2),
