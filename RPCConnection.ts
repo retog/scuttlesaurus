@@ -24,7 +24,7 @@ export type Header = {
 
 export class EndOfStream extends Error {
   constructor() {
-    super("Stream ended")
+    super("Stream ended");
   }
 }
 
@@ -108,7 +108,7 @@ export default class RPCConnection {
     return {
       read: () => {
         if (buffer.length > 0) {
-          return Promise.resolve(buffer.shift());
+          return Promise.resolve(buffer.shift() as Uint8Array);
         } else {
           return new Promise<Uint8Array>((resolve, reject) => {
             this.responseStreamListeners.set(

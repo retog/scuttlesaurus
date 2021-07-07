@@ -74,6 +74,10 @@ const hasBlob = await rpcConnection.sendAsyncRequest({
 console.log(hasBlob);
 
 if (hasBlob) {
+  await Deno.mkdir("data/blobs", { recursive: true });
+  const blobFile = await Deno.create(
+    "data/blobs/" + blobId.replaceAll("/", "_").replaceAll("+", "-"),
+  ); //RFC3548 filename safe alphabet
   const blobStream = await rpcConnection.sendSourceRequest({
     "name": ["blobs", "get"],
     "args": [blobId],
@@ -82,16 +86,23 @@ if (hasBlob) {
     while (true) {
       try {
         const msg = await blobStream.read();
+        let written = 0;
+        while (written < msg.length) {
+          written += await blobFile.write(msg.subarray(written));
+        }
+        console.log(`wrote ${written} bytes to file`);
         lastActivity = Date.now();
-        console.log("blob data", msg);
+        //console.log("blob data", msg);
       } catch (err) {
         if (err instanceof EndOfStream) {
           console.error("Stream ended");
         } else {
           console.error(err);
         }
+        break;
       }
     }
+    blobFile.close();
   })();
 }
 
