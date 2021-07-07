@@ -40,6 +40,14 @@ function parseHeader(
   return { partOfStream, endOrError, bodyType, bodyLength, requestNumber };
 }
 
+/** parses a message according to bodyType */
+const parse = (message: Uint8Array, bodyType: RpcBodyType) =>
+  (bodyType === RpcBodyType.json
+    ? JSON.parse(textDecoder.decode(message))
+    : bodyType === RpcBodyType.utf8
+    ? textDecoder.decode(message)
+    : message) as Record<string, unknown> | string | Uint8Array;
+
 export default class RPCConnection {
   constructor(public boxConnection: BoxConnection) {
     this.requestCounter = 0;
@@ -98,36 +106,38 @@ export default class RPCConnection {
       bodyType: RpcBodyType.json,
       isStream: true,
     });
-    const buffer: Uint8Array[] = [];
+    const buffer: unknown[] = [];
     const bufferer = (message: Uint8Array, header: Header) => {
       if (!header.endOrError) {
-        buffer.push(message);
+        buffer.push(parse(message, header.bodyType));
       }
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
     return {
       read: () => {
         if (buffer.length > 0) {
-          return Promise.resolve(buffer.shift() as Uint8Array);
+          return Promise.resolve(buffer.shift());
         } else {
-          return new Promise<Uint8Array>((resolve, reject) => {
-            this.responseStreamListeners.set(
-              requestNumber,
-              (message: Uint8Array, header: Header) => {
-                if (!header.endOrError) {
-                  this.responseStreamListeners.set(requestNumber, bufferer);
-                  resolve(message);
-                } else {
-                  const endMessage = textDecoder.decode(message);
-                  if (endMessage === "true") {
-                    reject(new EndOfStream());
+          return new Promise<Record<string, unknown> | string | Uint8Array>(
+            (resolve, reject) => {
+              this.responseStreamListeners.set(
+                requestNumber,
+                (message: Uint8Array, header: Header) => {
+                  if (!header.endOrError) {
+                    this.responseStreamListeners.set(requestNumber, bufferer);
+                    resolve(parse(message, header.bodyType));
                   } else {
-                    reject(new Error(endMessage));
+                    const endMessage = textDecoder.decode(message);
+                    if (endMessage === "true") {
+                      reject(new EndOfStream());
+                    } else {
+                      reject(new Error(endMessage));
+                    }
                   }
-                }
-              },
-            );
-          });
+                },
+              );
+            },
+          );
         }
       },
     };
@@ -150,13 +160,7 @@ export default class RPCConnection {
         (message: Uint8Array, header: Header) => {
           this.responseStreamListeners.delete(requestNumber);
           if (!header.endOrError) {
-            resolve(
-              header.bodyType === RpcBodyType.json
-                ? JSON.parse(textDecoder.decode(message))
-                : header.bodyType === RpcBodyType.utf8
-                ? textDecoder.decode(message)
-                : message,
-            );
+            resolve(parse(message, header.bodyType));
           } else {
             reject(new Error(textDecoder.decode(message)));
           }
