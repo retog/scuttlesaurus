@@ -40,11 +40,6 @@ export async function readBytes(reader: Deno.Reader, length: number) {
       throw new Error("End of reader");
     }
     bytesRead += bytesReadNow;
-    if (bytesRead !== length) {
-      console.info(
-        `Outstanding data: expecting ${length} bytes but got only ${bytesRead} so far`,
-      );
-    }
   }
   return result;
 }
