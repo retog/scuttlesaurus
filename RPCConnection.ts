@@ -22,6 +22,12 @@ export type Header = {
   requestNumber: number;
 };
 
+export class EndOfStream extends Error {
+  constructor() {
+    super("Stream ended")
+  }
+}
+
 function parseHeader(
   header: Uint8Array,
 ): Header {
@@ -93,8 +99,10 @@ export default class RPCConnection {
       isStream: true,
     });
     const buffer: Uint8Array[] = [];
-    const bufferer = (message: Uint8Array) => {
-      buffer.push(message);
+    const bufferer = (message: Uint8Array, header: Header) => {
+      if (!header.endOrError) {
+        buffer.push(message);
+      }
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
     return {
@@ -102,12 +110,21 @@ export default class RPCConnection {
         if (buffer.length > 0) {
           return Promise.resolve(buffer.shift());
         } else {
-          return new Promise<Uint8Array>((resolve, _reject) => {
+          return new Promise<Uint8Array>((resolve, reject) => {
             this.responseStreamListeners.set(
               requestNumber,
-              (message: Uint8Array) => {
-                this.responseStreamListeners.set(requestNumber, bufferer);
-                resolve(message);
+              (message: Uint8Array, header: Header) => {
+                if (!header.endOrError) {
+                  this.responseStreamListeners.set(requestNumber, bufferer);
+                  resolve(message);
+                } else {
+                  const endMessage = textDecoder.decode(message);
+                  if (endMessage === "true") {
+                    reject(new EndOfStream());
+                  } else {
+                    reject(new Error(endMessage));
+                  }
+                }
               },
             );
           });
@@ -127,18 +144,22 @@ export default class RPCConnection {
       bodyType: RpcBodyType.json,
       isStream: false,
     });
-    return new Promise((resolve, _reject) => {
+    return new Promise((resolve, reject) => {
       this.responseStreamListeners.set(
         requestNumber,
         (message: Uint8Array, header: Header) => {
           this.responseStreamListeners.delete(requestNumber);
-          resolve(
-            header.bodyType === RpcBodyType.json
-              ? JSON.parse(textDecoder.decode(message))
-              : header.bodyType === RpcBodyType.utf8
-              ? textDecoder.decode(message)
-              : message,
-          );
+          if (!header.endOrError) {
+            resolve(
+              header.bodyType === RpcBodyType.json
+                ? JSON.parse(textDecoder.decode(message))
+                : header.bodyType === RpcBodyType.utf8
+                ? textDecoder.decode(message)
+                : message,
+            );
+          } else {
+            reject(new Error(textDecoder.decode(message)));
+          }
         },
       );
     });
