@@ -1,5 +1,5 @@
 import SsbHost, { BoxConnection } from "./SsbHost.ts";
-import { parseAddress } from "./util.ts";
+import { filenameSafeAlphabetRFC3548, parseAddress } from "./util.ts";
 import { delay } from "https://deno.land/std@0.100.0/async/mod.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 
@@ -76,8 +76,8 @@ console.log(hasBlob);
 if (hasBlob) {
   await Deno.mkdir("data/blobs", { recursive: true });
   const blobFile = await Deno.create(
-    "data/blobs/" + blobId.replaceAll("/", "_").replaceAll("+", "-"),
-  ); //RFC3548 filename safe alphabet
+    "data/blobs/" + filenameSafeAlphabetRFC3548(blobId),
+  );
   const blobStream = await rpcConnection.sendSourceRequest({
     "name": ["blobs", "get"],
     "args": [blobId],

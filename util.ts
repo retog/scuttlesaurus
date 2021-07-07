@@ -48,3 +48,6 @@ export async function readBytes(reader: Deno.Reader, length: number) {
   }
   return result;
 }
+/** convert base64 from standard to filename-safe alphabet */
+export const filenameSafeAlphabetRFC3548 = (orig: string) =>
+  orig.replaceAll("/", "_").replaceAll("+", "-");
