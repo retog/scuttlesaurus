@@ -6,14 +6,25 @@ import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 const host = new SsbHost();
 const textEncoder = new TextEncoder();
 
-if (Deno.args.length !== 1) {
-  throw new Error("expecting exactly one argument");
+if (Deno.args.length < 1) {
+  throw new Error("expecting at least one argument");
 }
 
 const addressString = Deno.args[0]; // "net:172.17.0.2:8008~shs:bEhA+VRRIf8mTO474KlSuYTObJACRYZqkwxCl4Id4fk="
 const address = parseAddress(
   addressString,
 );
+
+function strip(feedId: string) {
+  if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
+    return feedId.substring(1,feedId.length-8);
+  } else {
+    console.log(feedId+" doesn't seems to be dressed")
+    return feedId;
+  }
+}
+
+const feedKey = Deno.args.length > 1 ? strip(Deno.args[1]) : address.key
 
 const boxConnection: BoxConnection = await host.connect(
   address,
@@ -44,10 +55,10 @@ console.log("sending a message...");
 
 const historyStream = await rpcConnection.sendSourceRequest({
   "name": ["createHistoryStream"],
-  "args": [{ "id": `@${address.key}.ed25519` }],
+  "args": [{ "id": `@${feedKey}.ed25519`,"seq": 1 }],
 });
 (async () => {
-  const feedDir = "data/feeds/" + filenameSafeAlphabetRFC3548(address.key);
+  const feedDir = "data/feeds/" + filenameSafeAlphabetRFC3548(feedKey);
   await Deno.mkdir(feedDir, { recursive: true });
   while (true) {
     try {
