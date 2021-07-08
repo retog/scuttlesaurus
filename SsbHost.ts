@@ -1,6 +1,7 @@
 // deno-lint-ignore-file camelcase
-import * as base64 from "https://denopkg.com/chiefbiiko/base64/mod.ts";
-import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
+import sodium, {
+  base64_variants,
+} from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 import { concat, readBytes } from "./util.ts";
 
 await sodium.ready;
@@ -16,11 +17,16 @@ interface BoxConnection {
 export type { BoxConnection };
 
 export default class SsbHost {
-  network_identifier = base64.toUint8Array(
+  network_identifier = sodium.from_base64(
     "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
+    base64_variants.ORIGINAL_NO_PADDING,
   );
   clientLongtermKeyPair = sodium.crypto_sign_keypair("uint8array");
-  id = "@" + base64.fromUint8Array(this.clientLongtermKeyPair.publicKey);
+  id = "@" +
+    sodium.to_base64(
+      this.clientLongtermKeyPair.publicKey,
+      base64_variants.ORIGINAL_NO_PADDING,
+    );
 
   connections: BoxConnection[] = [];
 
@@ -105,10 +111,13 @@ export default class SsbHost {
     const shared_secret_aB = sodium.crypto_scalarmult(
       clientEphemeralKeyPair.privateKey,
       sodium.crypto_sign_ed25519_pk_to_curve25519(
-        base64.toUint8Array(address.key),
+        sodium.from_base64(address.key, base64_variants.ORIGINAL_NO_PADDING),
       ),
     );
-    const server_longterm_pk = base64.toUint8Array(address.key);
+    const server_longterm_pk = sodium.from_base64(
+      address.key,
+      base64_variants.ORIGINAL_NO_PADDING,
+    );
     const detached_signature_A = authenticate(
       server_longterm_pk,
       shared_secret_ab,
