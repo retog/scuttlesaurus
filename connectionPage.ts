@@ -1,8 +1,5 @@
 import type { Response } from "https://deno.land/x/oak@v7.5.0/mod.ts";
-import sodium, {
-  base64_variants as base64Variants,
-} from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { parseAddress } from "./util.ts";
+import { parseAddress, toBase64 } from "./util.ts";
 import type SsbHost from "./SsbHost.ts";
 
 export default async function (
@@ -17,10 +14,7 @@ export default async function (
   const thirdData = await connection.read();
   response.body = `
     Client id: @${
-    sodium.to_base64(
-      host.clientLongtermKeyPair.publicKey,
-      base64Variants.ORIGINAL_NO_PADDING,
-    )
+      toBase64(host.clientLongtermKeyPair.publicKey  )
   }.ed25519<p>
     ${JSON.stringify(address)} shaking ${addressString}<p> 
     Sent: ${connection.hello}<p>
