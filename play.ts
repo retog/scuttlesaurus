@@ -1,5 +1,5 @@
 import SsbHost, { BoxConnection } from "./SsbHost.ts";
-import { computeMsgHash, filenameSafeAlphabetRFC3548, parseAddress, toBase64 } from "./util.ts";
+import { computeMsgHash, filenameSafeAlphabetRFC3548, parseAddress, toBase64, verifySignature } from "./util.ts";
 import { delay } from "https://deno.land/std@0.100.0/async/mod.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 
@@ -66,6 +66,7 @@ const historyStream = await rpcConnection.sendSourceRequest({
       const hash = computeMsgHash(msg.value!)
       console.log("hash", toBase64(hash));
       //TODO verify message sinature
+      console.log("ver: ",verifySignature(msg.value as {author: string, signature: string}))
       const msgFile = await Deno.create(
         feedDir + "/" +
           (msg as { value: Record<string, string> }).value!.sequence! + ".json",

@@ -72,3 +72,17 @@ export function fromBase64(text: string) {
 export function computeMsgHash(msg: unknown) {
   return sodium.crypto_hash_sha256(textEncoder.encode(JSON.stringify(msg, undefined, 2)))
 }
+
+/*export function signMessage(msg: unknown): Record<string, unknown> {
+  return sodium.crypto_hash_sha256(textEncoder.encode(JSON.stringify(msg, undefined, 2)))
+}*/
+
+export function verifySignature(msg: {author: string, signature?: string}) {
+  if (!msg.signature) {
+    throw Error("no signature in messages")
+  }
+  const signature = fromBase64(msg.signature.substring(0, msg.signature.length - ".sig.ed25519".length));
+  const authorsPubkicKey = fromBase64(msg.author.substring(1, msg.author.length-".ed25519".length));
+  delete msg.signature;
+  return sodium.crypto_sign_verify_detached(signature, JSON.stringify(msg, undefined, 2), authorsPubkicKey)
+}
