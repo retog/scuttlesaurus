@@ -85,7 +85,7 @@ export default class SsbHost {
 
     const hello = clientHello();
     await conn.write(hello);
-    const serverResponse = await readBytes(conn,64) 
+    const serverResponse = await readBytes(conn, 64);
     const server_hmac = serverResponse.subarray(0, 32);
     const server_ephemeral_pk = serverResponse.subarray(32, 64);
     if (

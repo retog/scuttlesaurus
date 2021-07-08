@@ -17,14 +17,14 @@ const address = parseAddress(
 
 function strip(feedId: string) {
   if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
-    return feedId.substring(1,feedId.length-8);
+    return feedId.substring(1, feedId.length - 8);
   } else {
-    console.log(feedId+" doesn't seems to be dressed")
+    console.log(feedId + " doesn't seems to be dressed");
     return feedId;
   }
 }
 
-const feedKey = Deno.args.length > 1 ? strip(Deno.args[1]) : address.key
+const feedKey = Deno.args.length > 1 ? strip(Deno.args[1]) : address.key;
 
 const boxConnection: BoxConnection = await host.connect(
   address,
@@ -55,7 +55,7 @@ console.log("sending a message...");
 
 const historyStream = await rpcConnection.sendSourceRequest({
   "name": ["createHistoryStream"],
-  "args": [{ "id": `@${feedKey}.ed25519`,"seq": 1 }],
+  "args": [{ "id": `@${feedKey}.ed25519`, "seq": 1 }],
 });
 (async () => {
   const feedDir = "data/feeds/" + filenameSafeAlphabetRFC3548(feedKey);
@@ -68,7 +68,9 @@ const historyStream = await rpcConnection.sendSourceRequest({
         feedDir + "/" +
           (msg as { value: Record<string, string> }).value!.sequence! + ".json",
       );
-      await msgFile.write(textEncoder.encode(JSON.stringify(msg, undefined, 2)));
+      await msgFile.write(
+        textEncoder.encode(JSON.stringify(msg, undefined, 2)),
+      );
       msgFile.close();
       lastActivity = Date.now();
       /*console.log(

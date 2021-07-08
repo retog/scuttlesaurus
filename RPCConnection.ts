@@ -77,7 +77,11 @@ export default class RPCConnection {
             listener(body, header);
           } else {
             //TODO handle incoming requests
-            //console.log(`got request number ${header.requestNumber}: ${textDecoder.decode(body)}`);
+            console.log(
+              `got request number ${header.requestNumber}: ${
+                textDecoder.decode(body)
+              }`,
+            );
           }
         }
       } catch (e) {

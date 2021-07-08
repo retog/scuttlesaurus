@@ -37,7 +37,9 @@ export async function readBytes(reader: Deno.Reader, length: number) {
     const remainder = result.subarray(bytesRead);
     const bytesReadNow = await reader.read(remainder);
     if (bytesReadNow === null) {
-      throw new Error(`End of reader, expecting ${remainder.length} more bytes`);
+      throw new Error(
+        `End of reader, expecting ${remainder.length} more bytes`,
+      );
     }
     bytesRead += bytesReadNow;
   }
