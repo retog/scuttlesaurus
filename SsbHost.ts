@@ -85,8 +85,7 @@ export default class SsbHost {
 
     const hello = clientHello();
     await conn.write(hello);
-    const serverResponse = new Uint8Array(64);
-    await conn.read(serverResponse);
+    const serverResponse = await readBytes(conn,64) 
     const server_hmac = serverResponse.subarray(0, 32);
     const server_ephemeral_pk = serverResponse.subarray(32, 64);
     if (
@@ -123,8 +122,7 @@ export default class SsbHost {
       server_ephemeral_pk,
     );
 
-    const serverResponse2 = new Uint8Array(80); //why 80?
-    await conn.read(serverResponse2);
+    const serverResponse2 = await readBytes(conn, 80); //msg4 in protocol guide
 
     const detached_signature_B = sodium.crypto_box_open_easy_afternm(
       serverResponse2,
