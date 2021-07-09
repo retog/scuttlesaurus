@@ -1,6 +1,6 @@
 // deno-lint-ignore-file camelcase
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, readBytes, fromBase64, toBase64 } from "./util.ts";
+import { concat, fromBase64, readBytes, toBase64 } from "./util.ts";
 
 await sodium.ready;
 
@@ -18,7 +18,7 @@ export default class SsbHost {
   network_identifier = fromBase64(
     "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
   );
-  clientLongtermKeyPair = getClientKeyPair(); 
+  clientLongtermKeyPair = getClientKeyPair();
   id = "@" +
     toBase64(
       this.clientLongtermKeyPair.publicKey,
@@ -303,24 +303,31 @@ export default class SsbHost {
 
 function getClientKeyPair() {
   const secretFileDir = Deno.env.get("HOME") + "/.ssb/";
-  const secretFilePath = secretFileDir  + "secret";
+  const secretFilePath = secretFileDir + "secret";
   try {
     const secret = JSON.parse(Deno.readTextFileSync(secretFilePath));
     return {
       keyType: secret.curve,
-      publicKey: fromBase64(secret.public.substring(0, secret.public.length - ".ed25519".length)),
-      privateKey: fromBase64(secret.private.substring(0, secret.private.length - ".ed25519".length)),
-    }
+      publicKey: fromBase64(
+        secret.public.substring(0, secret.public.length - ".ed25519".length),
+      ),
+      privateKey: fromBase64(
+        secret.private.substring(0, secret.private.length - ".ed25519".length),
+      ),
+    };
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       const newKey = sodium.crypto_sign_keypair("uint8array");
       const secret = {
-        public: toBase64(newKey.publicKey)+".ed25519",
-        "private": toBase64(newKey.privateKey)+".ed25519",
-        curve: newKey.keyType
-      }
-      Deno.mkdirSync(secretFileDir, { recursive: true})
-      Deno.writeTextFileSync(secretFilePath, JSON.stringify(secret, undefined, 2))
+        public: toBase64(newKey.publicKey) + ".ed25519",
+        "private": toBase64(newKey.privateKey) + ".ed25519",
+        curve: newKey.keyType,
+      };
+      Deno.mkdirSync(secretFileDir, { recursive: true });
+      Deno.writeTextFileSync(
+        secretFilePath,
+        JSON.stringify(secret, undefined, 2),
+      );
       return newKey;
     } else {
       // unexpected error, pass it along

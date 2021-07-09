@@ -13,9 +13,7 @@ export default async function (
   const secondData = await connection.read();
   const thirdData = await connection.read();
   response.body = `
-    Client id: @${
-      toBase64(host.clientLongtermKeyPair.publicKey  )
-  }.ed25519<p>
+    Client id: @${toBase64(host.clientLongtermKeyPair.publicKey)}.ed25519<p>
     ${JSON.stringify(address)} shaking ${addressString}<p> 
     Sent: ${connection.hello}<p>
     Got: ${connection.serverResponse}<p>
