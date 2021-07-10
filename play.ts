@@ -1,4 +1,6 @@
 import SsbHost, { BoxConnection } from "./SsbHost.ts";
+import * as FSStorage from "./fsStorage.ts";
+import Procedures from "./Procedures.ts";
 import {
   computeMsgHash,
   filenameSafeAlphabetRFC3548,
@@ -36,7 +38,7 @@ const boxConnection: BoxConnection = await host.connect(
   address,
 );
 
-const rpcConnection = new RPCConnection(boxConnection);
+const rpcConnection = new RPCConnection(boxConnection, new Procedures());
 let lastActivity = Date.now();
 /*async function monitorConnection() {
   let i = 0;
@@ -64,7 +66,7 @@ const historyStream = await rpcConnection.sendSourceRequest({
   "args": [{ "id": `@${feedKey}.ed25519`, "seq": 1 }],
 });
 (async () => {
-  const feedDir = "data/feeds/" + filenameSafeAlphabetRFC3548(feedKey);
+  const feedDir = FSStorage.getFeedDir(feedKey);
   await Deno.mkdir(feedDir, { recursive: true });
   while (true) {
     try {

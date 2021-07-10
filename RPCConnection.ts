@@ -28,6 +28,13 @@ export class EndOfStream extends Error {
   }
 }
 
+export interface RequestHandler {
+  handleSourceRequest: (
+    name: string[],
+    args: Record<string, string>[],
+  ) => AsyncIterator<Record<string, unknown> | string | Uint8Array>;
+}
+
 function parseHeader(
   header: Uint8Array,
 ): Header {
@@ -49,7 +56,10 @@ const parse = (message: Uint8Array, bodyType: RpcBodyType) =>
     : message) as Record<string, unknown> | string | Uint8Array;
 
 export default class RPCConnection {
-  constructor(public boxConnection: BoxConnection) {
+  constructor(
+    public boxConnection: BoxConnection,
+    public requestHandler: RequestHandler,
+  ) {
     this.requestCounter = 0;
     const monitorConnection = async () => {
       try {
@@ -82,6 +92,26 @@ export default class RPCConnection {
                 textDecoder.decode(body)
               }`,
             );
+            const request = JSON.parse(textDecoder.decode(body));
+            if (this.requestHandler) {
+              if (request.type === "source") {
+                const responseIterator = this.requestHandler
+                  .handleSourceRequest(request.name, request.args);
+                (async () => {
+                  for await (
+                    const value of {
+                      [Symbol.asyncIterator]: () => responseIterator,
+                    }
+                  ) {
+                    console.log("sending back", value);
+                    this.sendRpcMessage(value, {
+                      isStream: true,
+                      inReplyTo: header.requestNumber,
+                    });
+                  }
+                })();
+              }
+            }
           }
         }
       } catch (e) {
@@ -117,7 +147,7 @@ export default class RPCConnection {
       }
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
-    return {
+    return { //TODO return AsyncIterator instead
       read: () => {
         if (buffer.length > 0) {
           return Promise.resolve(buffer.shift());

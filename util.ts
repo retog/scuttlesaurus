@@ -36,19 +36,26 @@ export function concat(...elems: Uint8Array[]): Uint8Array {
   return result;
 }
 
+let previous = -1;
 export async function readBytes(reader: Deno.Reader, length: number) {
   const result = new Uint8Array(length);
   let bytesRead = 0;
   while (bytesRead < length) {
     const remainder = result.subarray(bytesRead);
-    const bytesReadNow = await reader.read(remainder);
-    if (bytesReadNow === null) {
-      throw new Error(
-        `End of reader, expecting ${remainder.length} more bytes`,
-      );
+    try {
+      const bytesReadNow = await reader.read(remainder);
+      if (bytesReadNow === null) {
+        throw new Error(
+          `End of reader, expecting ${remainder.length} more bytes`,
+        );
+      }
+      bytesRead += bytesReadNow;
+    } catch (e) {
+      console.error(e);
+      throw e;
     }
-    bytesRead += bytesReadNow;
   }
+  previous = length;
   return result;
 }
 /** convert base64 from standard to filename-safe alphabet */
