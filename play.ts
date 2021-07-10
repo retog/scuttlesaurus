@@ -39,7 +39,7 @@ const boxConnection: BoxConnection = await host.connect(
 );
 
 const rpcConnection = new RPCConnection(boxConnection, new Procedures());
-let lastActivity = Date.now();
+
 /*async function monitorConnection() {
   let i = 0;
   try {
@@ -86,7 +86,6 @@ const historyStream = await rpcConnection.sendSourceRequest({
         textEncoder.encode(JSON.stringify(msg, undefined, 2)),
       );
       msgFile.close();
-      lastActivity = Date.now();
       /*console.log(
         JSON.stringify(msg, undefined, 2),
       );*/
@@ -127,7 +126,6 @@ if (hasBlob) {
           written += await blobFile.write(msg.subarray(written));
         }
         console.log(`wrote ${written} bytes to file`);
-        lastActivity = Date.now();
         //console.log("blob data", msg);
       } catch (err) {
         if (err instanceof EndOfStream) {
@@ -141,15 +139,3 @@ if (hasBlob) {
     blobFile.close();
   })();
 }
-
-const waitForInactivity = async () => {
-  if (Date.now() - lastActivity > 5000) {
-    return;
-  } else {
-    await delay(5000);
-    await waitForInactivity();
-  }
-};
-
-await waitForInactivity();
-boxConnection.close();
