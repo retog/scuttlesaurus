@@ -19,11 +19,6 @@ usage:
 
     deno run -A  play.ts "net:gossip.noisebridge.info:8008~shs:2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY="
 
-main.ts: Starts a web-server on port `8000` and shows peers on the local network
-detected via UDP.
-
-    deno run -A  main.ts
-
 FindPeers: listens for peers announcing themselves with UDP broadcast.
 
     deno run --unstable -A FindPeers.ts
