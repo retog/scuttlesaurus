@@ -272,7 +272,7 @@ export default class SsbHost {
         const messageLengh = message.length;
         const messageLenghUiA = new Uint8Array([
           messageLengh >> 8,
-          messageLengh % 0xFF,
+          messageLengh & 0xFF,
         ]);
         const authenticationBodyTag = encryptedMessage.slice(0, 16);
         const encryptedHeader = sodium.crypto_box_easy_afternm(
