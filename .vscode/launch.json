@@ -25,6 +25,44 @@
       ]
     },
     {
+      "name": "Play with localhost and other feed",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
+      "attachSimplePort": 9229,
+      "args": [
+        "net:localhost:8008~shs:+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=",
+        "@5Pt3dKy2HTJ0mWuS78oIiklIX0gBz6BTfEnXsbvke9c=.ed25519"
+      ]
+    },
+    {
+      "name": "Play with planetary",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
+      "attachSimplePort": 9229,
+      "args": [
+        "net:three.planetary.pub:8008~shs:LQ8HBiEinU5FiXGaZH9JYFGBGdsB99mepBdh/Smq3VI="
+      ]
+    },
+    {
+      "name": "Play with adriamb",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
+      "attachSimplePort": 9229,
+      "args": [
+        "net:three.planetary.pub:8008~shs:LQ8HBiEinU5FiXGaZH9JYFGBGdsB99mepBdh/Smq3VI=",
+        "@ZFWw+UclcUgYi081/C8lhgH+KQ9s7YJRoOYGnzxW/JQ=.ed25519"
+      ]
+    },
+    {
       "name": "Webapp",
       "type": "pwa-node",
       "request": "launch",

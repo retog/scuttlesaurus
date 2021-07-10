@@ -32,7 +32,7 @@ export default class Procedures implements RequestHandler {
           }
         } catch (error) {
           if (error instanceof Deno.errors.NotFound) {
-            console.log(`File ${fileName} not found, ending stream`);
+            //console.log(`File ${fileName} not found, ending stream`);
             break;
           }
         }
@@ -48,7 +48,6 @@ export default class Procedures implements RequestHandler {
     names: string[],
     args: Record<string, string>[],
   ) {
-    console.log("handling request " + names);
     const context = names.length > 1
       ? this.namedContext[names.shift()!]
       : this.rootContext;

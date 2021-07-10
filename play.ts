@@ -8,7 +8,6 @@ import {
   toBase64,
   verifySignature,
 } from "./util.ts";
-import { delay } from "https://deno.land/std@0.100.0/async/mod.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 
 const host = new SsbHost();
@@ -40,24 +39,6 @@ const boxConnection: BoxConnection = await host.connect(
 
 const rpcConnection = new RPCConnection(boxConnection, new Procedures());
 
-/*async function monitorConnection() {
-  let i = 0;
-  try {
-    for await (const message of boxConnection) {
-      lastActivity = Date.now();
-      console.log(i++, message);
-      console.log("as text", decoder.decode(message));
-    }
-  } catch (e) {
-    if (e.name === "Interrupted") {
-      // ignore
-    } else {
-      throw e;
-    }
-  }
-}
-
-monitorConnection();*/
 
 console.log("sending a message...");
 
@@ -70,14 +51,15 @@ const historyStream = await rpcConnection.sendSourceRequest({
   await Deno.mkdir(feedDir, { recursive: true });
   while (true) {
     try {
-      const msg = await historyStream.read() as Record<string, unknown>;
-      const hash = computeMsgHash(msg.value!);
-      console.log("hash", toBase64(hash));
-      //TODO verify message sinature
-      console.log(
-        "ver: ",
-        verifySignature(msg.value as { author: string; signature: string }),
-      );
+      const msg = await historyStream.read() as {value: Record<string, string>, key: string};
+      const hash = computeMsgHash(msg.value);
+      const key = `%${toBase64(hash)}.sha256`;
+      if (key !== msg.key) {
+        throw new Error("Computed hash doesn't match key "+ JSON.stringify(msg, undefined, 2));
+      }
+      if (!verifySignature(msg.value as { author: string; signature: string })) {
+        throw Error(`failed to veriy signature of the message: ${JSON.stringify(msg.value, undefined, 2)}`);
+      } 
       const msgFile = await Deno.create(
         feedDir + "/" +
           (msg as { value: Record<string, string> }).value!.sequence! + ".json",
@@ -106,7 +88,6 @@ const hasBlob = await rpcConnection.sendAsyncRequest({
   "args": [blobId],
 });
 
-console.log(hasBlob);
 
 if (hasBlob) {
   await Deno.mkdir("data/blobs", { recursive: true });

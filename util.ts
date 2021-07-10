@@ -36,7 +36,6 @@ export function concat(...elems: Uint8Array[]): Uint8Array {
   return result;
 }
 
-let previous = -1;
 export async function readBytes(reader: Deno.Reader, length: number) {
   const result = new Uint8Array(length);
   let bytesRead = 0;
@@ -51,11 +50,10 @@ export async function readBytes(reader: Deno.Reader, length: number) {
       }
       bytesRead += bytesReadNow;
     } catch (e) {
-      console.error(e);
+      //console.error(`At ${bytesRead}/${length}`,e);
       throw e;
     }
   }
-  previous = length;
   return result;
 }
 /** convert base64 from standard to filename-safe alphabet */
