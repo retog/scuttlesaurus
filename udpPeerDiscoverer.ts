@@ -9,7 +9,6 @@ const l = Deno.listenDatagram({
   }.`,
 );*/
 
-
 const udpPeerDiscoverer = {
   async *[Symbol.asyncIterator]() {
     for await (const r of l) {
