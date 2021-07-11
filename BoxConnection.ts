@@ -4,7 +4,7 @@ import { concat, readBytes } from "./util.ts";
 export default class BoxConnection implements Deno.Reader, Deno.Writer , Deno.Closer {
   closed = false;
   constructor(
-    public conn: Deno.Conn,
+    public conn: Deno.Reader & Deno.Writer & Deno.Closer,
     public serverToClientKey: Uint8Array,
     public serverToClientNonce: Uint8Array,
     public clientToServerKey: Uint8Array,
