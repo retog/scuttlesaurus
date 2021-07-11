@@ -20,6 +20,9 @@ export default class BoxConnection extends EventTarget
     if (!this.pendingData) {
       this.pendingData = await this.readChunk();
     }
+    if (!this.pendingData) {
+      return null;
+    }
     //TODO merge metods to avoid copying data
     if (this.pendingData.length < p.length) {
       p.set(this.pendingData);
@@ -43,6 +46,11 @@ export default class BoxConnection extends EventTarget
         this.serverToClientKey,
       );
       increment(this.serverToClientNonce);
+      if (isZero(header)) {
+        //they said goodbye
+        this.close();
+        return null;
+      }
       const bodyLength = header[0] * 0x100 + header[1];
       const authenticationBodyTag = header.slice(2);
       const encryptedBody = await readBytes(this.conn, bodyLength);
@@ -113,4 +121,8 @@ function increment(bytes: Uint8Array) {
       return;
     }
   }
+}
+
+function isZero(bytes: Uint8Array) {
+  return !bytes.find((b) => b > 0);
 }
