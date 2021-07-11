@@ -13,9 +13,12 @@ code is currently a subordinate goal.
 
 There are currently two executables.
 
-play.ts: This establishes a connection to a specify address, requests its log
-and outputs all received data as bytes and as text on the console. Example
-usage:
+play.ts: This establishes a connection to a an address specified as the first
+argument, requests the feed specified in the second argument, or the main feed
+of the address if no second argument is given, and saves all received messages
+in a folder in `data/feeds`. For example the following command will store all
+messages of `@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` it gets in the
+folder `data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`:
 
     deno run -A  play.ts "net:gossip.noisebridge.info:8008~shs:2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY="
 
