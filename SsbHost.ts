@@ -201,7 +201,9 @@ function getClientKeyPair() {
   const secretFileDir = Deno.env.get("HOME") + "/.ssb/";
   const secretFilePath = secretFileDir + "secret";
   try {
-    const secret = JSON.parse(Deno.readTextFileSync(secretFilePath));
+    const secretText = Deno.readTextFileSync(secretFilePath)
+    const secretTextNoComments = secretText.split("\n").filter(line => line.charAt(0) !== "#").join("\n")
+    const secret = JSON.parse(secretTextNoComments);
     return {
       keyType: secret.curve,
       publicKey: fromBase64(
