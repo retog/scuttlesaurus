@@ -1,5 +1,5 @@
 import BoxConnection from "./BoxConnection.ts";
-import { bytes2NumberSigned, bytes2NumberUnsigned } from "./util.ts";
+import { bytes2NumberSigned, bytes2NumberUnsigned, readBytes } from "./util.ts";
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -64,17 +64,10 @@ export default class RPCConnection {
     const monitorConnection = async () => {
       try {
         while (true) {
-          const headerBytes = await boxConnection.read(); //readBytes(boxConnection,9);
-          if (headerBytes.length !== 9) {
-            throw new Error("expected 9 headerBytes bytes, got " + headerBytes);
-          }
+          const headerBytes = await readBytes(boxConnection,9);
+
           const header = parseHeader(headerBytes);
-          const body = await boxConnection.readTill(header.bodyLength); //readBytes(boxConnection,9);
-          if (body.length !== header.bodyLength) {
-            throw new Error(
-              `expected a body of length ${header.bodyLength} but got ${body.length}`,
-            );
-          }
+          const body = await readBytes(boxConnection,header.bodyLength);
           if (header.requestNumber < 0) {
             const listener = this.responseStreamListeners.get(
               -header.requestNumber,

@@ -1,7 +1,7 @@
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 import { concat, readBytes } from "./util.ts";
 
-export default class BoxConnection /*implements Deno.Conn*/ {
+export default class BoxConnection implements Deno.Reader, Deno.Writer , Deno.Closer {
   closed = false;
   constructor(
     public conn: Deno.Conn,
@@ -12,26 +12,28 @@ export default class BoxConnection /*implements Deno.Conn*/ {
   ) {
   }
 
-  async readTill(length: number) {
-    const chunks: Uint8Array[] = [];
-    while (
-      chunks.reduce((previous, chunk) => previous + chunk.length, 0) <
-        length
-    ) {
-      chunks.push(await this.read());
+
+  pendingData: Uint8Array | null = null;
+
+  async read(p: Uint8Array): Promise<number | null> {
+      if (!this.pendingData) {
+        this.pendingData = await this.readChunk();
+      }
+    //TODO merge metods to avoid copying data
+    if (this.pendingData.length < p.length) {
+        p.set(this.pendingData);
+        const result = this.pendingData.length;
+        this.pendingData = null;
+        return result;
+    } else {
+        p.set(this.pendingData.subarray(0,p.length));
+        this.pendingData = this.pendingData.subarray(p.length);
+        return p.length;
     }
-    if (
-      chunks.reduce((previous, chunk) => previous + chunk.length, 0) >
-        length
-    ) {
-      throw new Error(
-        `Requested number of bytes doesn't match the received chunks`,
-      );
-    }
-    return concat(...chunks);
   }
 
-  async read() {
+  /** Gets the next chunk (box/body) of data*/
+  async readChunk() {
     const headerBox = await readBytes(this.conn, 34);
     const header = sodium.crypto_box_open_easy_afternm(
       headerBox,
@@ -74,6 +76,7 @@ export default class BoxConnection /*implements Deno.Conn*/ {
     );
 
     await this.conn.write(concat(encryptedHeader, encryptedMessage.slice(16)));
+    return messageLengh;
   }
   async close() {
     this.closed = true;
