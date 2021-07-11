@@ -1,18 +1,9 @@
 // deno-lint-ignore-file camelcase
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 import { concat, fromBase64, readBytes, toBase64 } from "./util.ts";
+import BoxConnection from "./BoxConnection.ts";
 
 await sodium.ready;
-
-interface BoxConnection {
-  read: () => Promise<Uint8Array>;
-  readTill: (length: number) => Promise<Uint8Array>;
-  [Symbol.asyncIterator]: () => AsyncGenerator<Uint8Array>;
-  write: (message: Uint8Array) => Promise<void>;
-  close: () => void;
-}
-
-export type { BoxConnection };
 
 export default class SsbHost {
   network_identifier = fromBase64(
@@ -194,108 +185,13 @@ export default class SsbHost {
       network_identifier,
     ).slice(0, 24);
 
-    function increment(bytes: Uint8Array) {
-      let pos = bytes.length - 1;
-      while (true) {
-        bytes[pos]++;
-        if (bytes[pos] === 0) {
-          pos--;
-          if (pos < 0) {
-            return;
-          }
-        } else {
-          return;
-        }
-      }
-    }
-    const connection = {
-      closed: false,
-      hello,
-      serverResponse,
-      serverResponse2,
-      detached_signature_B,
-      async *[Symbol.asyncIterator]() {
-        while (!this.closed) {
-          const nextValue = await this.read();
-          if (nextValue.length > 0) {
-            yield nextValue;
-          }
-        }
-      },
-      async readTill(length: number) {
-        const chunks: Uint8Array[] = [];
-        while (
-          chunks.reduce((previous, chunk) => previous + chunk.length, 0) <
-            length
-        ) {
-          chunks.push(await this.read());
-        }
-        if (
-          chunks.reduce((previous, chunk) => previous + chunk.length, 0) >
-            length
-        ) {
-          throw new Error(
-            `Requested number of bytes doesn't match the received chunks`,
-          );
-        }
-        return concat(...chunks);
-      },
-      async read() {
-        const headerBox = await readBytes(conn, 34);
-        const header = sodium.crypto_box_open_easy_afternm(
-          headerBox,
-          serverToClientNonce,
-          serverToClientKey,
-        );
-        increment(serverToClientNonce);
-        const bodyLength = header[0] * 0x100 + header[1];
-        const authenticationBodyTag = header.slice(2);
-        const encryptedBody = await readBytes(conn, bodyLength);
-        const decodedBody = sodium.crypto_box_open_easy_afternm(
-          concat(authenticationBodyTag, encryptedBody),
-          serverToClientNonce,
-          serverToClientKey,
-        );
-        increment(serverToClientNonce);
-        return decodedBody;
-      },
-      async write(message: Uint8Array) {
-        const headerNonce = new Uint8Array(clientToServerNonce);
-        increment(clientToServerNonce);
-        const bodyNonce = new Uint8Array(clientToServerNonce);
-        increment(clientToServerNonce);
-        const encryptedMessage = sodium.crypto_box_easy_afternm(
-          message,
-          bodyNonce,
-          clientToServerKey,
-        );
-        const messageLengh = message.length;
-        const messageLenghUiA = new Uint8Array([
-          messageLengh >> 8,
-          messageLengh & 0xFF,
-        ]);
-        const authenticationBodyTag = encryptedMessage.slice(0, 16);
-        const encryptedHeader = sodium.crypto_box_easy_afternm(
-          concat(messageLenghUiA, authenticationBodyTag),
-          headerNonce,
-          clientToServerKey,
-        );
-
-        await conn.write(concat(encryptedHeader, encryptedMessage.slice(16)));
-      },
-      async close() {
-        this.closed = true;
-        const byeMessage = sodium.crypto_box_easy_afternm(
-          new Uint8Array(18),
-          clientToServerNonce,
-          clientToServerKey,
-        );
-
-        await conn.write(byeMessage);
-        conn.close();
-        _host.connections = _host.connections.filter((e) => e !== this);
-      },
-    };
+    const connection = new BoxConnection(
+      conn,
+      serverToClientKey,
+      serverToClientNonce,
+      clientToServerKey,
+      clientToServerNonce,
+    );
     this.connections.push(connection);
     return connection;
   }

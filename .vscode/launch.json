@@ -20,8 +20,7 @@
       "runtimeExecutable": "deno",
       "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "FindPeers.ts"],
       "attachSimplePort": 9229,
-      "args": [
-      ]
+      "args": []
     },
     {
       "name": "Play with localhost",

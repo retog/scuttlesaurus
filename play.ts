@@ -1,4 +1,5 @@
-import SsbHost, { BoxConnection } from "./SsbHost.ts";
+import SsbHost from "./SsbHost.ts";
+import BoxConnection from "./BoxConnection.ts";
 import * as FSStorage from "./fsStorage.ts";
 import Procedures from "./Procedures.ts";
 import {
@@ -39,7 +40,6 @@ const boxConnection: BoxConnection = await host.connect(
 
 const rpcConnection = new RPCConnection(boxConnection, new Procedures());
 
-
 console.log("sending a message...");
 
 const historyStream = await rpcConnection.sendSourceRequest({
@@ -51,15 +51,27 @@ const historyStream = await rpcConnection.sendSourceRequest({
   await Deno.mkdir(feedDir, { recursive: true });
   while (true) {
     try {
-      const msg = await historyStream.read() as {value: Record<string, string>, key: string};
+      const msg = await historyStream.read() as {
+        value: Record<string, string>;
+        key: string;
+      };
       const hash = computeMsgHash(msg.value);
       const key = `%${toBase64(hash)}.sha256`;
       if (key !== msg.key) {
-        throw new Error("Computed hash doesn't match key "+ JSON.stringify(msg, undefined, 2));
+        throw new Error(
+          "Computed hash doesn't match key " +
+            JSON.stringify(msg, undefined, 2),
+        );
       }
-      if (!verifySignature(msg.value as { author: string; signature: string })) {
-        throw Error(`failed to veriy signature of the message: ${JSON.stringify(msg.value, undefined, 2)}`);
-      } 
+      if (
+        !verifySignature(msg.value as { author: string; signature: string })
+      ) {
+        throw Error(
+          `failed to veriy signature of the message: ${
+            JSON.stringify(msg.value, undefined, 2)
+          }`,
+        );
+      }
       const msgFile = await Deno.create(
         feedDir + "/" +
           (msg as { value: Record<string, string> }).value!.sequence! + ".json",
@@ -87,7 +99,6 @@ const hasBlob = await rpcConnection.sendAsyncRequest({
   "name": ["blobs", "has"],
   "args": [blobId],
 });
-
 
 if (hasBlob) {
   await Deno.mkdir("data/blobs", { recursive: true });

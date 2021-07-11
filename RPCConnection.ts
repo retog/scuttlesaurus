@@ -1,4 +1,4 @@
-import { BoxConnection } from "./SsbHost.ts";
+import BoxConnection from "./BoxConnection.ts";
 import { bytes2NumberSigned, bytes2NumberUnsigned } from "./util.ts";
 
 const textDecoder = new TextDecoder();
