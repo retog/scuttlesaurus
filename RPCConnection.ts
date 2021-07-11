@@ -64,10 +64,10 @@ export default class RPCConnection {
     const monitorConnection = async () => {
       try {
         while (true) {
-          const headerBytes = await readBytes(boxConnection,9);
+          const headerBytes = await readBytes(boxConnection, 9);
 
           const header = parseHeader(headerBytes);
-          const body = await readBytes(boxConnection,header.bodyLength);
+          const body = await readBytes(boxConnection, header.bodyLength);
           if (header.requestNumber < 0) {
             const listener = this.responseStreamListeners.get(
               -header.requestNumber,
