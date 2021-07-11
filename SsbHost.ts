@@ -193,6 +193,9 @@ export default class SsbHost {
       clientToServerNonce,
     );
     this.connections.push(connection);
+    connection.addEventListener("close", () => {
+      this.connections = this.connections.filter((c) => c !== connection);
+    });
     return connection;
   }
 }
@@ -201,8 +204,10 @@ function getClientKeyPair() {
   const secretFileDir = Deno.env.get("HOME") + "/.ssb/";
   const secretFilePath = secretFileDir + "secret";
   try {
-    const secretText = Deno.readTextFileSync(secretFilePath)
-    const secretTextNoComments = secretText.split("\n").filter(line => line.charAt(0) !== "#").join("\n")
+    const secretText = Deno.readTextFileSync(secretFilePath);
+    const secretTextNoComments = secretText.split("\n").filter((line) =>
+      line.charAt(0) !== "#"
+    ).join("\n");
     const secret = JSON.parse(secretTextNoComments);
     return {
       keyType: secret.curve,

@@ -1,7 +1,7 @@
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 import { concat, readBytes } from "./util.ts";
 
-export default class BoxConnection
+export default class BoxConnection extends EventTarget
   implements Deno.Reader, Deno.Writer, Deno.Closer {
   closed = false;
   constructor(
@@ -11,6 +11,7 @@ export default class BoxConnection
     public clientToServerKey: Uint8Array,
     public clientToServerNonce: Uint8Array,
   ) {
+    super();
   }
 
   pendingData: Uint8Array | null = null;
@@ -34,23 +35,30 @@ export default class BoxConnection
 
   /** Gets the next chunk (box/body) of data*/
   async readChunk() {
-    const headerBox = await readBytes(this.conn, 34);
-    const header = sodium.crypto_box_open_easy_afternm(
-      headerBox,
-      this.serverToClientNonce,
-      this.serverToClientKey,
-    );
-    increment(this.serverToClientNonce);
-    const bodyLength = header[0] * 0x100 + header[1];
-    const authenticationBodyTag = header.slice(2);
-    const encryptedBody = await readBytes(this.conn, bodyLength);
-    const decodedBody = sodium.crypto_box_open_easy_afternm(
-      concat(authenticationBodyTag, encryptedBody),
-      this.serverToClientNonce,
-      this.serverToClientKey,
-    );
-    increment(this.serverToClientNonce);
-    return decodedBody;
+    try {
+      const headerBox = await readBytes(this.conn, 34);
+      const header = sodium.crypto_box_open_easy_afternm(
+        headerBox,
+        this.serverToClientNonce,
+        this.serverToClientKey,
+      );
+      increment(this.serverToClientNonce);
+      const bodyLength = header[0] * 0x100 + header[1];
+      const authenticationBodyTag = header.slice(2);
+      const encryptedBody = await readBytes(this.conn, bodyLength);
+      const decodedBody = sodium.crypto_box_open_easy_afternm(
+        concat(authenticationBodyTag, encryptedBody),
+        this.serverToClientNonce,
+        this.serverToClientKey,
+      );
+      increment(this.serverToClientNonce);
+      return decodedBody;
+    } catch (error) {
+      if (error.message.startsWith("End of reader")) {
+        this.close();
+      }
+      throw error;
+    }
   }
 
   async write(message: Uint8Array) {
@@ -80,6 +88,7 @@ export default class BoxConnection
   }
   async close() {
     this.closed = true;
+    this.dispatchEvent(new CustomEvent("close"));
     const byeMessage = sodium.crypto_box_easy_afternm(
       new Uint8Array(18),
       this.clientToServerNonce,
