@@ -2,6 +2,8 @@ import sodium, {
   base64_variants as base64Variants,
 } from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 
+import iconv from "https://dev.jspm.io/iconv-lite";
+
 const textEncoder = new TextEncoder();
 
 export function parseAddress(addr: string) {
@@ -74,9 +76,13 @@ export function fromBase64(text: string) {
   );
 }
 
+function nodeBinaryEncode(s: string): Uint8Array {
+  return (iconv as {encode: (s: string, e: string) => Uint8Array}).encode(s, "binary")
+}
+
 export function computeMsgHash(msg: unknown) {
   return sodium.crypto_hash_sha256(
-    textEncoder.encode(JSON.stringify(msg, undefined, 2)),
+    nodeBinaryEncode(JSON.stringify(msg, undefined, 2)),
   );
 }
 
@@ -101,7 +107,7 @@ export function verifySignature(msg: { author: string; signature?: string }) {
   delete msg.signature;
   const verifyResult = sodium.crypto_sign_verify_detached(
     signature,
-    JSON.stringify(msg, undefined, 2),
+    textEncoder.encode(JSON.stringify(msg, undefined, 2)),
     authorsPubkicKey,
   );
   msg.signature = signatureString;
