@@ -2,8 +2,6 @@ import sodium, {
   base64_variants as base64Variants,
 } from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 
-import iconv from "https://dev.jspm.io/iconv-lite";
-
 const textEncoder = new TextEncoder();
 
 export function parseAddress(addr: string) {
@@ -76,8 +74,26 @@ export function fromBase64(text: string) {
   );
 }
 
-function nodeBinaryEncode(s: string): Uint8Array {
-  return (iconv as {encode: (s: string, e: string) => Uint8Array}).encode(s, "binary")
+function nodeBinaryEncode(text: string): Uint8Array {
+  function encodeValue(value: number) {
+    if (value <= 0xFFFF) {
+      return new Uint8Array([value & 0xFF]);
+    } else {
+      const firstByte = (Math.floor(value / 0x400) - 0b1000000) & 0xFF
+      const secondByte = value & 0xFF;
+      return new Uint8Array([firstByte, secondByte]);
+    }
+  }
+  
+  function encodeChars(chars: number[]): Uint8Array {
+    if (chars.length === 0) {
+      return new Uint8Array(0);
+    } else {
+      return concat(...chars.map(char => encodeValue(char)));
+    }
+  }
+  const codePoints: number[] = [...text].map(cp => cp.codePointAt(0)!);
+  return encodeChars(codePoints);
 }
 
 export function computeMsgHash(msg: unknown) {
