@@ -79,12 +79,6 @@ export default class RPCConnection {
             }
             listener(body, header);
           } else {
-            //TODO handle incoming requests
-            console.log(
-              `got request number ${header.requestNumber}: ${
-                textDecoder.decode(body)
-              }`,
-            );
             const request = JSON.parse(textDecoder.decode(body));
             if (this.requestHandler) {
               if (request.type === "source") {
@@ -103,7 +97,19 @@ export default class RPCConnection {
                     });
                   }
                 })();
+              } else {
+                console.log(
+                  `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
+                    textDecoder.decode(body)
+                  }`,
+                );
               }
+            } else {
+              console.log(
+                `No handler to handle request number ${header.requestNumber}: ${
+                  textDecoder.decode(body)
+                }`,
+              );
             }
           }
         }
