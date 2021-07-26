@@ -43,7 +43,11 @@ export default class Procedures implements RequestHandler {
   };
 
   namedContext: Record<string, rpcContext> = {
-    blobs: {},
+    blobs: {
+      createWants: async function* (_args: Record<string, string>[]) {
+        yield {};
+      },
+    },
   };
 
   handleSourceRequest(

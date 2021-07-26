@@ -1,18 +1,11 @@
 import SsbHost from "./SsbHost.ts";
 import BoxConnection from "./BoxConnection.ts";
-import * as FSStorage from "./fsStorage.ts";
 import Procedures from "./Procedures.ts";
-import {
-  computeMsgHash,
-  filenameSafeAlphabetRFC3548,
-  parseAddress,
-  toBase64,
-  verifySignature,
-} from "./util.ts";
+import { updateFeed } from "./feedSubscriptions.ts";
+import { filenameSafeAlphabetRFC3548, parseAddress } from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 
 const host = new SsbHost();
-const textEncoder = new TextEncoder();
 
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");
@@ -42,56 +35,7 @@ const rpcConnection = new RPCConnection(boxConnection, new Procedures());
 
 console.log("sending a message...");
 
-const historyStream = await rpcConnection.sendSourceRequest({
-  "name": ["createHistoryStream"],
-  "args": [{ "id": `@${feedKey}.ed25519`, "seq": 1 }],
-});
-(async () => {
-  const feedDir = FSStorage.getFeedDir(feedKey);
-  await Deno.mkdir(feedDir, { recursive: true });
-  while (true) {
-    try {
-      const msg = await historyStream.read() as {
-        value: Record<string, string>;
-        key: string;
-      };
-      const hash = computeMsgHash(msg.value);
-      const key = `%${toBase64(hash)}.sha256`;
-      if (key !== msg.key) {
-        throw new Error(
-          "Computed hash doesn't match key " +
-            JSON.stringify(msg, undefined, 2),
-        );
-      }
-      if (
-        !verifySignature(msg.value as { author: string; signature: string })
-      ) {
-        throw Error(
-          `failed to veriy signature of the message: ${
-            JSON.stringify(msg.value, undefined, 2)
-          }`,
-        );
-      }
-      const msgFile = await Deno.create(
-        feedDir + "/" +
-          (msg as { value: Record<string, string> }).value!.sequence! + ".json",
-      );
-      await msgFile.write(
-        textEncoder.encode(JSON.stringify(msg, undefined, 2)),
-      );
-      msgFile.close();
-      /*console.log(
-        JSON.stringify(msg, undefined, 2),
-      );*/
-    } catch (err) {
-      if (err instanceof EndOfStream) {
-        console.error("Stream ended");
-      } else {
-        console.error(err);
-      }
-    }
-  }
-})();
+updateFeed(rpcConnection, feedKey);
 
 const blobId = "&cnuH8kTYmu2O685OruWm8TVNR7tKfItKCP+L+pDE8xs=.sha256";
 

@@ -1,5 +1,10 @@
 import BoxConnection from "./BoxConnection.ts";
-import { bytes2NumberSigned, bytes2NumberUnsigned, readBytes } from "./util.ts";
+import {
+  bytes2NumberSigned,
+  bytes2NumberUnsigned,
+  isZero,
+  readBytes,
+} from "./util.ts";
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -65,8 +70,14 @@ export default class RPCConnection {
       try {
         while (true) {
           const headerBytes = await readBytes(boxConnection, 9);
-
+          if (isZero(headerBytes)) {
+            console.log("They said godbye.");
+            break;
+          }
           const header = parseHeader(headerBytes);
+          if (header.bodyLength === 0) {
+            throw new Error("Got RPC message with lentgh 0.");
+          }
           const body = await readBytes(boxConnection, header.bodyLength);
           if (header.requestNumber < 0) {
             const listener = this.responseStreamListeners.get(
@@ -79,7 +90,18 @@ export default class RPCConnection {
             }
             listener(body, header);
           } else {
-            const request = JSON.parse(textDecoder.decode(body));
+            const parse = () => {
+              const decoded = textDecoder.decode(body);
+              try {
+                return JSON.parse(decoded);
+              } catch (error) {
+                console.error(
+                  `Parsing ${decoded} in request ${JSON.stringify(header)}`,
+                );
+                throw error;
+              }
+            };
+            const request = parse();
             if (this.requestHandler) {
               if (request.type === "source") {
                 const responseIterator = this.requestHandler
@@ -114,10 +136,14 @@ export default class RPCConnection {
           }
         }
       } catch (e) {
-        if (e.name === "Interrupted") {
-          // ignore
+        if (boxConnection.closed) {
+          console.log("Connection closed");
         } else {
-          throw e;
+          if (e.name === "Interrupted") {
+            // ignore
+          } else {
+            throw e;
+          }
         }
       }
     };
@@ -143,6 +169,19 @@ export default class RPCConnection {
     const bufferer = (message: Uint8Array, header: Header) => {
       if (!header.endOrError) {
         buffer.push(parse(message, header.bodyType));
+      } else {
+        const endMessage = textDecoder.decode(message);
+        if (endMessage === "true") {
+          console.log(
+            `Response stream for ${requestNumber} ended, but nobody was listening.`,
+          );
+        } else {
+          console.log(
+            `Response stream for ${requestNumber} errored with ${new Error(
+              endMessage,
+            )}, but nobody was listening.`,
+          );
+        }
       }
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
