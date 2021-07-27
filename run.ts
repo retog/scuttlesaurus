@@ -1,11 +1,11 @@
-import SsbHost from "./SsbHost.ts";
+import ScuttlebuttPeer from "./ScuttlebuttPeer.ts";
 import BoxConnection from "./BoxConnection.ts";
 import Procedures from "./Procedures.ts";
 import { updateFeeds } from "./feedSubscriptions.ts";
 import { log, parseAddress } from "./util.ts";
 import RPCConnection from "./RPCConnection.ts";
 
-const host = new SsbHost();
+const host = new ScuttlebuttPeer();
 
 if (Deno.args.length !== 1) {
   log.error("expecting one argument");

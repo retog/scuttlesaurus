@@ -6,14 +6,15 @@ import config from "./config.ts";
 
 await sodium.ready;
 
-export default class SsbHost {
+/** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
+export default class ScuttlebuttPeer {
   network_identifier = fromBase64(
     "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
   );
-  clientLongtermKeyPair = getClientKeyPair();
+  keyPair = getClientKeyPair();
   id = "@" +
     toBase64(
-      this.clientLongtermKeyPair.publicKey,
+      this.keyPair.publicKey,
     );
 
   connections: BoxConnection[] = [];
@@ -58,15 +59,15 @@ export default class SsbHost {
       );
       const detached_signature_A = sodium.crypto_sign_detached(
         msg,
-        this.clientLongtermKeyPair.privateKey,
+        this.keyPair.privateKey,
       );
       const boxMsg = new Uint8Array(
         detached_signature_A.length +
-          this.clientLongtermKeyPair.publicKey.length,
+          this.keyPair.publicKey.length,
       );
       boxMsg.set(detached_signature_A);
       boxMsg.set(
-        this.clientLongtermKeyPair.publicKey,
+        this.keyPair.publicKey,
         detached_signature_A.length,
       );
       const nonce = new Uint8Array(24);
@@ -113,7 +114,7 @@ export default class SsbHost {
 
     const shared_secret_Ab = sodium.crypto_scalarmult(
       sodium.crypto_sign_ed25519_sk_to_curve25519(
-        this.clientLongtermKeyPair.privateKey,
+        this.keyPair.privateKey,
       ),
       server_ephemeral_pk,
     );
@@ -138,7 +139,7 @@ export default class SsbHost {
       concat(
         this.network_identifier,
         detached_signature_A,
-        this.clientLongtermKeyPair.publicKey,
+        this.keyPair.publicKey,
         sodium.crypto_hash_sha256(shared_secret_ab),
       ),
       server_longterm_pk,
@@ -158,7 +159,7 @@ export default class SsbHost {
             shared_secret_Ab,
           ),
         )),
-        this.clientLongtermKeyPair.publicKey,
+        this.keyPair.publicKey,
       ),
     );
 
