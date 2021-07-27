@@ -1,6 +1,6 @@
 import { RequestHandler } from "./RPCConnection.ts";
 import * as FSStorage from "./fsStorage.ts";
-import * as path from "https://deno.land/std@0.100.0/path/mod.ts";
+import { path } from "./util.ts";
 
 type sourceProcedure = (
   args: Record<string, string>[],

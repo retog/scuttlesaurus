@@ -1,5 +1,5 @@
 import * as FSStorage from "./fsStorage.ts";
-import * as path from "https://deno.land/std@0.100.0/path/mod.ts";
+import { path } from "./util.ts";
 
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");

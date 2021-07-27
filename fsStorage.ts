@@ -1,7 +1,9 @@
-import { filenameSafeAlphabetRFC3548 } from "./util.ts";
+import { filenameSafeAlphabetRFC3548, path } from "./util.ts";
+import config from "./config.ts";
 
 export function getFeedDir(feedKey: string) {
-  return "data/feeds/" + filenameSafeAlphabetRFC3548(feedKey);
+  const feedsDir = path.join(config.dataDir, "feeds");
+  return path.join(feedsDir, filenameSafeAlphabetRFC3548(feedKey));
 }
 
 export async function lastMessage(feedKey: string) {

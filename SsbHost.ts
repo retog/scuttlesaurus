@@ -1,7 +1,8 @@
 // deno-lint-ignore-file camelcase
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, fromBase64, readBytes, toBase64 } from "./util.ts";
+import { concat, fromBase64, path, readBytes, toBase64 } from "./util.ts";
 import BoxConnection from "./BoxConnection.ts";
+import config from "./config.ts";
 
 await sodium.ready;
 
@@ -201,8 +202,8 @@ export default class SsbHost {
 }
 
 function getClientKeyPair() {
-  const secretFileDir = Deno.env.get("HOME") + "/.ssb/";
-  const secretFilePath = secretFileDir + "secret";
+  const secretFileDir = config.baseDir;
+  const secretFilePath = path.join(secretFileDir, "secret");
   try {
     const secretText = Deno.readTextFileSync(secretFilePath);
     const secretTextNoComments = secretText.split("\n").filter((line) =>

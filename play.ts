@@ -2,8 +2,9 @@ import SsbHost from "./SsbHost.ts";
 import BoxConnection from "./BoxConnection.ts";
 import Procedures from "./Procedures.ts";
 import { updateFeed } from "./feedSubscriptions.ts";
-import { filenameSafeAlphabetRFC3548, parseAddress } from "./util.ts";
+import { filenameSafeAlphabetRFC3548, parseAddress, path } from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
+import config from "./config.ts";
 
 const host = new SsbHost();
 
@@ -45,7 +46,7 @@ const hasBlob = await rpcConnection.sendAsyncRequest({
 });
 
 if (hasBlob) {
-  await Deno.mkdir("data/blobs", { recursive: true });
+  await Deno.mkdir(path.join(config.dataDir, "blobs"), { recursive: true });
   const blobFile = await Deno.create(
     "data/blobs/" + filenameSafeAlphabetRFC3548(blobId),
   );

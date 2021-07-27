@@ -1,6 +1,7 @@
 import sodium, {
   base64_variants as base64Variants,
 } from "https://deno.land/x/sodium@0.2.0/sumo.ts";
+export * as path from "https://deno.land/std@0.100.0/path/mod.ts";
 
 const textEncoder = new TextEncoder();
 
