@@ -2,7 +2,12 @@ import SsbHost from "./SsbHost.ts";
 import BoxConnection from "./BoxConnection.ts";
 import Procedures from "./Procedures.ts";
 import { updateFeed } from "./feedSubscriptions.ts";
-import { filenameSafeAlphabetRFC3548, parseAddress, path } from "./util.ts";
+import {
+  filenameSafeAlphabetRFC3548,
+  log,
+  parseAddress,
+  path,
+} from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 import config from "./config.ts";
 
@@ -21,7 +26,7 @@ function strip(feedId: string) {
   if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
     return feedId.substring(1, feedId.length - 8);
   } else {
-    console.log(feedId + " doesn't seems to be dressed");
+    log.info(feedId + " doesn't seems to be dressed");
     return feedId;
   }
 }
@@ -34,7 +39,7 @@ const boxConnection: BoxConnection = await host.connect(
 
 const rpcConnection = new RPCConnection(boxConnection, new Procedures());
 
-console.log("sending a message...");
+log.info("sending a message...");
 
 updateFeed(rpcConnection, feedKey);
 
@@ -62,13 +67,13 @@ if (hasBlob) {
         while (written < msg.length) {
           written += await blobFile.write(msg.subarray(written));
         }
-        console.log(`wrote ${written} bytes to file`);
-        //console.log("blob data", msg);
+        log.info(`wrote ${written} bytes to file`);
+        //log.info("blob data", msg);
       } catch (err) {
         if (err instanceof EndOfStream) {
-          console.error("Stream ended");
+          log.error("Stream ended");
         } else {
-          console.error(err);
+          log.error(err);
         }
         break;
       }

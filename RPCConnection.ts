@@ -3,6 +3,7 @@ import {
   bytes2NumberSigned,
   bytes2NumberUnsigned,
   isZero,
+  log,
   readBytes,
 } from "./util.ts";
 
@@ -71,7 +72,7 @@ export default class RPCConnection {
         while (true) {
           const headerBytes = await readBytes(boxConnection, 9);
           if (isZero(headerBytes)) {
-            console.log("They said godbye.");
+            log.debug("They said godbye.");
             break;
           }
           const header = parseHeader(headerBytes);
@@ -95,7 +96,7 @@ export default class RPCConnection {
               try {
                 return JSON.parse(decoded);
               } catch (error) {
-                console.error(
+                log.error(
                   `Parsing ${decoded} in request ${JSON.stringify(header)}`,
                 );
                 throw error;
@@ -112,7 +113,7 @@ export default class RPCConnection {
                       [Symbol.asyncIterator]: () => responseIterator,
                     }
                   ) {
-                    console.log("sending back", value);
+                    log.debug(() => "sending back " + JSON.stringify(value));
                     this.sendRpcMessage(value, {
                       isStream: true,
                       inReplyTo: header.requestNumber,
@@ -120,14 +121,14 @@ export default class RPCConnection {
                   }
                 })();
               } else {
-                console.log(
+                log.info(
                   `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
                     textDecoder.decode(body)
                   }`,
                 );
               }
             } else {
-              console.log(
+              log.info(
                 `No handler to handle request number ${header.requestNumber}: ${
                   textDecoder.decode(body)
                 }`,
@@ -137,7 +138,7 @@ export default class RPCConnection {
         }
       } catch (e) {
         if (boxConnection.closed) {
-          console.log("Connection closed");
+          log.info("Connection closed");
         } else {
           if (e.name === "Interrupted") {
             // ignore
@@ -172,11 +173,11 @@ export default class RPCConnection {
       } else {
         const endMessage = textDecoder.decode(message);
         if (endMessage === "true") {
-          console.log(
+          log.info(
             `Response stream for ${requestNumber} ended, but nobody was listening.`,
           );
         } else {
-          console.log(
+          log.info(
             `Response stream for ${requestNumber} errored with ${new Error(
               endMessage,
             )}, but nobody was listening.`,

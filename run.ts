@@ -2,7 +2,7 @@ import SsbHost from "./SsbHost.ts";
 import BoxConnection from "./BoxConnection.ts";
 import Procedures from "./Procedures.ts";
 import { updateFeeds } from "./feedSubscriptions.ts";
-import { parseAddress } from "./util.ts";
+import { log, parseAddress } from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 
 const host = new SsbHost();

@@ -3,7 +3,7 @@ const l = Deno.listenDatagram({
   hostname: "0.0.0.0",
   transport: "udp",
 });
-/*console.log(
+/*log.info(
   `Listening on ${(l.addr as Deno.NetAddr).hostname}:${
     (l.addr as Deno.NetAddr).port
   }.`,
@@ -18,7 +18,7 @@ const udpPeerDiscoverer = {
         hostname: (r[1] as Deno.NetAddr).hostname,
         addresses,
       };
-      /*console.log(
+      /*log.info(
         `got UDP packet ${multiAddress} from ${
           (r[1] as Deno.NetAddr).hostname
         }:${(r[1] as Deno.NetAddr).port}.`,

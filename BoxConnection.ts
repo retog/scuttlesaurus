@@ -1,5 +1,5 @@
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, isZero, readBytes } from "./util.ts";
+import { concat, isZero, log, readBytes } from "./util.ts";
 
 export default class BoxConnection extends EventTarget
   implements Deno.Reader, Deno.Writer, Deno.Closer {
@@ -63,7 +63,7 @@ export default class BoxConnection extends EventTarget
       return decodedBody;
     } catch (error) {
       if (error.message.startsWith("End of reader")) {
-        console.log("End of reader, closing.");
+        log.info("End of reader, closing.");
         this.close();
       }
       throw error;

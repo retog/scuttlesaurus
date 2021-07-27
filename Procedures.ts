@@ -14,7 +14,7 @@ export default class Procedures implements RequestHandler {
       const opts = args[0];
       const feedKey = opts.id.substring(1, opts.id.length - ".ed25519".length);
       let seq = Number.parseInt(opts.seq);
-      //console.log(`got request for ${feedKey} with seq: ${seq}`);
+      //log.info(`got request for ${feedKey} with seq: ${seq}`);
       while (true) {
         const fileName = path.join(
           FSStorage.getFeedDir(feedKey),
@@ -34,7 +34,7 @@ export default class Procedures implements RequestHandler {
           }
         } catch (error) {
           if (error instanceof Deno.errors.NotFound) {
-            //console.log(`File ${fileName} not found, ending stream`);
+            //log.info(`File ${fileName} not found, ending stream`);
             break;
           }
         }

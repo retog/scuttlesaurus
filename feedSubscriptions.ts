@@ -1,5 +1,5 @@
 import * as FSStorage from "./fsStorage.ts";
-import { computeMsgHash, toBase64, verifySignature } from "./util.ts";
+import { computeMsgHash, log, toBase64, verifySignature } from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 
 const textEncoder = new TextEncoder();
@@ -22,7 +22,7 @@ export async function updateFeed(
   rpcConnection: RPCConnection,
   feedKey: string,
 ) {
-  console.log(`Updating Feed ${feedKey}`);
+  log.info(`Updating Feed ${feedKey}`);
   const messagesAlreadyHere = await FSStorage.lastMessage(feedKey);
   const historyStream = await rpcConnection.sendSourceRequest({
     "name": ["createHistoryStream"],
@@ -66,14 +66,14 @@ export async function updateFeed(
           textEncoder.encode(JSON.stringify(msg, undefined, 2)),
         );
         msgFile.close();
-        /*console.log(
+        /*log.info(
                   JSON.stringify(msg, undefined, 2),
                 );*/
       } catch (err) {
         if (err instanceof EndOfStream) {
-          console.error("Stream ended");
+          log.error("Stream ended");
         } else {
-          console.error(err);
+          log.error(err);
         }
       }
     }
@@ -85,7 +85,7 @@ export function updateFeeds(rpcConnection: RPCConnection) {
     if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
       return feedId.substring(1, feedId.length - 8);
     } else {
-      console.log(feedId + " doesn't seems to be dressed");
+      log.info(feedId + " doesn't seems to be dressed");
       return feedId;
     }
   }

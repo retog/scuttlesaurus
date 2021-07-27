@@ -1,5 +1,5 @@
 import * as FSStorage from "./fsStorage.ts";
-import { path } from "./util.ts";
+import { log, path } from "./util.ts";
 
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");
@@ -11,7 +11,7 @@ function strip(feedId: string) {
   if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
     return feedId.substring(1, feedId.length - 8);
   } else {
-    console.log(feedId + " doesn't seems to be dressed");
+    log.info(feedId + " doesn't seems to be dressed");
     return feedId;
   }
 }
@@ -40,13 +40,13 @@ for (let i = 1; i < lastMessage; i++) {
     }
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      //console.log(`File ${fileName} not found, ending stream`);
+      //log.info(`File ${fileName} not found, ending stream`);
       continue;
     }
   }
 }
 
 /*for (const entry of subScriptions) {
-  console.log(entry);
+  log.info(entry);
 }*/
-console.log(JSON.stringify([...subScriptions]));
+log.info(JSON.stringify([...subScriptions]));

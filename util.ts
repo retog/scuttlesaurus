@@ -1,7 +1,8 @@
 import sodium, {
   base64_variants as base64Variants,
 } from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-export * as path from "https://deno.land/std@0.100.0/path/mod.ts";
+export * as path from "https://deno.land/std@0.103.0/path/mod.ts";
+export * as log from "https://deno.land/std@0.103.0/log/mod.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -51,7 +52,6 @@ export async function readBytes(reader: Deno.Reader, length: number) {
       }
       bytesRead += bytesReadNow;
     } catch (e) {
-      //console.error(`At ${bytesRead}/${length}`,e);
       throw e;
     }
   }
