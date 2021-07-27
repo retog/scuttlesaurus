@@ -8,6 +8,6 @@ for await (const peer of udpPeerDiscoverer) {
       JSON.stringify(peer.addresses)
   ) {
     peerAddresses.set(peer.hostname, peer.addresses);
-    log.info(peer.addresses);
+    console.log(peer.addresses);
   }
 }
