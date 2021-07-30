@@ -105,7 +105,6 @@ export default class BoxConnection extends EventTarget
     );
     await this.conn.write(byeMessage);
     this.conn.close();
-    //TODO fire close event
   }
 }
 
