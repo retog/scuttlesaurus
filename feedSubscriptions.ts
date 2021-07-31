@@ -22,13 +22,25 @@ export async function updateFeed(
   rpcConnection: RPCConnection,
   feedKey: string,
 ) {
-  log.info(`Updating Feed ${feedKey}`);
   const messagesAlreadyHere = await FSStorage.lastMessage(feedKey);
+  await updateFeedFrom(
+    rpcConnection,
+    feedKey,
+    messagesAlreadyHere > 0 ? messagesAlreadyHere : 1,
+  );
+}
+
+export async function updateFeedFrom(
+  rpcConnection: RPCConnection,
+  feedKey: string,
+  from: number,
+) {
+  log.info(`Updating Feed ${feedKey} from ${from}`);
   const historyStream = await rpcConnection.sendSourceRequest({
     "name": ["createHistoryStream"],
     "args": [{
       "id": `@${feedKey}.ed25519`,
-      "seq": messagesAlreadyHere > 0 ? messagesAlreadyHere : 1,
+      "seq": from,
     }],
   });
   return (async () => {

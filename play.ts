@@ -1,7 +1,7 @@
 import ScuttlebuttPeer from "./ScuttlebuttPeer.ts";
 import BoxConnection from "./BoxConnection.ts";
 import Procedures from "./Procedures.ts";
-import { updateFeed } from "./feedSubscriptions.ts";
+import { updateFeedFrom } from "./feedSubscriptions.ts";
 import {
   filenameSafeAlphabetRFC3548,
   log,
@@ -41,7 +41,7 @@ const rpcConnection = new RPCConnection(boxConnection, new Procedures());
 
 log.info("sending a message...");
 
-updateFeed(rpcConnection, feedKey);
+updateFeedFrom(rpcConnection, feedKey, 1);
 
 const blobId = "&cnuH8kTYmu2O685OruWm8TVNR7tKfItKCP+L+pDE8xs=.sha256";
 
