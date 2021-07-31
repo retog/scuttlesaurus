@@ -355,8 +355,11 @@ export default class ScuttlebuttPeer extends EventTarget {
     (async () => {
       for await (const conn of listener) {
         log.info(`Received connection from  ${conn.remoteAddr}`);
-        await this.acceptConnection(conn);
-        //conn.close();
+        try {
+          await this.acceptConnection(conn);
+        } catch (error) {
+          log.warning(`Error with incoming connection from  ${conn.remoteAddr}: ${error}`)
+        }
       }
     })();
     await advertise(
