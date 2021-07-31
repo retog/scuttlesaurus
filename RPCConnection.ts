@@ -2,6 +2,7 @@ import BoxConnection from "./BoxConnection.ts";
 import {
   bytes2NumberSigned,
   bytes2NumberUnsigned,
+  concat,
   isZero,
   log,
   readBytes,
@@ -291,11 +292,9 @@ export default class RPCConnection {
       new Uint8Array(new Uint32Array([requestNumber]).buffer).reverse(),
       5,
     );
-    //or write twice?
-    //const message = concat(headerBytes, payload);
-    //await this.write(message);
-    await this.boxConnection.write(header);
-    await this.boxConnection.write(payload);
+    //writing in one go, to ensure correct order
+    const message = concat(header, payload);
+    await this.boxConnection.write(message);
     return requestNumber;
   };
 }

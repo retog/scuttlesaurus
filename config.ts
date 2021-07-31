@@ -18,6 +18,7 @@ const dataDir = path.join(baseDir, "data/");
 const config = {
   baseDir,
   dataDir,
+  port: 8008,
 };
 
 export default config;

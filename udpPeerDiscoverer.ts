@@ -1,13 +1,24 @@
+//import { delay } from "https://deno.land/std@0.103.0/async/mod.ts";
+import { log } from "./util.ts";
+
 const l = Deno.listenDatagram({
   port: 8008,
   hostname: "0.0.0.0",
   transport: "udp",
 });
-/*log.info(
+
+export function advertise(_multiAddress: string) {
+  //as UDP broadcast doesn't seem to be supported
+  //Another issue is finding out own ip
+  //TODO implement
+  return new Promise((_res, _rej) => {});
+}
+
+log.info(
   `Listening on ${(l.addr as Deno.NetAddr).hostname}:${
     (l.addr as Deno.NetAddr).port
   }.`,
-);*/
+);
 
 const udpPeerDiscoverer = {
   async *[Symbol.asyncIterator]() {

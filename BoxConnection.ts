@@ -18,10 +18,16 @@ export default class BoxConnection extends EventTarget
 
   async read(p: Uint8Array): Promise<number | null> {
     if (!this.pendingData) {
-      this.pendingData = await this.readChunk();
-    }
-    if (!this.pendingData) {
-      return null;
+      const chunk = await this.readChunk();
+      if (chunk === null) {
+        return null;
+      }
+      if (!this.pendingData) {
+        this.pendingData = chunk;
+      } else {
+        //race condition
+        this.pendingData = concat(this.pendingData, chunk);
+      }
     }
     //TODO merge metods to avoid copying data
     if (this.pendingData.length < p.length) {
@@ -60,6 +66,10 @@ export default class BoxConnection extends EventTarget
         this.serverToClientKey,
       );
       increment(this.serverToClientNonce);
+      log.debug(() =>
+        "Read " + decodedBody + " (" + (new TextDecoder().decode(decodedBody)) +
+          ")",
+      );
       return decodedBody;
     } catch (error) {
       if (error.message.startsWith("End of reader")) {
@@ -71,6 +81,7 @@ export default class BoxConnection extends EventTarget
   }
 
   async write(message: Uint8Array) {
+    log.debug("Writing " + message);
     const headerNonce = new Uint8Array(this.clientToServerNonce);
     increment(this.clientToServerNonce);
     const bodyNonce = new Uint8Array(this.clientToServerNonce);

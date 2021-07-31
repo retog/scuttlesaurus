@@ -7,6 +7,8 @@ import RPCConnection from "./RPCConnection.ts";
 
 const host = new ScuttlebuttPeer();
 
+host.listen();
+
 if (Deno.args.length !== 1) {
   log.error("expecting one argument");
   Deno.exit(1);
@@ -17,10 +19,13 @@ const address = parseAddress(
   addressString,
 );
 
-const boxConnection: BoxConnection = await host.connect(
+host.addEventListener("connected", async (options) => {
+  log.debug("new connection");
+  const boxConnection: BoxConnection = (options as CustomEvent).detail;
+  const rpcConnection = new RPCConnection(boxConnection, new Procedures());
+  await updateFeeds(rpcConnection);
+});
+
+await host.connect(
   address,
 );
-
-const rpcConnection = new RPCConnection(boxConnection, new Procedures());
-
-updateFeeds(rpcConnection);
