@@ -68,7 +68,7 @@ export default class BoxConnection extends EventTarget
       increment(this.serverToClientNonce);
       log.debug(() =>
         "Read " + decodedBody + " (" + (new TextDecoder().decode(decodedBody)) +
-          ")",
+        ")"
       );
       return decodedBody;
     } catch (error) {

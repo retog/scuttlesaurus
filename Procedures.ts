@@ -1,6 +1,6 @@
 import { RequestHandler } from "./RPCConnection.ts";
 import * as FSStorage from "./fsStorage.ts";
-import { path, log } from "./util.ts";
+import { log, path } from "./util.ts";
 
 type sourceProcedure = (
   args: Record<string, string>[],
