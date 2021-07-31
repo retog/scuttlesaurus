@@ -1,6 +1,6 @@
 import { RequestHandler } from "./RPCConnection.ts";
 import * as FSStorage from "./fsStorage.ts";
-import { path } from "./util.ts";
+import { path, log } from "./util.ts";
 
 type sourceProcedure = (
   args: Record<string, string>[],
@@ -15,7 +15,8 @@ export default class Procedures implements RequestHandler {
       const feedKey = opts.id.substring(1, opts.id.length - ".ed25519".length);
       let seq = Number.parseInt(opts.seq);
       //log.info(`got request for ${feedKey} with seq: ${seq}`);
-      while (true) {
+      const lastMessage = await FSStorage.lastMessage(feedKey);
+      while (seq < lastMessage) {
         const fileName = path.join(
           FSStorage.getFeedDir(feedKey),
           (seq++) + ".json",
@@ -34,8 +35,7 @@ export default class Procedures implements RequestHandler {
           }
         } catch (error) {
           if (error instanceof Deno.errors.NotFound) {
-            //log.info(`File ${fileName} not found, ending stream`);
-            break;
+            log.debug(`File ${fileName} not found`);
           }
         }
       }
