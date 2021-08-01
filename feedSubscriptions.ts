@@ -1,10 +1,16 @@
 import * as FSStorage from "./fsStorage.ts";
-import { computeMsgHash, log, toBase64, verifySignature } from "./util.ts";
+import {
+  computeMsgHash,
+  log,
+  path,
+  toBase64,
+  verifySignature,
+} from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
+import config from "./config.ts";
 
 const textEncoder = new TextEncoder();
-const configDir = Deno.env.get("HOME") + "/.ssb/";
-const followeesFile = configDir + "followees.json";
+const followeesFile = path.join(config.baseDir, "followees.json");
 
 function getFollowees() {
   try {
@@ -81,7 +87,7 @@ export async function updateFeedFrom(
         /*log.info(
                   JSON.stringify(msg, undefined, 2),
                 );*/
-      } 
+      }
     } catch (err) {
       if (err instanceof EndOfStream) {
         log.debug(() => `Stream ended for feed ${feedKey}`);
