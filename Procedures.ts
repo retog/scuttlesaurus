@@ -15,6 +15,7 @@ export default class Procedures implements RequestHandler {
       const feedKey = opts.id.substring(1, opts.id.length - ".ed25519".length);
       let seq = Number.parseInt(opts.seq);
       //log.info(`got request for ${feedKey} with seq: ${seq}`);
+      //console.log(`"@${feedKey}.ed25519",`)
       const lastMessage = await FSStorage.lastMessage(feedKey);
       while (seq < lastMessage) {
         const fileName = path.join(

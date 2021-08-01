@@ -66,10 +66,7 @@ export default class BoxConnection extends EventTarget
         this.serverToClientKey,
       );
       increment(this.serverToClientNonce);
-      log.debug(() =>
-        "Read " + decodedBody + " (" + (new TextDecoder().decode(decodedBody)) +
-        ")"
-      );
+      //log.debug("Read " + decodedBody);
       return decodedBody;
     } catch (error) {
       if (error.message.startsWith("End of reader")) {
@@ -81,7 +78,7 @@ export default class BoxConnection extends EventTarget
   }
 
   async write(message: Uint8Array) {
-    log.debug("Writing " + message);
+    //log.debug("Writing " + message);
     const headerNonce = new Uint8Array(this.clientToServerNonce);
     increment(this.clientToServerNonce);
     const bodyNonce = new Uint8Array(this.clientToServerNonce);
@@ -114,7 +111,11 @@ export default class BoxConnection extends EventTarget
       this.clientToServerNonce,
       this.clientToServerKey,
     );
-    await this.conn.write(byeMessage);
+    try {
+      await this.conn.write(byeMessage);
+    } catch (error) {
+      log.debug(`Failed at properly bidding goodbye: ${error}`);
+    }
     this.conn.close();
   }
 }

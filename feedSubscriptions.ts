@@ -29,11 +29,15 @@ export async function updateFeed(
   feedKey: string,
 ) {
   const messagesAlreadyHere = await FSStorage.lastMessage(feedKey);
-  await updateFeedFrom(
-    rpcConnection,
-    feedKey,
-    messagesAlreadyHere > 0 ? messagesAlreadyHere : 1,
-  );
+  try {
+    await updateFeedFrom(
+      rpcConnection,
+      feedKey,
+      messagesAlreadyHere > 0 ? messagesAlreadyHere : 1,
+    );
+  } catch (error) {
+    log.info(`error updating feed ${feedKey}: ${error}`);
+  }
 }
 
 export async function updateFeedFrom(
@@ -41,7 +45,7 @@ export async function updateFeedFrom(
   feedKey: string,
   from: number,
 ) {
-  log.info(`Updating Feed ${feedKey} from ${from}`);
+  log.debug(`Updating Feed ${feedKey} from ${from}`);
   const historyStream = await rpcConnection.sendSourceRequest({
     "name": ["createHistoryStream"],
     "args": [{

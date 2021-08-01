@@ -359,7 +359,9 @@ export default class ScuttlebuttPeer extends EventTarget {
           await this.acceptConnection(conn);
         } catch (error) {
           log.warning(
-            `Error with incoming connection from  ${conn.remoteAddr}: ${error}`,
+            `Error with incoming connection from  ${
+              JSON.stringify(conn.remoteAddr)
+            }: ${error}`,
           );
         }
       }

@@ -141,8 +141,9 @@ export default class RPCConnection {
         if (boxConnection.closed) {
           log.info("Connection closed");
         } else {
-          if (e.name === "Interrupted") {
+          if ((e.name === "Interrupted") || (e.name === "ConnectionReset")) {
             // ignore
+            log.info(`RPCConnection ${e.name}`);
           } else {
             throw e;
           }
@@ -181,9 +182,9 @@ export default class RPCConnection {
           } else {
             const endMessage = textDecoder.decode(message);
             if (endMessage === "true") {
-              Promise.reject(new EndOfStream());
+              return Promise.reject(new EndOfStream());
             } else {
-              Promise.reject(new Error(endMessage));
+              return Promise.reject(new Error(endMessage));
             }
           }
         } else {
@@ -200,7 +201,7 @@ export default class RPCConnection {
                     if (endMessage === "true") {
                       reject(new EndOfStream());
                     } else {
-                      reject(new Error(endMessage));
+                      reject(new Error(`On connectiion with ${this.boxConnection}: ${endMessage}`));
                     }
                   }
                 },
@@ -289,7 +290,11 @@ export default class RPCConnection {
     );
     //writing in one go, to ensure correct order
     const message = concat(header, payload);
-    await this.boxConnection.write(message);
+    try {
+      await this.boxConnection.write(message);
+    } catch(error) {
+      throw new Error(`Failed writing to boxConnection: ${error}.`)
+    }
     return requestNumber;
   };
 }
