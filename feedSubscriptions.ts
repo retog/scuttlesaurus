@@ -46,8 +46,8 @@ export async function updateFeedFrom(
   return (async () => {
     const feedDir = FSStorage.getFeedDir(feedKey);
     await Deno.mkdir(feedDir, { recursive: true });
-    while (true) {
-      try {
+    try {
+      while (true) {
         const msg = await historyStream.read() as {
           value: Record<string, string>;
           key: string;
@@ -81,12 +81,12 @@ export async function updateFeedFrom(
         /*log.info(
                   JSON.stringify(msg, undefined, 2),
                 );*/
-      } catch (err) {
-        if (err instanceof EndOfStream) {
-          log.error("Stream ended");
-        } else {
-          log.error(err);
-        }
+      } 
+    } catch (err) {
+      if (err instanceof EndOfStream) {
+        log.debug(() => `Stream ended for feed ${feedKey}`);
+      } else {
+        log.error(err);
       }
     }
   })();

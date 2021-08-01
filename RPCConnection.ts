@@ -167,30 +167,25 @@ export default class RPCConnection {
       bodyType: RpcBodyType.json,
       isStream: true,
     });
-    const buffer: unknown[] = [];
+    const buffer: [Uint8Array, Header][] = [];
     const bufferer = (message: Uint8Array, header: Header) => {
-      if (!header.endOrError) {
-        buffer.push(parse(message, header.bodyType));
-      } else {
-        const endMessage = textDecoder.decode(message);
-        if (endMessage === "true") {
-          log.info(
-            `Response stream for ${requestNumber} ended, but nobody was listening.`,
-          );
-        } else {
-          log.info(
-            `Response stream for ${requestNumber} errored with ${new Error(
-              endMessage,
-            )}, but nobody was listening.`,
-          );
-        }
-      }
+      buffer.push([message, header]);
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
     return { //TODO return AsyncIterator instead
       read: () => {
         if (buffer.length > 0) {
-          return Promise.resolve(buffer.shift());
+          const [message, header] = buffer.shift() as [Uint8Array, Header];
+          if (!header.endOrError) {
+            return Promise.resolve(parse(message, header.bodyType));
+          } else {
+            const endMessage = textDecoder.decode(message);
+            if (endMessage === "true") {
+              Promise.reject(new EndOfStream());
+            } else {
+              Promise.reject(new Error(endMessage));
+            }
+          }
         } else {
           return new Promise<Record<string, unknown> | string | Uint8Array>(
             (resolve, reject) => {
