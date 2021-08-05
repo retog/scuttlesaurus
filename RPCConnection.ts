@@ -115,10 +115,14 @@ export default class RPCConnection {
                     }
                   ) {
                     log.debug(() => "sending back " + JSON.stringify(value));
-                    this.sendRpcMessage(value, {
-                      isStream: true,
-                      inReplyTo: header.requestNumber,
-                    });
+                    try {
+                      await this.sendRpcMessage(value, {
+                        isStream: true,
+                        inReplyTo: header.requestNumber,
+                      });
+                    } catch (error) {
+                      log.error(`Error sending back ${JSON.stringify(value)}: ${error}`);
+                    }
                   }
                 })();
               } else {

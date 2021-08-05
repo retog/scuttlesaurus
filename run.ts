@@ -25,11 +25,6 @@ const host = new ScuttlebuttPeer();
 
 host.listen();
 
-if (Deno.args.length !== 1) {
-  log.error("expecting one argument");
-  Deno.exit(1);
-}
-
 host.addEventListener("connected", async (options) => {
   log.debug("new connection");
   const boxConnection: BoxConnection = (options as CustomEvent).detail;
@@ -39,8 +34,8 @@ host.addEventListener("connected", async (options) => {
 let initialDelaySec = 0;
 await Promise.all(peers.map((address) =>
   (async () => {
-    await delay(initialDelaySec * 1000);
     initialDelaySec += 10;
+    await delay(initialDelaySec * 1000);
     let minutesDelay = 1;
     while (true) {
       try {
