@@ -69,9 +69,9 @@ export default class BoxConnection extends EventTarget
       //log.debug("Read " + decodedBody);
       return decodedBody;
     } catch (error) {
+      this.close();
       if (error.message.startsWith("End of reader")) {
         log.info("End of reader, closing.");
-        this.close();
       }
       throw error;
     }
