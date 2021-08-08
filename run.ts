@@ -46,7 +46,8 @@ await Promise.all(peers.map((address) =>
           await host.connect(parseAddress(address));
         }
       } catch (error) {
-        log.error(`In connection with ${address}: ${error}`);
+        log.error(`In connection with ${address}: ${error}, now having ${host.connections.length} connections left`);
+        log.info(`stack: ${error.stack}`)
         minutesDelay++;
       }
       await delay(minutesDelay * 60 * 1000);
