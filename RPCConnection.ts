@@ -3,6 +3,7 @@ import {
   bytes2NumberSigned,
   bytes2NumberUnsigned,
   concat,
+  delay,
   isZero,
   log,
   readBytes,
@@ -62,16 +63,27 @@ const parse = (message: Uint8Array, bodyType: RpcBodyType) =>
     ? textDecoder.decode(message)
     : message) as Record<string, unknown> | string | Uint8Array;
 
+let lastAnswer = Date.now();
+let lastActivity = Date.now();
+
 export default class RPCConnection {
   constructor(
     public boxConnection: BoxConnection,
     public requestHandler: RequestHandler,
+    {
+      answerTimeout = 30,
+      activityTimeout = 10,
+    }: {
+      answerTimeout?: number;
+      activityTimeout?: number;
+    } = {},
   ) {
     this.requestCounter = 0;
     const monitorConnection = async () => {
       try {
-        while (true) {
+        while (!this.boxConnection.closed) {
           const headerBytes = await readBytes(boxConnection, 9);
+          lastActivity = Date.now();
           if (isZero(headerBytes)) {
             log.debug("They said godbye.");
             break;
@@ -81,6 +93,7 @@ export default class RPCConnection {
             throw new Error("Got RPC message with lentgh 0.");
           }
           const body = await readBytes(boxConnection, header.bodyLength);
+          lastActivity = Date.now();
           if (header.requestNumber < 0) {
             const listener = this.responseStreamListeners.get(
               -header.requestNumber,
@@ -90,6 +103,7 @@ export default class RPCConnection {
                 `Got request with unexpected number ${header.requestNumber}`,
               );
             }
+            lastAnswer = Date.now();
             listener(body, header);
           } else {
             const parse = () => {
@@ -121,7 +135,9 @@ export default class RPCConnection {
                         inReplyTo: header.requestNumber,
                       });
                     } catch (error) {
-                      log.error(`Error sending back ${JSON.stringify(value)}: ${error}`);
+                      log.error(
+                        `Error sending back ${JSON.stringify(value)}: ${error}`,
+                      );
                     }
                   }
                 })();
@@ -155,6 +171,30 @@ export default class RPCConnection {
       }
     };
     monitorConnection();
+    const checkTimeout = async () => {
+      while (!this.boxConnection.closed) {
+        await delay(5000);
+        const timeSinceRead = Date.now() - lastAnswer;
+        if (timeSinceRead > answerTimeout * 1000) {
+          log.info(
+            `RPCConnection readTimeout: ${timeSinceRead /
+              1000} seconds since last response was received.`,
+          );
+          this.boxConnection.close();
+          break;
+        }
+        const timeSinceActivity = Date.now() - lastActivity;
+        if (timeSinceActivity > activityTimeout * 1000) {
+          log.info(
+            `RPCConnection activityTimeout: ${timeSinceActivity /
+              1000} seconds since last data was read.`,
+          );
+          this.boxConnection.close();
+          break;
+        }
+      }
+    };
+    checkTimeout();
   }
   private responseStreamListeners: Map<
     number,
@@ -205,7 +245,11 @@ export default class RPCConnection {
                     if (endMessage === "true") {
                       reject(new EndOfStream());
                     } else {
-                      reject(new Error(`On connectiion with ${this.boxConnection}: ${endMessage}`));
+                      reject(
+                        new Error(
+                          `On connectiion with ${this.boxConnection}: ${endMessage}`,
+                        ),
+                      );
                     }
                   }
                 },
@@ -296,8 +340,8 @@ export default class RPCConnection {
     const message = concat(header, payload);
     try {
       await this.boxConnection.write(message);
-    } catch(error) {
-      throw new Error(`Failed writing to boxConnection: ${error}.`)
+    } catch (error) {
+      throw new Error(`Failed writing to boxConnection: ${error}.`);
     }
     return requestNumber;
   };

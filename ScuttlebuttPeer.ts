@@ -193,7 +193,9 @@ export default class ScuttlebuttPeer extends EventTarget {
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
-      log.debug(`closed outbound connection, one of ${this.connections.length}`)
+      log.debug(
+        `closed outbound connection, one of ${this.connections.length}`,
+      );
       this.connections = this.connections.filter((c) => c !== connection);
     });
     this.dispatchEvent(new CustomEvent("connected", { "detail": connection }));
@@ -343,7 +345,9 @@ export default class ScuttlebuttPeer extends EventTarget {
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
-      log.debug(`closed incoming connection, one of ${this.connections.length}`)
+      log.debug(
+        `closed incoming connection, one of ${this.connections.length}`,
+      );
       this.connections = this.connections.filter((c) => c !== connection);
     });
     this.dispatchEvent(new CustomEvent("connected", { "detail": connection }));
