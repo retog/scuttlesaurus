@@ -1,10 +1,11 @@
 version: '2'
 
 services:
-  easy-ssb-pub:
+  ssb-deno:
     image: reto/ssb-deno
+    build: .
     ports:
       - "8008:8008"
     volumes:
-      - /ssb-deno:/root/.ssb
+      - /var/ssb-deno:/root/.ssb
     restart: unless-stopped
