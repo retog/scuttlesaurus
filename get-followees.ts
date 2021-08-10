@@ -2,16 +2,15 @@ import * as FSStorage from "./fsStorage.ts";
 import { log, path } from "./util.ts";
 import config from "./config.ts";
 
-
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");
 }
 
-const args = new Array(...Deno.args)
+const args = new Array(...Deno.args);
 
 const follow = args.indexOf("--follow") > -1;
 if (follow) {
-  args.splice(Deno.args.indexOf("--follow"),1);
+  args.splice(Deno.args.indexOf("--follow"), 1);
 }
 
 const feedId = args[0]; // "@+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=.ed25519"
@@ -60,12 +59,11 @@ for (let i = 1; i < lastMessage; i++) {
 }*/
 log.info(JSON.stringify([...subScriptions]));
 if (follow) {
-
   const textEncoder = new TextEncoder();
   const followeesFile = path.join(config.baseDir, "followees.json");
-  
+
   log.info(`Adding feeds to ${followeesFile}`);
-  
+
   const getFollowees = () => {
     try {
       return JSON.parse(Deno.readTextFileSync(followeesFile));
@@ -75,12 +73,15 @@ if (follow) {
       }
       throw error;
     }
-  }
+  };
   const existing: string[] = getFollowees();
-  existing.forEach(element => {
+  existing.forEach((element) => {
     subScriptions.delete(element);
   });
   existing.push(...subScriptions);
-  Deno.writeFileSync(followeesFile,textEncoder.encode(JSON.stringify(existing, undefined, 2)));
+  Deno.writeFileSync(
+    followeesFile,
+    textEncoder.encode(JSON.stringify(existing, undefined, 2)),
+  );
   log.info(`Now following ${existing.length} feeds`);
 }
