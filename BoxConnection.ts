@@ -69,7 +69,9 @@ export default class BoxConnection extends EventTarget
       //log.debug("Read " + decodedBody);
       return decodedBody;
     } catch (error) {
-      this.close();
+      if (!this.closed) {
+        this.close();
+      }
       if (error.message.startsWith("End of reader")) {
         log.info("End of reader, closing.");
       }
@@ -104,6 +106,10 @@ export default class BoxConnection extends EventTarget
     return messageLengh;
   }
   async close() {
+    if (this.closed) {
+      log.warning(`Connection closed already.`);
+      return;
+    }
     this.closed = true;
     this.dispatchEvent(new CustomEvent("close"));
     const byeMessage = sodium.crypto_box_easy_afternm(
