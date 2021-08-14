@@ -1,6 +1,6 @@
 import { RequestHandler } from "./RPCConnection.ts";
 import * as FSStorage from "./fsStorage.ts";
-import { log, path } from "./util.ts";
+import { log, path, parseFeedId } from "./util.ts";
 
 type sourceProcedure = (
   args: Record<string, string>[],
@@ -12,7 +12,7 @@ export default class Procedures implements RequestHandler {
   rootContext: rpcContext = {
     createHistoryStream: async function* (args: Record<string, string>[]) {
       const opts = args[0];
-      const feedKey = opts.id.substring(1, opts.id.length - ".ed25519".length);
+      const feedKey = parseFeedId(opts.id);
       let seq = Number.parseInt(opts.seq);
       //log.info(`got request for ${feedKey} with seq: ${seq}`);
       //console.log(`"@${feedKey}.ed25519",`)

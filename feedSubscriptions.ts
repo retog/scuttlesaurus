@@ -1,6 +1,8 @@
 import * as FSStorage from "./fsStorage.ts";
 import {
   computeMsgHash,
+  FeedId,
+  parseFeedId,
   log,
   path,
   toBase64,
@@ -26,7 +28,7 @@ const subscriptions: string[] = getFollowees();
 
 export async function updateFeed(
   rpcConnection: RPCConnection,
-  feedKey: string,
+  feedKey: FeedId,
 ) {
   const messagesAlreadyHere = await FSStorage.lastMessage(feedKey);
   try {
@@ -42,7 +44,7 @@ export async function updateFeed(
 
 export async function updateFeedFrom(
   rpcConnection: RPCConnection,
-  feedKey: string,
+  feedKey: FeedId,
   from: number,
 ) {
   log.debug(`Updating Feed ${feedKey} from ${from}`);
@@ -103,15 +105,7 @@ export async function updateFeedFrom(
 }
 
 export function updateFeeds(rpcConnection: RPCConnection) {
-  function strip(feedId: string) {
-    if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
-      return feedId.substring(1, feedId.length - 8);
-    } else {
-      log.info(feedId + " doesn't seems to be dressed");
-      return feedId;
-    }
-  }
   return Promise.all(
-    subscriptions.map((feed) => updateFeed(rpcConnection, strip(feed))),
+    subscriptions.map((feed) => updateFeed(rpcConnection, parseFeedId(feed))),
   );
 }

@@ -1,11 +1,17 @@
 // deno-lint-ignore-file camelcase
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, fromBase64, log, path, readBytes, toBase64 } from "./util.ts";
+import {
+  Address,
+  concat,
+  fromBase64,
+  log,
+  path,
+  readBytes,
+  toBase64,
+} from "./util.ts";
 import BoxConnection from "./BoxConnection.ts";
 import config from "./config.ts";
 import { advertise } from "./udpPeerDiscoverer.ts";
-
-await sodium.ready;
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
 export default class ScuttlebuttPeer extends EventTarget {
@@ -22,7 +28,7 @@ export default class ScuttlebuttPeer extends EventTarget {
 
   /** perform handshake as client */
   async connect(
-    address: { protocol: string; host: string; port: number; key: string },
+    address: Address,
   ) {
     // deno-lint-ignore no-this-alias
     const _host = this;
@@ -96,13 +102,9 @@ export default class ScuttlebuttPeer extends EventTarget {
 
     const shared_secret_aB = sodium.crypto_scalarmult(
       clientEphemeralKeyPair.privateKey,
-      sodium.crypto_sign_ed25519_pk_to_curve25519(
-        fromBase64(address.key),
-      ),
+      sodium.crypto_sign_ed25519_pk_to_curve25519(address.key),
     );
-    const server_longterm_pk = fromBase64(
-      address.key,
-    );
+    const server_longterm_pk = address.key;
     const detached_signature_A = await authenticate(
       server_longterm_pk,
       shared_secret_ab,

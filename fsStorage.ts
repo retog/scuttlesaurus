@@ -1,12 +1,12 @@
-import { filenameSafeAlphabetRFC3548, path } from "./util.ts";
+import { FeedId, filenameSafeAlphabetRFC3548, path } from "./util.ts";
 import config from "./config.ts";
 
-export function getFeedDir(feedKey: string) {
+export function getFeedDir(feedKey: FeedId) {
   const feedsDir = path.join(config.dataDir, "feeds");
-  return path.join(feedsDir, filenameSafeAlphabetRFC3548(feedKey));
+  return path.join(feedsDir, filenameSafeAlphabetRFC3548(feedKey.base64Key));
 }
 
-export async function lastMessage(feedKey: string) {
+export async function lastMessage(feedKey: FeedId) {
   try {
     let highest = -1;
     for await (const entry of Deno.readDir(getFeedDir(feedKey))) {

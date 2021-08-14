@@ -6,6 +6,7 @@ import {
   filenameSafeAlphabetRFC3548,
   log,
   parseAddress,
+  parseFeedId,
   path,
 } from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
@@ -22,16 +23,8 @@ const address = parseAddress(
   addressString,
 );
 
-function strip(feedId: string) {
-  if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
-    return feedId.substring(1, feedId.length - 8);
-  } else {
-    log.info(feedId + " doesn't seems to be dressed");
-    return feedId;
-  }
-}
 
-const feedKey = Deno.args.length > 1 ? strip(Deno.args[1]) : address.key;
+const feedKey = Deno.args.length > 1 ? parseFeedId(Deno.args[1]) : address.key;
 
 const boxConnection: BoxConnection = await host.connect(
   address,

@@ -1,5 +1,5 @@
 import * as FSStorage from "./fsStorage.ts";
-import { log, path } from "./util.ts";
+import { log, path, parseFeedId } from "./util.ts";
 import config from "./config.ts";
 
 if (Deno.args.length < 1) {
@@ -15,16 +15,7 @@ if (follow) {
 
 const feedId = args[0]; // "@+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=.ed25519"
 
-function strip(feedId: string) {
-  if (feedId.startsWith("@") && feedId.endsWith(".ed25519")) {
-    return feedId.substring(1, feedId.length - 8);
-  } else {
-    log.info(feedId + " doesn't seems to be dressed");
-    return feedId;
-  }
-}
-
-const feedKey = strip(feedId);
+const feedKey = parseFeedId(feedId);
 
 const subScriptions = new Set() as Set<string>;
 

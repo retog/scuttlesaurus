@@ -5,13 +5,48 @@ export * as path from "https://deno.land/std@0.103.0/path/mod.ts";
 export * as log from "https://deno.land/std@0.103.0/log/mod.ts";
 export { delay } from "https://deno.land/std@0.103.0/async/mod.ts";
 
+await sodium.ready;
+
 const textEncoder = new TextEncoder();
 
-export function parseAddress(addr: string) {
+export class FeedId extends Uint8Array {
+
+  constructor(publicKey: Uint8Array) {
+    super(publicKey);
+  }
+
+  get base64Key() {
+    return toBase64(this);
+  }
+
+  get base64FilenameSafe() {
+    return filenameSafeAlphabetRFC3548(this.base64Key)
+  }
+
+  toString(): string {
+    return `@${this.base64Key}.ed25519`;
+  }
+}
+
+export interface Address {
+  protocol: string;
+  host: string;
+  port: number;
+  key: FeedId;
+}
+
+export function parseAddress(addr: string): Address {
   const sections = addr.split(":");
-  const [protocol, host, portshs, key] = sections;
+  const [protocol, host, portshs, keyString] = sections;
   const port = parseInt(portshs.split("~")[0]);
-  return { protocol, host, port, key };
+  return { protocol, host, port, key: new FeedId(fromBase64(keyString)) };
+}
+
+export function parseFeedId(feedIdString: string) {
+  const base64Key = feedIdString.startsWith("@") && feedIdString.endsWith(".ed25519")?
+    feedIdString.substring(1, feedIdString.length - 8) :
+    feedIdString;
+  return new FeedId(fromBase64(base64Key));
 }
 
 export function bytes2NumberUnsigned(bytes: Uint8Array): number {
