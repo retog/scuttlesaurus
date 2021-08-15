@@ -2,8 +2,8 @@ import * as FSStorage from "./fsStorage.ts";
 import {
   computeMsgHash,
   FeedId,
-  parseFeedId,
   log,
+  parseFeedId,
   path,
   toBase64,
   verifySignature,

@@ -10,7 +10,6 @@ await sodium.ready;
 const textEncoder = new TextEncoder();
 
 export class FeedId extends Uint8Array {
-
   constructor(publicKey: Uint8Array) {
     super(publicKey);
   }
@@ -20,7 +19,7 @@ export class FeedId extends Uint8Array {
   }
 
   get base64FilenameSafe() {
-    return filenameSafeAlphabetRFC3548(this.base64Key)
+    return filenameSafeAlphabetRFC3548(this.base64Key);
   }
 
   toString(): string {
@@ -33,19 +32,33 @@ export interface Address {
   host: string;
   port: number;
   key: FeedId;
+  toString: () => string;
 }
 
 export function parseAddress(addr: string): Address {
-  const sections = addr.split(":");
-  const [protocol, host, portshs, keyString] = sections;
-  const port = parseInt(portshs.split("~")[0]);
-  return { protocol, host, port, key: new FeedId(fromBase64(keyString)) };
+  try {
+    const sections = addr.split(":");
+    const [protocol, host, portshs, keyString] = sections;
+    const port = parseInt(portshs.split("~")[0]);
+    return {
+      protocol,
+      host,
+      port,
+      key: new FeedId(fromBase64(keyString)),
+      toString: () => {
+        return addr;
+      },
+    };
+  } catch (error) {
+    throw new Error(`Error parsing ${addr}: ${error}`);
+  }
 }
 
 export function parseFeedId(feedIdString: string) {
-  const base64Key = feedIdString.startsWith("@") && feedIdString.endsWith(".ed25519")?
-    feedIdString.substring(1, feedIdString.length - 8) :
-    feedIdString;
+  const base64Key =
+    feedIdString.startsWith("@") && feedIdString.endsWith(".ed25519")
+      ? feedIdString.substring(1, feedIdString.length - 8)
+      : feedIdString;
   return new FeedId(fromBase64(base64Key));
 }
 

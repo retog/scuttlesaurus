@@ -1,5 +1,5 @@
 import * as FSStorage from "./fsStorage.ts";
-import { log, path, parseFeedId } from "./util.ts";
+import { log, parseFeedId, path } from "./util.ts";
 import config from "./config.ts";
 
 if (Deno.args.length < 1) {

@@ -2,13 +2,13 @@ import ScuttlebuttPeer from "./ScuttlebuttPeer.ts";
 import BoxConnection from "./BoxConnection.ts";
 import Procedures from "./Procedures.ts";
 import { updateFeeds } from "./feedSubscriptions.ts";
-import { delay, log, parseAddress, path } from "./util.ts";
+import { Address, delay, log, parseAddress, path } from "./util.ts";
 import RPCConnection from "./RPCConnection.ts";
 import config from "./config.ts";
 
 const peersFile = path.join(config.baseDir, "peers.json");
 
-function getPeers() {
+function getPeersFromFile() {
   try {
     return JSON.parse(Deno.readTextFileSync(peersFile));
   } catch (error) {
@@ -18,7 +18,12 @@ function getPeers() {
     throw error;
   }
 }
-const peers: string[] = getPeers();
+
+function getPeers() {
+  return getPeersFromFile().map(parseAddress);
+}
+
+const peers: Address[] = getPeers();
 
 const host = new ScuttlebuttPeer();
 
@@ -44,7 +49,7 @@ await Promise.all(peers.map((address) =>
           log.info(
             `${host.connections.length} connections open, connecting to ${address}`,
           );
-          await host.connect(parseAddress(address));
+          await host.connect(address);
         }
       } catch (error) {
         log.error(

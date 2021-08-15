@@ -23,7 +23,6 @@ const address = parseAddress(
   addressString,
 );
 
-
 const feedKey = Deno.args.length > 1 ? parseFeedId(Deno.args[1]) : address.key;
 
 const boxConnection: BoxConnection = await host.connect(
