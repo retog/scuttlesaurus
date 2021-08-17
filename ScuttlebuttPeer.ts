@@ -15,9 +15,7 @@ import { advertise } from "./udpPeerDiscoverer.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
 export default class ScuttlebuttPeer extends EventTarget {
-  network_identifier = fromBase64(
-    "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
-  );
+  network_identifier = config.networkIdentifier;
   keyPair = getClientKeyPair();
   id = "@" +
     toBase64(
@@ -148,50 +146,22 @@ export default class ScuttlebuttPeer extends EventTarget {
       throw new Error("Verification of the server's second response failed");
     }
 
-    const serverToClientKey = sodium.crypto_hash_sha256(
+    const combinedSharedSecret = sodium.crypto_hash_sha256(
       concat(
-        sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
-          concat(
-            this.network_identifier,
-            shared_secret_ab,
-            shared_secret_aB,
-            shared_secret_Ab,
-          ),
-        )),
-        this.keyPair.publicKey,
+        this.network_identifier,
+        shared_secret_ab,
+        shared_secret_aB,
+        shared_secret_Ab,
       ),
     );
-
-    const clientToServerKey = sodium.crypto_hash_sha256(
-      concat(
-        sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
-          concat(
-            this.network_identifier,
-            shared_secret_ab,
-            shared_secret_aB,
-            shared_secret_Ab,
-          ),
-        )),
-        server_longterm_pk,
-      ),
-    );
-
-    const network_identifier = this.network_identifier;
-    const serverToClientNonce = sodium.crypto_auth(
-      clientEphemeralKeyPair.publicKey,
-      network_identifier,
-    ).slice(0, 24);
-    const clientToServerNonce = sodium.crypto_auth(
-      server_ephemeral_pk,
-      network_identifier,
-    ).slice(0, 24);
 
     const connection = new BoxConnection(
       conn,
-      serverToClientKey,
-      serverToClientNonce,
-      clientToServerKey,
-      clientToServerNonce,
+      combinedSharedSecret,
+      this.keyPair.publicKey,
+      server_longterm_pk,
+      clientEphemeralKeyPair.publicKey,
+      server_ephemeral_pk,
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
@@ -300,50 +270,22 @@ export default class ScuttlebuttPeer extends EventTarget {
     );
     await conn.write(completionMsg);
 
-    //FIXME code duplicatio
-    const serverToClientKey = sodium.crypto_hash_sha256(
+    const combinedSharedSecret = sodium.crypto_hash_sha256(
       concat(
-        sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
-          concat(
-            this.network_identifier,
-            shared_secret_ab,
-            shared_secret_aB,
-            shared_secret_Ab,
-          ),
-        )),
-        client_longterm_pk,
+        this.network_identifier,
+        shared_secret_ab,
+        shared_secret_aB,
+        shared_secret_Ab,
       ),
     );
-
-    const clientToServerKey = sodium.crypto_hash_sha256(
-      concat(
-        sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
-          concat(
-            this.network_identifier,
-            shared_secret_ab,
-            shared_secret_aB,
-            shared_secret_Ab,
-          ),
-        )),
-        this.keyPair.publicKey,
-      ),
-    );
-
-    const serverToClientNonce = sodium.crypto_auth(
-      client_ephemeral_pk,
-      this.network_identifier,
-    ).slice(0, 24);
-    const clientToServerNonce = sodium.crypto_auth(
-      serverEphemeralKeyPair.publicKey,
-      this.network_identifier,
-    ).slice(0, 24);
 
     const connection = new BoxConnection(
       conn,
-      clientToServerKey,
-      clientToServerNonce,
-      serverToClientKey,
-      serverToClientNonce,
+      combinedSharedSecret,
+      this.keyPair.publicKey,
+      client_longterm_pk,
+      serverEphemeralKeyPair.publicKey,
+      client_ephemeral_pk,
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {

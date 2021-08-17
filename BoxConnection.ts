@@ -1,17 +1,47 @@
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, isZero, log, readBytes } from "./util.ts";
+import { concat, FeedId, isZero, log, readBytes } from "./util.ts";
+import config from "./config.ts";
 
 export default class BoxConnection extends EventTarget
   implements Deno.Reader, Deno.Writer, Deno.Closer {
   closed = false;
+  serverToClientKey: Uint8Array;
+  clientToServerKey: Uint8Array;
+  serverToClientNonce: Uint8Array;
+  clientToServerNonce: Uint8Array;
+  peer: FeedId;
   constructor(
     public conn: Deno.Reader & Deno.Writer & Deno.Closer,
-    public serverToClientKey: Uint8Array,
-    public serverToClientNonce: Uint8Array,
-    public clientToServerKey: Uint8Array,
-    public clientToServerNonce: Uint8Array,
+    combinedSharedSecret: Uint8Array,
+    ourLongTermPublicKey: Uint8Array,
+    theirLongTermPublicKey: Uint8Array,
+    ourEphemeralPublicKey: Uint8Array,
+    theirEphemeralTermPublicKey: Uint8Array,
   ) {
     super();
+    this.peer = new FeedId(theirLongTermPublicKey);
+    this.serverToClientKey = sodium.crypto_hash_sha256(
+      concat(
+        combinedSharedSecret,
+        ourLongTermPublicKey,
+      ),
+    );
+
+    this.clientToServerKey = sodium.crypto_hash_sha256(
+      concat(
+        combinedSharedSecret,
+        theirLongTermPublicKey,
+      ),
+    );
+
+    this.serverToClientNonce = sodium.crypto_auth(
+      ourEphemeralPublicKey,
+      config.networkIdentifier,
+    ).slice(0, 24);
+    this.clientToServerNonce = sodium.crypto_auth(
+      theirEphemeralTermPublicKey,
+      config.networkIdentifier,
+    ).slice(0, 24);
   }
 
   pendingData: Uint8Array | null = null;
