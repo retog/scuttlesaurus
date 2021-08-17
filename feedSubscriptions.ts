@@ -51,7 +51,7 @@ export async function updateFeedFrom(
   const historyStream = await rpcConnection.sendSourceRequest({
     "name": ["createHistoryStream"],
     "args": [{
-      "id": `@${feedKey}.ed25519`,
+      "id": feedKey.toString(),
       "seq": from,
     }],
   });
