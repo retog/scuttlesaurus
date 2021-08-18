@@ -146,14 +146,14 @@ export default class ScuttlebuttPeer extends EventTarget {
       throw new Error("Verification of the server's second response failed");
     }
 
-    const combinedSharedSecret = sodium.crypto_hash_sha256(
+    const combinedSharedSecret = sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
       concat(
         this.network_identifier,
         shared_secret_ab,
         shared_secret_aB,
         shared_secret_Ab,
       ),
-    );
+    ));
 
     const connection = new BoxConnection(
       conn,
@@ -270,14 +270,14 @@ export default class ScuttlebuttPeer extends EventTarget {
     );
     await conn.write(completionMsg);
 
-    const combinedSharedSecret = sodium.crypto_hash_sha256(
+    const combinedSharedSecret = sodium.crypto_hash_sha256(sodium.crypto_hash_sha256(
       concat(
         this.network_identifier,
         shared_secret_ab,
         shared_secret_aB,
         shared_secret_Ab,
       ),
-    );
+    ));
 
     const connection = new BoxConnection(
       conn,
