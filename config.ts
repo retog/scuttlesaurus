@@ -1,4 +1,4 @@
-import { log, path } from "./util.ts";
+import { fromBase64, log, path } from "./util.ts";
 
 log.setup({
   handlers: {
@@ -19,6 +19,9 @@ const config = {
   baseDir,
   dataDir,
   port: 8008,
+  networkIdentifier: fromBase64(
+    "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
+  ),
 };
 
 export default config;
