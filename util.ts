@@ -27,6 +27,24 @@ export class FeedId extends Uint8Array {
   }
 }
 
+export class BlobId extends Uint8Array {
+  constructor(key: Uint8Array) {
+    super(key);
+  }
+
+  get base64Key() {
+    return toBase64(this);
+  }
+
+  get base64FilenameSafe() {
+    return filenameSafeAlphabetRFC3548(this.base64Key);
+  }
+
+  toString(): string {
+    return `&${this.base64Key}.sha256`;
+  }
+}
+
 export interface Address {
   protocol: string;
   host: string;
@@ -60,6 +78,14 @@ export function parseFeedId(feedIdString: string) {
       ? feedIdString.substring(1, feedIdString.length - 8)
       : feedIdString;
   return new FeedId(fromBase64(base64Key));
+}
+
+export function parseBlobId(blobIdString: string) {
+  const base64Key =
+    blobIdString.startsWith("&") && blobIdString.endsWith(".sha256")
+      ? blobIdString.substring(1, blobIdString.length - 7)
+      : blobIdString;
+  return new BlobId(fromBase64(base64Key));
 }
 
 export function bytes2NumberUnsigned(bytes: Uint8Array): number {

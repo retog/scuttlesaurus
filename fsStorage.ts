@@ -1,4 +1,4 @@
-import { FeedId, filenameSafeAlphabetRFC3548, path } from "./util.ts";
+import { BlobId, FeedId, filenameSafeAlphabetRFC3548, path } from "./util.ts";
 import config from "./config.ts";
 
 export function getFeedDir(feedKey: FeedId) {
@@ -27,4 +27,13 @@ export async function lastMessage(feedKey: FeedId) {
       throw error;
     }
   }
+}
+
+export async function getBlobFile(blobId: BlobId) {
+  const blobsDir = path.join(config.dataDir, "blobs");
+  await Deno.mkdir(blobsDir, { recursive: true });
+  const blobFile = await Deno.create(
+    path.join(blobsDir, blobId.base64FilenameSafe),
+  );
+  return blobFile;
 }

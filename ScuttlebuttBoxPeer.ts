@@ -3,6 +3,7 @@ import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 import {
   Address,
   concat,
+  FeedId,
   fromBase64,
   log,
   path,
@@ -14,13 +15,10 @@ import config from "./config.ts";
 import { advertise } from "./udpPeerDiscoverer.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
-export default class ScuttlebuttPeer extends EventTarget {
+export default class ScuttlebuttBoxPeer extends EventTarget {
   network_identifier = config.networkIdentifier;
   keyPair = getClientKeyPair();
-  id = "@" +
-    toBase64(
-      this.keyPair.publicKey,
-    ) + ".ed25519";
+  id = new FeedId(this.keyPair.publicKey);
 
   connections: BoxConnection[] = [];
 

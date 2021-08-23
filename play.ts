@@ -1,18 +1,12 @@
-import ScuttlebuttPeer from "./ScuttlebuttPeer.ts";
-import BoxConnection from "./BoxConnection.ts";
+import ScuttlebuttRpcPeer from "./ScuttlebuttRpcPeer.ts";
 import Procedures from "./Procedures.ts";
 import { updateFeedFrom } from "./feedSubscriptions.ts";
-import {
-  filenameSafeAlphabetRFC3548,
-  log,
-  parseAddress,
-  parseFeedId,
-  path,
-} from "./util.ts";
+import { log, parseAddress, parseBlobId, parseFeedId, path } from "./util.ts";
 import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
 import config from "./config.ts";
+import { getBlobFile } from "./fsStorage.ts";
 
-const host = new ScuttlebuttPeer();
+const host = new ScuttlebuttRpcPeer(new Procedures());
 
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");
@@ -25,28 +19,24 @@ const address = parseAddress(
 
 const feedKey = Deno.args.length > 1 ? parseFeedId(Deno.args[1]) : address.key;
 
-const boxConnection: BoxConnection = await host.connect(
-  address,
-);
-
-const rpcConnection = new RPCConnection(boxConnection, new Procedures());
+const rpcConnection: RPCConnection = await host.connect(address);
 
 log.info("sending a message...");
 
 updateFeedFrom(rpcConnection, feedKey, 1);
 
 const blobId = "&cnuH8kTYmu2O685OruWm8TVNR7tKfItKCP+L+pDE8xs=.sha256";
-
-const hasBlob = await rpcConnection.sendAsyncRequest({
+const hasBlobP =  rpcConnection.sendAsyncRequest({
   "name": ["blobs", "has"],
   "args": [blobId],
 });
 
+//hasBlobP.then(log.info, log.error)
+
+const hasBlob = await hasBlobP;
+
 if (hasBlob) {
-  await Deno.mkdir(path.join(config.dataDir, "blobs"), { recursive: true });
-  const blobFile = await Deno.create(
-    "data/blobs/" + filenameSafeAlphabetRFC3548(blobId),
-  );
+  const blobFile = await getBlobFile(parseBlobId(blobId));
   const blobStream = await rpcConnection.sendSourceRequest({
     "name": ["blobs", "get"],
     "args": [blobId],
@@ -73,3 +63,13 @@ if (hasBlob) {
     blobFile.close();
   })();
 }
+
+const wantsStream = await rpcConnection.sendSourceRequest({
+  "name": ["blobs", "createWants"],
+  "args": [],
+});
+//(async () => {
+  while (true) {
+    log.info(`They want ${JSON.stringify(await wantsStream.read())}`);
+  }
+//})();

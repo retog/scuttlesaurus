@@ -71,8 +71,8 @@ export default class RPCConnection {
     public boxConnection: BoxConnection,
     public requestHandler: RequestHandler,
     {
-      answerTimeout = 30,
-      activityTimeout = 10,
+      answerTimeout = 300,
+      activityTimeout = 60,
     }: {
       answerTimeout?: number;
       activityTimeout?: number;
