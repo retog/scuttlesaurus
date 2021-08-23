@@ -286,7 +286,7 @@ export default class RPCConnection {
       );
     });
   };
-  requestCounter;
+  private requestCounter;
   private sendRpcMessage = async (
     body: Record<string, unknown> | string | Uint8Array,
     options: {
