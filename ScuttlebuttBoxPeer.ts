@@ -12,13 +12,15 @@ import {
 } from "./util.ts";
 import BoxConnection from "./BoxConnection.ts";
 import config from "./config.ts";
-import { advertise } from "./udpPeerDiscoverer.ts";
+import NetTransport from "./NetTransport.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
 export default class ScuttlebuttBoxPeer extends EventTarget {
   network_identifier = config.networkIdentifier;
   keyPair = getClientKeyPair();
   id = new FeedId(this.keyPair.publicKey);
+
+  netTransport = new NetTransport();
 
   connections: BoxConnection[] = [];
 
@@ -29,10 +31,7 @@ export default class ScuttlebuttBoxPeer extends EventTarget {
     // deno-lint-ignore no-this-alias
     const _host = this;
     const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
-    const conn = await Deno.connect({
-      hostname: address.host,
-      port: address.port,
-    });
+    const conn = await this.netTransport.connect(address);
 
     const clientHello = () => {
       const hmac = sodium.crypto_auth(
@@ -175,7 +174,7 @@ export default class ScuttlebuttBoxPeer extends EventTarget {
   }
 
   /** perform handshake as server */
-  async acceptConnection(conn: Deno.Conn) {
+  async acceptConnection(conn: Deno.Reader & Deno.Writer & Deno.Closer) {
     const serverEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
     const clientHello = await readBytes(conn, 64);
     const client_hmac = clientHello.subarray(0, 32);
@@ -300,29 +299,20 @@ export default class ScuttlebuttBoxPeer extends EventTarget {
   }
 
   async listen() {
-    const listener = Deno.listen({
+    this.netTransport.listen({
       port: config.port,
     });
     log.info(`listening on port ${config.port}`);
-    (async () => {
-      for await (const conn of listener) {
-        log.info(`Received connection from  ${conn.remoteAddr}`);
-        try {
-          await this.acceptConnection(conn);
-        } catch (error) {
-          log.warning(
-            `Error with incoming connection from  ${
-              JSON.stringify(conn.remoteAddr)
-            }: ${error}`,
-          );
-        }
+    for await (const conn of this.netTransport) {
+      log.info(`Received connection from  ${conn}`);
+      try {
+        await this.acceptConnection(conn);
+      } catch (error) {
+        log.warning(
+          `Error with incoming connection  ${JSON.stringify(conn)}: ${error}`,
+        );
       }
-    })();
-    await advertise(
-      `net:${(listener.addr as Deno.NetAddr).hostname}:${
-        (listener.addr as Deno.NetAddr).port
-      }:~shs:${toBase64(this.keyPair.publicKey)}`,
-    );
+    }
   }
 }
 
