@@ -1,4 +1,4 @@
-import BoxConnection from "./BoxConnection.ts";
+import BoxConnection from "../box/BoxConnection.ts";
 import {
   bytes2NumberSigned,
   bytes2NumberUnsigned,
@@ -7,7 +7,9 @@ import {
   isZero,
   log,
   readBytes,
-} from "./util.ts";
+} from "../../util.ts";
+
+import { RequestHandler } from "./types.ts";
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -16,10 +18,6 @@ export enum RpcBodyType {
   binary = 0b00,
   utf8 = 0b01,
   json = 0b10,
-}
-
-export interface ResponseStream {
-  read: () => Record<string, unknown>;
 }
 
 export type Header = {
@@ -34,13 +32,6 @@ export class EndOfStream extends Error {
   constructor() {
     super("Stream ended");
   }
-}
-
-export interface RequestHandler {
-  handleSourceRequest: (
-    name: string[],
-    args: Record<string, string>[],
-  ) => AsyncIterator<Record<string, unknown> | string | Uint8Array>;
 }
 
 function parseHeader(
@@ -66,7 +57,7 @@ const parse = (message: Uint8Array, bodyType: RpcBodyType) =>
 let lastAnswer = Date.now();
 let lastActivity = Date.now();
 
-export default class RPCConnection {
+export default class RpcConnection {
   constructor(
     public boxConnection: BoxConnection,
     public requestHandler: RequestHandler,

@@ -2,6 +2,7 @@
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 import {
   Address,
+  combine,
   concat,
   FeedId,
   fromBase64,
@@ -9,18 +10,25 @@ import {
   path,
   readBytes,
   toBase64,
-} from "./util.ts";
+} from "../../util.ts";
 import BoxConnection from "./BoxConnection.ts";
-import config from "./config.ts";
-import NetTransport from "./NetTransport.ts";
+import config from "../../config.ts";
+import NetTransport from "../transport/NetTransport.ts";
+import CommInterface from "../CommInterface.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
-export default class ScuttlebuttBoxPeer extends EventTarget {
+export default class BoxInterface implements CommInterface<BoxConnection> {
   network_identifier = config.networkIdentifier;
   keyPair = getClientKeyPair();
   id = new FeedId(this.keyPair.publicKey);
 
   netTransport = new NetTransport();
+
+  constructor(
+    public readonly underlying: CommInterface<
+      Deno.Reader & Deno.Writer & Deno.Closer
+    >[],
+  ) {}
 
   connections: BoxConnection[] = [];
 
@@ -169,12 +177,13 @@ export default class ScuttlebuttBoxPeer extends EventTarget {
       );
       this.connections = this.connections.filter((c) => c !== connection);
     });
-    this.dispatchEvent(new CustomEvent("connected", { "detail": connection }));
     return connection;
   }
 
   /** perform handshake as server */
-  async acceptConnection(conn: Deno.Reader & Deno.Writer & Deno.Closer) {
+  async acceptConnection(
+    conn: Deno.Reader & Deno.Writer & Deno.Closer,
+  ): Promise<BoxConnection> {
     const serverEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
     const clientHello = await readBytes(conn, 64);
     const client_hmac = clientHello.subarray(0, 32);
@@ -295,18 +304,20 @@ export default class ScuttlebuttBoxPeer extends EventTarget {
       );
       this.connections = this.connections.filter((c) => c !== connection);
     });
-    this.dispatchEvent(new CustomEvent("connected", { "detail": connection }));
+    return connection;
   }
 
-  async listen() {
-    this.netTransport.listen({
-      port: config.port,
-    });
-    log.info(`listening on port ${config.port}`);
-    for await (const conn of this.netTransport) {
-      log.info(`Received connection from  ${conn}`);
+  async *listen() {
+    const iterator = combine(
+      ...this.underlying.map((i) => i.listen()),
+    );
+    for await (
+      const conn of {
+        [Symbol.asyncIterator]: () => iterator,
+      }
+    ) {
       try {
-        await this.acceptConnection(conn);
+        yield await this.acceptConnection(conn);
       } catch (error) {
         log.warning(
           `Error with incoming connection  ${JSON.stringify(conn)}: ${error}`,

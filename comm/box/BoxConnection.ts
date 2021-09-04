@@ -1,6 +1,6 @@
 import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, FeedId, isZero, log, readBytes } from "./util.ts";
-import config from "./config.ts";
+import { concat, FeedId, isZero, log, readBytes } from "../../util.ts";
+import config from "../../config.ts";
 
 export default class BoxConnection extends EventTarget
   implements Deno.Reader, Deno.Writer, Deno.Closer {

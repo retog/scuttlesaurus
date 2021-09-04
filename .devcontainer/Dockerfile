@@ -1,4 +1,4 @@
-FROM denoland/deno:1.12.2
+FROM denoland/deno:1.13.2
 RUN apt update
 RUN yes | apt install git
 RUN mkdir /home/deno && chown deno /home/deno

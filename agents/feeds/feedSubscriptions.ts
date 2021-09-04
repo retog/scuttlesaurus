@@ -1,4 +1,4 @@
-import * as FSStorage from "./fsStorage.ts";
+import * as FSStorage from "../../fsStorage.ts";
 import {
   computeMsgHash,
   FeedId,
@@ -7,9 +7,9 @@ import {
   path,
   toBase64,
   verifySignature,
-} from "./util.ts";
-import RPCConnection, { EndOfStream } from "./RPCConnection.ts";
-import config from "./config.ts";
+} from "../../util.ts";
+import RPCConnection, { EndOfStream } from "../../comm/rpc/RpcConnection.ts";
+import config from "../../config.ts";
 
 const textEncoder = new TextEncoder();
 const followeesFile = path.join(config.baseDir, "followees.json");

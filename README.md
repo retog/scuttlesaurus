@@ -11,16 +11,14 @@ code is currently a subordinate goal.
 
 ## Usage
 
-There are currently two executables.
+The main executables is `main.ts`, executing it with
 
-play.ts: This establishes a connection to a an address specified as the first
-argument, requests the feed specified in the second argument, or the main feed
-of the address if no second argument is given, and saves all received messages
-in a folder in `data/feeds`. For example the following command will store all
-messages of `@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` it gets in the
+    deno run --unstable -A main.ts
+
+will start a host interacting on the Scuttlebut network according to the configuration
+files in `~/.ssb`. By default feeds are stored in `~/.ssb/data/feeds`, one folder per feed, e.g. all
+messages of `@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` are in the
 folder `data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`:
-
-    deno run -A  play.ts "net:gossip.noisebridge.info:8008~shs:2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY="
 
 FindPeers: listens for peers announcing themselves with UDP broadcast.
 
