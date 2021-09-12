@@ -114,22 +114,27 @@ export default class RpcConnection {
                 const responseIterator = this.requestHandler
                   .handleSourceRequest(request.name, request.args);
                 (async () => {
-                  for await (
-                    const value of {
-                      [Symbol.asyncIterator]: () => responseIterator,
+                  try {
+                    for await (
+                      const value of {
+                        [Symbol.asyncIterator]: () => responseIterator
+                      }
+                    ) {
+                      log.debug(() => "sending back " + JSON.stringify(value));
+                      try {
+                        await this.sendRpcMessage(value, {
+                          isStream: true,
+                          inReplyTo: header.requestNumber,
+                        });
+                      } catch (error) {
+                        log.error(
+                          `Error sending back ${JSON.stringify(value)}: ${error}`,
+                        );
+                      }
                     }
-                  ) {
-                    log.debug(() => "sending back " + JSON.stringify(value));
-                    try {
-                      await this.sendRpcMessage(value, {
-                        isStream: true,
-                        inReplyTo: header.requestNumber,
-                      });
-                    } catch (error) {
-                      log.error(
-                        `Error sending back ${JSON.stringify(value)}: ${error}`,
-                      );
-                    }
+                  } catch (error) {
+                    log.error(`Error iterating on respone on ${request.name} (${JSON.stringify(request.args)}) request by ${this.boxConnection.peer}: ${error.stack}`);
+                    return;
                   }
                 })();
               } else {
