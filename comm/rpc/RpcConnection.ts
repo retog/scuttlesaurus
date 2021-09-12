@@ -332,7 +332,7 @@ export default class RpcConnection {
     try {
       await this.boxConnection.write(message);
     } catch (error) {
-      throw new Error(`Failed writing to boxConnection: ${error}.`);
+      throw new Error(`Failed writing to boxConnection with ${this.boxConnection.peer}: ${error}.`);
     }
     return requestNumber;
   };
