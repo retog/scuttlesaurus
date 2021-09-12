@@ -4,7 +4,7 @@ import { RequestHandler } from "./types.ts";
 import { Address, FeedId } from "../../util.ts";
 import CommInterface from "../CommInterface.ts";
 
-export default class RPCInterface implements CommInterface<RpcConnection> {
+export default class RpcInterface implements CommInterface<RpcConnection> {
   constructor(
     public requestHandlerBuilder: (_: FeedId) => RequestHandler,
     public boxPeer: BoxInterface,
