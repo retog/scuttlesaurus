@@ -10,7 +10,6 @@ import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
 /** A host communicating to peers using the Secure Scuttlebutt protocol */
 export default class ScuttlebuttHost {
   readonly transports = new Map<string, Transport>();
-  private agents: Agent[] = [];
 
   constructor(readonly config: Record<string, unknown>) {
     const options = config.port
@@ -43,6 +42,7 @@ export default class ScuttlebuttHost {
 
   async start() {
     log.info(`Starting SSB Host`);
+    const agents: Agent[] = getAgents()
     const boxInterface = new BoxInterface([...this.transports.values()]);
     //there are incoming connections, connections established explicitely by user, connections initiated by the feeds- or blobs-subsystem
     //incoming procedures call are handled by a RequestHandler provided by the subsystem for a specific peer
@@ -50,20 +50,19 @@ export default class ScuttlebuttHost {
     const rpcInterface = new RpcInterface(
       (feedId: FeedId) =>
         new RpcMethodsHandler(
-          this.agents.map((agent) => agent.createRpcContext(feedId)),
+          agents.map((agent) => agent.createRpcContext(feedId)),
         ),
       boxInterface,
     );
-    this.agents = getAgents(rpcInterface);
-    this.agents.forEach((agent) => agent.run());
+    agents.forEach((agent) => agent.start(rpcInterface));
     for await (const rpcConnection of rpcInterface.listen()) {
       Promise.all(
-        this.agents.map((agent) => agent.incomingConnection(rpcConnection)),
+        agents.map((agent) => agent.incomingConnection(rpcConnection)),
       );
     }
   }
 }
 
-function getAgents(rpcInterface: RpcInterface) {
-  return [new FeedsAgent(rpcInterface)];
+function getAgents() {
+  return [new FeedsAgent()];
 }

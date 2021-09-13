@@ -34,7 +34,11 @@ export default class BlobsAgent extends Agent {
   incomingConnection(_rpcConnection: RpcConnection): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  run(): Promise<void> {
+  outgoingConnection = this.incomingConnection;
+
+  run(_connector: {
+    connect(address: Address): Promise<RpcConnection>;
+  }): Promise<void> {
     throw new Error("Method not implemented.");
   }
 }

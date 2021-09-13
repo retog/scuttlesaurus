@@ -54,8 +54,12 @@ export default class FeedsAgent extends Agent {
   async incomingConnection(rpcConnection: RpcConnection) {
     await updateFeeds(rpcConnection);
   }
+  
+  outgoingConnection = this.incomingConnection;
 
-  async run(): Promise<void> {
+  async run(connector: {
+    connect(address: Address): Promise<RpcConnection>;
+  }): Promise<void> {
     const peersFile = path.join(config.baseDir, "peers.json");
 
     function getPeersFromFile() {
@@ -91,7 +95,7 @@ export default class FeedsAgent extends Agent {
             );
             onGoingSyncs++;
             try {
-              const rpcConnection = await this.connector.connect(address);
+              const rpcConnection = await connector.connect(address);
               await updateFeeds(rpcConnection);
             } catch (error) {
               log.error(
