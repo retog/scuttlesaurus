@@ -111,14 +111,12 @@ export default class RpcConnection {
             const request = parse();
             if (this.requestHandler) {
               if (request.type === "source") {
-                const responseIterator = this.requestHandler
+                const responseIterable = this.requestHandler
                   .handleSourceRequest(request.name, request.args);
                 (async () => {
                   try {
                     for await (
-                      const value of {
-                        [Symbol.asyncIterator]: () => responseIterator
-                      }
+                      const value of responseIterable
                     ) {
                       log.debug(() => "sending back " + JSON.stringify(value));
                       try {
@@ -128,12 +126,18 @@ export default class RpcConnection {
                         });
                       } catch (error) {
                         log.error(
-                          `Error sending back ${JSON.stringify(value)}: ${error}`,
+                          `Error sending back ${
+                            JSON.stringify(value)
+                          }: ${error}`,
                         );
                       }
                     }
                   } catch (error) {
-                    log.error(`Error iterating on respone on ${request.name} (${JSON.stringify(request.args)}) request by ${this.boxConnection.peer}: ${error.stack}`);
+                    log.error(
+                      `Error iterating on respone on ${request.name} (${
+                        JSON.stringify(request.args)
+                      }) request by ${this.boxConnection.peer}: ${error.stack}`,
+                    );
                     return;
                   }
                 })();
@@ -337,7 +341,9 @@ export default class RpcConnection {
     try {
       await this.boxConnection.write(message);
     } catch (error) {
-      throw new Error(`Failed writing to boxConnection with ${this.boxConnection.peer}: ${error}.`);
+      throw new Error(
+        `Failed writing to boxConnection with ${this.boxConnection.peer}: ${error}.`,
+      );
     }
     return requestNumber;
   };

@@ -28,12 +28,10 @@ export default class RpcMethodsHandler implements RequestHandler {
   ) {
     const method = this.getFunction(names);
     if (method) {
-      return method(args) as AsyncIterator<ResultValue>;
+      return method(args) as AsyncIterable<ResultValue>;
     } else {
-      return (async function* () {})() as AsyncIterator<
-        string | Record<string, unknown> | Uint8Array,
-        unknown,
-        undefined
+      return (async function* () {})() as AsyncIterable<
+        string | Record<string, unknown> | Uint8Array
       >;
     }
   }

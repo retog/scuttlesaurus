@@ -2,7 +2,7 @@ export interface RequestHandler {
   handleSourceRequest: (
     name: string[],
     args: Record<string, string>[],
-  ) => AsyncIterator<ResultValue>;
+  ) => AsyncIterable<ResultValue>;
 
   handleAsyncRequest: (
     name: string[],
@@ -13,5 +13,5 @@ export interface RequestHandler {
 export type ResultValue = Record<string, unknown> | string | Uint8Array;
 export type RpcFunction = (
   args: Record<string, string>[],
-) => (Promise<ResultValue> | AsyncGenerator<ResultValue>);
+) => (Promise<ResultValue> | AsyncIterable<ResultValue>);
 export type RpcContext = { [key: string]: (RpcFunction | RpcContext) };

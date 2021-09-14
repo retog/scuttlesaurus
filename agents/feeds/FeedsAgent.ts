@@ -54,7 +54,7 @@ export default class FeedsAgent extends Agent {
   async incomingConnection(rpcConnection: RpcConnection) {
     await updateFeeds(rpcConnection);
   }
-  
+
   outgoingConnection = this.incomingConnection;
 
   async run(connector: {

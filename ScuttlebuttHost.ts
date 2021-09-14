@@ -6,6 +6,7 @@ import RpcMethodsHandler from "./comm/rpc/RpcMethodsHandler.ts";
 import { FeedId, log } from "./util.ts";
 import Agent from "./agents/Agent.ts";
 import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
+import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 
 /** A host communicating to peers using the Secure Scuttlebutt protocol */
 export default class ScuttlebuttHost {
@@ -42,7 +43,7 @@ export default class ScuttlebuttHost {
 
   async start() {
     log.info(`Starting SSB Host`);
-    const agents: Agent[] = getAgents()
+    const agents: Agent[] = getAgents();
     const boxInterface = new BoxInterface([...this.transports.values()]);
     //there are incoming connections, connections established explicitely by user, connections initiated by the feeds- or blobs-subsystem
     //incoming procedures call are handled by a RequestHandler provided by the subsystem for a specific peer
@@ -64,5 +65,5 @@ export default class ScuttlebuttHost {
 }
 
 function getAgents() {
-  return [new FeedsAgent()];
+  return [new FeedsAgent(), new BlobsAgent()];
 }

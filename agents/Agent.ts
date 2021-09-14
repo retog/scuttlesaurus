@@ -6,7 +6,6 @@ import { Address, FeedId } from "../util.ts";
 export default abstract class Agent {
   static agents: Agent[] = [];
 
-
   constructor() {
     Agent.agents.push(this);
   }
@@ -27,10 +26,12 @@ export default abstract class Agent {
     const connector = {
       async connect(address: Address): Promise<RpcConnection> {
         const con = await connectorP.connect(address);
-        Agent.agents.filter(agent => agent !== thisAgent).forEach(agent => agent.outgoingConnection(con));
+        Agent.agents.filter((agent) => agent !== thisAgent).forEach((agent) =>
+          agent.outgoingConnection(con)
+        );
         return con;
-      }
-    }
+      },
+    };
     return this.run(connector);
   }
 

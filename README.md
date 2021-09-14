@@ -15,10 +15,11 @@ The main executables is `main.ts`, executing it with
 
     deno run --unstable -A main.ts
 
-will start a host interacting on the Scuttlebut network according to the configuration
-files in `~/.ssb`. By default feeds are stored in `~/.ssb/data/feeds`, one folder per feed, e.g. all
-messages of `@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` are in the
-folder `data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`:
+will start a host interacting on the Scuttlebut network according to the
+configuration files in `~/.ssb`. By default feeds are stored in
+`~/.ssb/data/feeds`, one folder per feed, e.g. all messages of
+`@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` are in the folder
+`data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`:
 
 FindPeers: listens for peers announcing themselves with UDP broadcast.
 
