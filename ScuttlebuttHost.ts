@@ -12,6 +12,9 @@ import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 export default class ScuttlebuttHost {
   readonly transports = new Map<string, Transport>();
 
+  feedsAgent = new FeedsAgent();
+  blobsAgent = new BlobsAgent();
+
   constructor(readonly config: Record<string, unknown>) {
     const options = config.port
       ? {
@@ -43,7 +46,7 @@ export default class ScuttlebuttHost {
 
   async start() {
     log.info(`Starting SSB Host`);
-    const agents: Agent[] = getAgents();
+    const agents: Agent[] = this.getAgents();
     const boxInterface = new BoxInterface([...this.transports.values()]);
     //there are incoming connections, connections established explicitely by user, connections initiated by the feeds- or blobs-subsystem
     //incoming procedures call are handled by a RequestHandler provided by the subsystem for a specific peer
@@ -62,8 +65,8 @@ export default class ScuttlebuttHost {
       );
     }
   }
-}
 
-function getAgents() {
-  return [new FeedsAgent(), new BlobsAgent()];
+  getAgents() {
+    return [this.feedsAgent, this.blobsAgent];
+  }
 }

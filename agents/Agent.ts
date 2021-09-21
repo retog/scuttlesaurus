@@ -1,6 +1,6 @@
 import RpcConnection from "../comm/rpc/RpcConnection.ts";
 import { RpcContext } from "../comm/rpc/types.ts";
-import { Address, FeedId } from "../util.ts";
+import { Address, FeedId, log } from "../util.ts";
 
 /** An object handling a sub-protocol, such as Feeds or Blobs */
 export default abstract class Agent {
@@ -26,8 +26,16 @@ export default abstract class Agent {
     const connector = {
       async connect(address: Address): Promise<RpcConnection> {
         const con = await connectorP.connect(address);
-        Agent.agents.filter((agent) => agent !== thisAgent).forEach((agent) =>
-          agent.outgoingConnection(con)
+        Agent.agents.filter((agent) => agent !== thisAgent).forEach(
+          async (agent) => {
+            try {
+              await agent.outgoingConnection(con);
+            } catch (error) {
+              log.error(
+                `Error processing outgoing connection to ${address} by ${agent}: ${error}`,
+              );
+            }
+          },
         );
         return con;
       },

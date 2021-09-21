@@ -1,5 +1,13 @@
-import { BlobId, FeedId, filenameSafeAlphabetRFC3548, path } from "./util.ts";
+import {
+  BlobId,
+  FeedId,
+  filenameSafeAlphabetRFC3548,
+  path,
+  sha256Hash,
+  toHex,
+} from "./util.ts";
 import config from "./config.ts";
+import { exists } from "https://deno.land/std@0.103.0/fs/exists.ts";
 
 export function getFeedDir(feedKey: FeedId) {
   const feedsDir = path.join(config.dataDir, "feeds");
@@ -29,11 +37,34 @@ export async function lastMessage(feedKey: FeedId) {
   }
 }
 
-export async function getBlobFile(blobId: BlobId) {
+function getBlobFileLocation(blobId: BlobId) {
   const blobsDir = path.join(config.dataDir, "blobs");
-  await Deno.mkdir(blobsDir, { recursive: true });
+  const hexString = toHex(blobId);
+  const dirName = hexString.substring(0, 2);
+  const dir = path.join(blobsDir, dirName);
+  const fileName = hexString.substring(2);
+  return { dir, fileName };
+}
+
+export function hasBlob(blobId: BlobId) {
+  const { dir, fileName } = getBlobFileLocation(blobId);
+  return exists(path.join(dir, fileName));
+}
+
+export async function storeBlob(data: Uint8Array): Promise<BlobId> {
+  const blobId = new BlobId(sha256Hash(data));
+  const { dir, fileName } = getBlobFileLocation(blobId);
+  await Deno.mkdir(dir, { recursive: true });
   const blobFile = await Deno.create(
-    path.join(blobsDir, blobId.base64FilenameSafe),
+    path.join(dir, fileName),
   );
-  return blobFile;
+  await blobFile.write(data);
+  return blobId;
+}
+
+export function getBlob(blobId: BlobId): Promise<Uint8Array> {
+  const { dir, fileName } = getBlobFileLocation(blobId);
+  return Deno.readFile(
+    path.join(dir, fileName),
+  );
 }

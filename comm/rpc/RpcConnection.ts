@@ -118,7 +118,7 @@ export default class RpcConnection {
                     for await (
                       const value of responseIterable
                     ) {
-                      log.debug(() => "sending back " + JSON.stringify(value));
+                      log.debug(() => `Sending back ${JSON.stringify(value)}`);
                       try {
                         await this.sendRpcMessage(value, {
                           isStream: true,
@@ -247,7 +247,7 @@ export default class RpcConnection {
                     } else {
                       reject(
                         new Error(
-                          `On connectiion with ${this.boxConnection}: ${endMessage}`,
+                          `On connection with ${this.boxConnection.peer}: ${endMessage}`,
                         ),
                       );
                     }

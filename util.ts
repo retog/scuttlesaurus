@@ -25,6 +25,8 @@ export class FeedId extends Uint8Array {
   toString(): string {
     return `@${this.base64Key}.ed25519`;
   }
+
+  toJSON = this.toString;
 }
 
 export class BlobId extends Uint8Array {
@@ -43,6 +45,8 @@ export class BlobId extends Uint8Array {
   toString(): string {
     return `&${this.base64Key}.sha256`;
   }
+
+  toJSON = this.toString;
 }
 
 export interface Address {
@@ -150,6 +154,10 @@ export function fromBase64(text: string) {
   );
 }
 
+export function toHex(data: Uint8Array) {
+  return sodium.to_hex(data);
+}
+
 function nodeBinaryEncode(text: string): Uint8Array {
   function encodeValue(value: number) {
     if (value <= 0xFFFF) {
@@ -176,6 +184,10 @@ export function computeMsgHash(msg: unknown) {
   return sodium.crypto_hash_sha256(
     nodeBinaryEncode(JSON.stringify(msg, undefined, 2)),
   );
+}
+
+export function sha256Hash(data: Uint8Array) {
+  return sodium.crypto_hash_sha256(data);
 }
 
 /*export function signMessage(msg: unknown): Record<string, unknown> {

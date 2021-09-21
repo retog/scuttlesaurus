@@ -9,7 +9,7 @@ import { log } from "../../util.ts";
 /** An RPC request handler providing default procedured based on FSStorage */
 export default class RpcMethodsHandler implements RequestHandler {
   constructor(public rcpContexts: RpcContext[]) {
-    log.debug(`creating request handler for ${rcpContexts}`);
+    log.debug(`creating request handler for ${JSON.stringify(rcpContexts)}`);
   }
 
   protected getFunction(
