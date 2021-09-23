@@ -5,6 +5,7 @@ import {
   path,
   sha256Hash,
   toHex,
+  log
 } from "./util.ts";
 import config from "./config.ts";
 import { exists } from "https://deno.land/std@0.103.0/fs/exists.ts";
@@ -55,10 +56,7 @@ export async function storeBlob(data: Uint8Array): Promise<BlobId> {
   const blobId = new BlobId(sha256Hash(data));
   const { dir, fileName } = getBlobFileLocation(blobId);
   await Deno.mkdir(dir, { recursive: true });
-  const blobFile = await Deno.create(
-    path.join(dir, fileName),
-  );
-  await blobFile.write(data);
+  Deno.writeFile(path.join(dir, fileName),data);
   return blobId;
 }
 
