@@ -1,0 +1,33 @@
+version: '2'
+services:
+
+
+  ssb-deno-a:
+
+    image: reto/deno-dev
+    
+    volumes:
+      - ..:/workspace:cached
+
+    environment:
+      HOSTNAME: ssb-deno-a
+
+    hostname: ssb-deno-a
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+
+    command: /bin/sh -c "while sleep 1000; do :; done"
+
+  ssb-deno-b:
+
+    image: reto/deno-dev
+    
+    hostname: ssb-deno-b
+
+    volumes:
+      - ..:/workspace:cached
+
+    command: deno run -A --unstable /workspace/main.ts && /bin/sh -c "while sleep 1000; do :; done"
+ 
