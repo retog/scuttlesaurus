@@ -32,7 +32,7 @@ export default abstract class Agent {
               await agent.outgoingConnection(con);
             } catch (error) {
               log.error(
-                `Error processing outgoing connection to ${address} by ${agent}: ${error}`,
+                `Error processing outgoing connection to ${address} by ${agent.constructor.name}: ${error}\n${error.stack}`,
               );
             }
           },

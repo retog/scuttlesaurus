@@ -243,6 +243,9 @@ export default class RpcConnection {
                   } else {
                     const endMessage = textDecoder.decode(message);
                     if (endMessage === "true") {
+                      log.debug(
+                        `Got end-message on response on ${request.name} by ${this.boxConnection.peer}`,
+                      );
                       reject(new EndOfStream());
                     } else {
                       reject(
