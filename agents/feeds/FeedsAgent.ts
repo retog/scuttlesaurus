@@ -99,7 +99,8 @@ export default class FeedsAgent extends Agent {
               await updateFeeds(rpcConnection);
             } catch (error) {
               log.error(
-                `In connection with ${address}: ${error}, now having ${onGoingSyncs} connections left`,
+                `In connection with ${address}: ${error}, now having ${onGoingSyncs -
+                  1} connections left`,
               );
               log.info(`stack: ${error.stack}`);
               minutesDelay++;
