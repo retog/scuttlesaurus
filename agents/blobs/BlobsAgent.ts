@@ -103,14 +103,14 @@ export default class BlobsAgent extends Agent {
           return Promise.resolve(false);
         },*/
         async *get(args: Record<string, string>[]) {
-          log.debug(`${feedId} invoked blobs.get with args: ${args}.`);
+          log.debug(`${feedId} invoked blobs.get with args: ${JSON.stringify(args)}.`);
           const blobId = parseBlobId(Object.keys(args[0])[0]);
           yield await FsStorage.getBlob(blobId);
         },
         async *createWants(
           args: Record<string, string>[],
         ): AsyncIterable<Record<string, unknown>> {
-          log.info(`${feedId} invoked blobs.createWants with  ${args}`);
+          log.info(`${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`);
           for (const p of pendingWants.values()) {
             if (
               !p.alreadyAsked.has(feedId.base64Key) &&
