@@ -18,7 +18,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-
     command: /bin/sh -c "while sleep 1000; do :; done"
 
   ssb-deno-b:
@@ -31,5 +30,25 @@ services:
       - ..:/workspace:cached
       - ./container-data/ssb-deno-b/:/home/deno/.ssb
 
-    command: deno run -A --unstable /workspace/main.ts && /bin/sh -c "while sleep 1000; do :; done"
+    command: deno run -A --unstable /workspace/main.ts ; /bin/sh -c "while sleep 1000; do :; done"
+
+  oasis-a:
+
+    image: reto/oasis
+    
+    ports:
+      - 3001:3000
+
+    volumes:
+      - ./container-data/oasis-a/:/home/node/.ssb
+
+  oasis-b:
+
+    image: reto/oasis
+    
+    ports:
+      - 3002:3000
+
+    volumes:
+      - ./container-data/oasis-b:/home/node/.ssb
  
