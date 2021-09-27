@@ -8,6 +8,7 @@ services:
     
     volumes:
       - ..:/workspace:cached
+      - ./container-data/ssb-deno-a/:/home/deno/.ssb
 
     environment:
       HOSTNAME: ssb-deno-a
@@ -28,6 +29,7 @@ services:
 
     volumes:
       - ..:/workspace:cached
+      - ./container-data/ssb-deno-b/:/home/deno/.ssb
 
     command: deno run -A --unstable /workspace/main.ts && /bin/sh -c "while sleep 1000; do :; done"
  
