@@ -24,7 +24,7 @@ export default class FeedsAgent extends Agent {
         //log.info(`got request for ${feedKey} with seq: ${seq}`);
         //console.log(`"@${feedKey}.ed25519",`)
         const lastMessage = await FsStorage.lastMessage(feedKey);
-        while (seq < lastMessage) {
+        while (seq <= lastMessage) {
           const fileName = path.join(
             FsStorage.getFeedDir(feedKey),
             (seq++) + ".json",
