@@ -132,6 +132,9 @@ export default class RpcConnection {
                         );
                       }
                     }
+                    log.debug(
+                      `Closing response stream to their request ${header.requestNumber}`,
+                    );
                     this.sendRpcMessage("true", {
                       isStream: true,
                       endOrError: true,
@@ -148,11 +151,19 @@ export default class RpcConnection {
                   }
                 })();
               } else {
-                log.info(
-                  `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
-                    textDecoder.decode(body)
-                  }`,
-                );
+                if (
+                  header.endOrError && (textDecoder.decode(body) === "true")
+                ) {
+                  log.debug(
+                    `Remote confirms closing of our response stream ${header.requestNumber}.`,
+                  );
+                } else {
+                  log.info(
+                    `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
+                      textDecoder.decode(body)
+                    }`,
+                  );
+                }
               }
             } else {
               log.info(
@@ -347,6 +358,7 @@ export default class RpcConnection {
     const requestNumber = options.inReplyTo
       ? options.inReplyTo * -1
       : ++this.requestCounter;
+    log.debug(`Sending RPC Message ${requestNumber}`)
     const header = new Uint8Array(9);
     header[0] = flags;
     header.set(
