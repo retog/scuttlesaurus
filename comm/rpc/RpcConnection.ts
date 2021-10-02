@@ -223,40 +223,45 @@ export default class RpcConnection {
       buffer.push([message, header]);
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
-    return { //TODO return AsyncIterator instead
-      read: () => {
-        if (buffer.length > 0) {
-          const [message, header] = buffer.shift() as [Uint8Array, Header];
-          if (!header.endOrError) {
-            return Promise.resolve(parse(message, header.bodyType));
-          } else {
-            const endMessage = textDecoder.decode(message);
-            if (endMessage === "true") {
-              return Promise.reject(new EndOfStream());
-            } else {
-              return Promise.reject(new Error(endMessage));
-            }
-          }
+    const responseStreamListeners = this.responseStreamListeners;
+    const boxConnection = this.boxConnection;
+    const generate = async function* () {
+      while (buffer.length > 0) {
+        const [message, header] = buffer.shift() as [Uint8Array, Header];
+        if (!header.endOrError) {
+          yield parse(message, header.bodyType);
         } else {
-          return new Promise<Record<string, unknown> | string | Uint8Array>(
+          const endMessage = textDecoder.decode(message);
+          if (endMessage === "true") {
+            return;
+          } else {
+            throw new Error(endMessage);
+          }
+        }
+      }
+      try {
+        while (true) {
+          yield await new Promise<
+            Record<string, unknown> | string | Uint8Array
+          >(
             (resolve, reject) => {
-              this.responseStreamListeners.set(
+              responseStreamListeners.set(
                 requestNumber,
                 (message: Uint8Array, header: Header) => {
                   if (!header.endOrError) {
-                    this.responseStreamListeners.set(requestNumber, bufferer);
+                    responseStreamListeners.set(requestNumber, bufferer);
                     resolve(parse(message, header.bodyType));
                   } else {
                     const endMessage = textDecoder.decode(message);
                     if (endMessage === "true") {
                       log.debug(
-                        `Got end-message on response on ${request.name} by ${this.boxConnection.peer}`,
+                        `Got end-message on response on ${request.name} by ${boxConnection.peer}`,
                       );
                       reject(new EndOfStream());
                     } else {
                       reject(
                         new Error(
-                          `On connection with ${this.boxConnection.peer}: ${endMessage}`,
+                          `On connection with ${boxConnection.peer}: ${endMessage}`,
                         ),
                       );
                     }
@@ -266,8 +271,15 @@ export default class RpcConnection {
             },
           );
         }
-      },
+      } catch (error) {
+        if (error instanceof EndOfStream) {
+          return;
+        } else {
+          throw error;
+        }
+      }
     };
+    return generate();
   };
   sendAsyncRequest = async (request: {
     name: string[];

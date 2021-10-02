@@ -157,8 +157,7 @@ export default class BlobsAgent extends Agent {
       name: ["blobs", "createWants"],
       args: {},
     });
-    while (true) {
-      const hasOrWantMessage = await wantsReader.read();
+    for await (const hasOrWantMessage of wantsReader) {
       for (const entry of Object.entries(hasOrWantMessage)) {
         const hasOrWant = new BlobWant(
           parseBlobId(entry[0]),
@@ -241,14 +240,8 @@ export default class BlobsAgent extends Agent {
       args: [blobId],
     });
     const chunks: Array<Uint8Array> = [];
-    try {
-      while (true) {
-        const chunk = await reader.read() as Uint8Array;
-        chunks.push(chunk);
-      }
-    } catch (error) {
-      //that's why we should get back an async iterable
-      log.debug(error);
+    for await (const chunk of reader) {
+      chunks.push(chunk as Uint8Array);
     }
     const content = concat(...chunks);
     const storedBlobId = await FsStorage.storeBlob(content);
