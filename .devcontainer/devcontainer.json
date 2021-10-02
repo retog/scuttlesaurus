@@ -1,34 +1,34 @@
 {
-	"name": "Deno SSB Dev Environment",
+  "name": "Deno SSB Dev Environment",
 
-	"dockerComposeFile": [
-		"docker-compose.yml"
-	],
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
 
-	"service": "ssb-deno-a",
+  "service": "ssb-deno-a",
 
-	"workspaceFolder": "/workspace",
+  "workspaceFolder": "/workspace",
 
-	// Set *default* container specific settings.json values on container create.
-	"settings": {},
+  // Set *default* container specific settings.json values on container create.
+  "settings": {},
 
-	// Add the IDs of extensions you want installed when the container is created.
-	"extensions": [
-		"denoland.vscode-deno"
-	],
+  // Add the IDs of extensions you want installed when the container is created.
+  "extensions": [
+    "denoland.vscode-deno"
+  ],
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
 
-	// Uncomment the next line if you want start specific services in your Docker Compose config.
-	// "runServices": [],
+  // Uncomment the next line if you want start specific services in your Docker Compose config.
+  // "runServices": [],
 
-	// Uncomment the next line if you want to keep your containers running after VS Code shuts down.
-	// "shutdownAction": "none",
+  // Uncomment the next line if you want to keep your containers running after VS Code shuts down.
+  // "shutdownAction": "none",
 
-	// Uncomment the next line to run commands after the container is created - for example installing curl.
-	// "postCreateCommand": "apt-get update && apt-get install -y curl",
+  // Uncomment the next line to run commands after the container is created - for example installing curl.
+  // "postCreateCommand": "apt-get update && apt-get install -y curl",
 
-	// Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
-	"remoteUser": "deno"
+  // Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
+  "remoteUser": "deno"
 }
