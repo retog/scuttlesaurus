@@ -132,6 +132,12 @@ export default class RpcConnection {
                         );
                       }
                     }
+                    this.sendRpcMessage("true", {
+                      isStream: true,
+                      endOrError: true,
+                      bodyType: RpcBodyType.json,
+                      inReplyTo: header.requestNumber,
+                    });
                   } catch (error) {
                     log.error(
                       `Error iterating on respone on ${request.name} (${
