@@ -173,7 +173,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     this.connections.push(connection);
     connection.addEventListener("close", () => {
       log.debug(
-        `closed outbound connection, one of ${this.connections.length}`,
+        `closed outbound connection to ${connection.peer}, one of ${this.connections.length}`,
       );
       this.connections = this.connections.filter((c) => c !== connection);
     });
