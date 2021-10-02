@@ -106,7 +106,14 @@ export default class BlobsAgent extends Agent {
           log.debug(
             `${feedId} invoked blobs.get with args: ${JSON.stringify(args)}.`,
           );
-          const blobId = parseBlobId(args[0] as string);
+          let blobIdString: string;
+          if (typeof args[0] === "string") {
+            blobIdString = args[0];
+          } else {
+            blobIdString = args[0].key;
+            //TODO consider max and size
+          }
+          const blobId = parseBlobId(blobIdString);
           yield await FsStorage.getBlob(blobId);
         },
         async *createWants(
