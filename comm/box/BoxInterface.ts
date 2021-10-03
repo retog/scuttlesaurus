@@ -320,7 +320,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
         yield await this.acceptConnection(conn);
       } catch (error) {
         log.warning(
-          `Error with incoming connection  ${JSON.stringify(conn)}: ${error}`,
+          `Error with incoming connection with remote ${JSON.stringify((conn as unknown as {remoteAddr: unknown}).remoteAddr!)}: ${error}\n${error.stack}`,
         );
       }
     }
