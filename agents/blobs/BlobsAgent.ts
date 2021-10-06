@@ -102,15 +102,26 @@ export default class BlobsAgent extends Agent {
           log.info(`${feedId} asked about ${args}`);
           return Promise.resolve(false);
         },*/
-        async *get(args: Record<string, string>[]) {
-          log.debug(`${feedId} invoked blobs.get with args: ${JSON.stringify(args)}.`);
-          const blobId = parseBlobId(Object.keys(args[0])[0]);
+        async *get(args: (Record<string, string> | string)[]) {
+          log.debug(
+            `${feedId} invoked blobs.get with args: ${JSON.stringify(args)}.`,
+          );
+          let blobIdString: string;
+          if (typeof args[0] === "string") {
+            blobIdString = args[0];
+          } else {
+            blobIdString = args[0].key;
+            //TODO consider max and size
+          }
+          const blobId = parseBlobId(blobIdString);
           yield await FsStorage.getBlob(blobId);
         },
         async *createWants(
           args: Record<string, string>[],
         ): AsyncIterable<Record<string, unknown>> {
-          log.info(`${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`);
+          log.info(
+            `${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`,
+          );
           for (const p of pendingWants.values()) {
             if (
               !p.alreadyAsked.has(feedId.base64Key) &&
@@ -127,7 +138,7 @@ export default class BlobsAgent extends Agent {
                     });*/
               const wanter = ((want: BlobWant) => {
                 wantFeeds.delete(feedId.base64Key);
-                resolve({ value: want.shortWant });
+                resolve(want.shortWant);
               });
               wantFeeds.set(feedId.base64Key, wanter);
             });
@@ -146,8 +157,7 @@ export default class BlobsAgent extends Agent {
       name: ["blobs", "createWants"],
       args: {},
     });
-    while (true) {
-      const hasOrWantMessage = await wantsReader.read();
+    for await (const hasOrWantMessage of wantsReader) {
       for (const entry of Object.entries(hasOrWantMessage)) {
         const hasOrWant = new BlobWant(
           parseBlobId(entry[0]),
@@ -230,14 +240,8 @@ export default class BlobsAgent extends Agent {
       args: [blobId],
     });
     const chunks: Array<Uint8Array> = [];
-    try {
-      while (true) {
-        const chunk = await reader.read() as Uint8Array;
-        chunks.push(chunk);
-      }
-    } catch (error) {
-      //that's why we should get back an async iterable
-      log.debug(error);
+    for await (const chunk of reader) {
+      chunks.push(chunk as Uint8Array);
     }
     const content = concat(...chunks);
     const storedBlobId = await FsStorage.storeBlob(content);

@@ -8,7 +8,7 @@ import {
   toBase64,
   verifySignature,
 } from "../../util.ts";
-import RPCConnection, { EndOfStream } from "../../comm/rpc/RpcConnection.ts";
+import RPCConnection from "../../comm/rpc/RpcConnection.ts";
 import config from "../../config.ts";
 
 const textEncoder = new TextEncoder();
@@ -54,52 +54,41 @@ export async function updateFeedFrom(
       "id": feedKey.toString(),
       "seq": from,
     }],
-  });
+  }) as AsyncIterable<{
+    value: Record<string, string>;
+    key: string;
+  }>;
   const feedDir = FSStorage.getFeedDir(feedKey);
   await Deno.mkdir(feedDir, { recursive: true });
-  try {
-    while (true) {
-      const msg = await historyStream.read() as {
-        value: Record<string, string>;
-        key: string;
-      };
-      const hash = computeMsgHash(msg.value);
-      const key = `%${toBase64(hash)}.sha256`;
-      if (key !== msg.key) {
-        throw new Error(
-          "Computed hash doesn't match key " +
-            JSON.stringify(msg, undefined, 2),
-        );
-      }
-      if (
-        !verifySignature(msg.value as { author: string; signature: string })
-      ) {
-        throw Error(
-          `failed to veriy signature of the message: ${
-            JSON.stringify(msg.value, undefined, 2)
-          }`,
-        );
-      }
-      const msgFile = await Deno.create(
-        feedDir + "/" +
-          (msg as { value: Record<string, string> }).value!.sequence! +
-          ".json",
+  for await (const msg of historyStream) {
+    const hash = computeMsgHash(msg.value);
+    const key = `%${toBase64(hash)}.sha256`;
+    if (key !== msg.key) {
+      throw new Error(
+        "Computed hash doesn't match key " +
+          JSON.stringify(msg, undefined, 2),
       );
-      await msgFile.write(
-        textEncoder.encode(JSON.stringify(msg, undefined, 2)),
+    }
+    if (
+      !verifySignature(msg.value as { author: string; signature: string })
+    ) {
+      throw Error(
+        `failed to veriy signature of the message: ${
+          JSON.stringify(msg.value, undefined, 2)
+        }`,
       );
-      msgFile.close();
-      /*log.info(
-                  JSON.stringify(msg, undefined, 2),
-                );*/
     }
-  } catch (err) {
-    if (err instanceof EndOfStream) {
-      log.debug(() => `Stream ended for feed ${feedKey}`);
-    } else {
-      log.error(err);
-    }
+    const msgFile = await Deno.create(
+      feedDir + "/" +
+        (msg as { value: Record<string, string> }).value!.sequence! +
+        ".json",
+    );
+    await msgFile.write(
+      textEncoder.encode(JSON.stringify(msg, undefined, 2)),
+    );
+    msgFile.close();
   }
+  log.debug(() => `Stream ended for feed ${feedKey}`);
 }
 
 export function updateFeeds(rpcConnection: RPCConnection) {
