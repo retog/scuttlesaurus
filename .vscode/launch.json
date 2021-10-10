@@ -1,16 +1,39 @@
 {
   "configurations": [
     {
-      "name": "Play",
+      "name": "Run",
       "type": "pwa-node",
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "main.ts"],
+      "attachSimplePort": 9229
+    },
+    {
+      "name": "followees",
+      "type": "pwa-node",
+      "request": "launch",
+      "program": "${workspaceFolder}/get-followees.ts",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": [
+        "run",
+        "--inspect=127.0.0.1:9229",
+        "--allow-all"
+      ],
       "attachSimplePort": 9229,
       "args": [
-        "net:172.17.0.2:8008~shs:bEhA+VRRIf8mTO474KlSuYTObJACRYZqkwxCl4Id4fk="
+        "@+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=.ed25519"
       ]
+    },
+    {
+      "name": "Playground",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "playground.ts"],
+      "attachSimplePort": 9229
     },
     {
       "name": "FindPeers",
@@ -21,63 +44,6 @@
       "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "FindPeers.ts"],
       "attachSimplePort": 9229,
       "args": []
-    },
-    {
-      "name": "Play with localhost",
-      "type": "pwa-node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
-      "attachSimplePort": 9229,
-      "args": [
-        "net:localhost:8008~shs:+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI="
-      ]
-    },
-    {
-      "name": "Play with localhost and other feed",
-      "type": "pwa-node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
-      "attachSimplePort": 9229,
-      "args": [
-        "net:localhost:8008~shs:+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=",
-        "@5Pt3dKy2HTJ0mWuS78oIiklIX0gBz6BTfEnXsbvke9c=.ed25519"
-      ]
-    },
-    {
-      "name": "Play with planetary",
-      "type": "pwa-node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
-      "attachSimplePort": 9229,
-      "args": [
-        "net:three.planetary.pub:8008~shs:LQ8HBiEinU5FiXGaZH9JYFGBGdsB99mepBdh/Smq3VI="
-      ]
-    },
-    {
-      "name": "Play with adriamb",
-      "type": "pwa-node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
-      "attachSimplePort": 9229,
-      "args": [
-        "net:three.planetary.pub:8008~shs:LQ8HBiEinU5FiXGaZH9JYFGBGdsB99mepBdh/Smq3VI=",
-        "@ZFWw+UclcUgYi081/C8lhgH+KQ9s7YJRoOYGnzxW/JQ=.ed25519"
-      ]
-    },
-    {
-      "name": "Launch Chrome",
-      "request": "launch",
-      "type": "pwa-chrome",
-      "url": "http://localhost:8080",
-      "webRoot": "${workspaceFolder}"
     }
   ]
 }

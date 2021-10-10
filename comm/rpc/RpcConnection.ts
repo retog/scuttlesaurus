@@ -358,7 +358,7 @@ export default class RpcConnection {
     const requestNumber = options.inReplyTo
       ? options.inReplyTo * -1
       : ++this.requestCounter;
-    log.debug(`Sending RPC Message ${requestNumber}`)
+    log.debug(`Sending RPC Message ${requestNumber}`);
     const header = new Uint8Array(9);
     header[0] = flags;
     header.set(

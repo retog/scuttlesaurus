@@ -59,9 +59,9 @@ export interface Address {
 
 export function parseAddress(addr: string): Address {
   try {
-    const sections = addr.split(":");
-    const [protocol, host, portshs, keyString] = sections;
-    const port = parseInt(portshs.split("~")[0]);
+    const [netAddr, keyString] = addr.split("~shs:");
+    const [protocol, host, portString] = netAddr.split(":");
+    const port = parseInt(portString);
     return {
       protocol,
       host,
