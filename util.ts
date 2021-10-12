@@ -222,6 +222,19 @@ export function isZero(bytes: Uint8Array) {
   return !bytes.find((b) => b > 0);
 }
 
+const never = function <T>() {
+  return new Promise<T>(
+    () => {},
+  );
+};
+
+function getNext<T>(asyncIterator: AsyncIterator<T>, index: number) {
+  return asyncIterator.next().then((result) => ({
+    index,
+    result,
+  }));
+}
+
 //from https://stackoverflow.com/a/50586391/1455912
 export async function* combine<T>(...iterable: AsyncIterable<T>[]) {
   const asyncIterators: AsyncIterator<T>[] = iterable.map((o) =>
@@ -229,21 +242,15 @@ export async function* combine<T>(...iterable: AsyncIterable<T>[]) {
   );
   const results: T[] = [];
   let count = asyncIterators.length;
-  const never = new Promise<{ index: number; result: IteratorResult<T> }>(
-    () => {},
-  );
-  function getNext(asyncIterator: AsyncIterator<T>, index: number) {
-    return asyncIterator.next().then((result) => ({
-      index,
-      result,
-    }));
-  }
+
   const nextPromises = asyncIterators.map(getNext);
   try {
     while (count) {
       const { index, result } = await Promise.race(nextPromises);
       if (result.done) {
-        nextPromises[index] = never;
+        nextPromises[index] = never<
+          { index: number; result: IteratorResult<T> }
+        >();
         results[index] = result.value;
         count--;
       } else {
@@ -253,11 +260,62 @@ export async function* combine<T>(...iterable: AsyncIterable<T>[]) {
     }
   } finally {
     for (const [index, iterator] of asyncIterators.entries()) {
-      if (nextPromises[index] != never && iterator.return != null) {
+      if (nextPromises[index] != never() && iterator.return != null) {
         iterator.return();
       }
     }
     // no await here - see https://github.com/tc39/proposal-async-iteration/issues/126
   }
   return results;
+}
+
+export function flatten<T>(
+  outer: AsyncIterator<AsyncIterator<T>>,
+): AsyncIterator<T> {
+  const innerIterators: AsyncIterator<T>[] = [];
+  const innerIteratorsNexts: Promise<
+    { index: number; result: IteratorResult<T> }
+  >[] = innerIterators.map(getNext);
+  let outerNext: Promise<IteratorResult<AsyncIterator<T>>> = outer.next();
+  let finishedIterators = 0;
+  return {
+    next: () => {
+      const iteration: () => Promise<IteratorResult<T>> = async () => {
+        if (finishedIterators < (innerIterators.length + 1)) {
+          const nextEvent = await Promise.race([outerNext, ...innerIteratorsNexts]);
+          if ("index" in nextEvent) {
+            //an actual result
+            if (nextEvent.result.done) {
+              innerIteratorsNexts[nextEvent.index] = never();
+              finishedIterators++;
+              return iteration();
+            } else {
+              innerIteratorsNexts[nextEvent.index] = getNext(
+                innerIterators[nextEvent.index],
+                nextEvent.index,
+              );
+              return nextEvent.result;
+            }
+          } else {
+            //a new inner iterator
+            if (nextEvent.done) {
+              finishedIterators++;
+              outerNext = never<IteratorResult<AsyncIterator<T>>>();
+            } else {
+              innerIterators.push(nextEvent.value);
+              innerIteratorsNexts.push(getNext(
+                nextEvent.value,
+                innerIteratorsNexts.length,
+              ));
+              outerNext = outer.next();
+            }
+            return iteration();
+          }
+        } else {
+          return { done: true, value: undefined };
+        }
+      }
+      return iteration();
+    }
+  };
 }
