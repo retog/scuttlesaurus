@@ -282,7 +282,10 @@ export function flatten<T>(
     next: () => {
       const iteration: () => Promise<IteratorResult<T>> = async () => {
         if (finishedIterators < (innerIterators.length + 1)) {
-          const nextEvent = await Promise.race([outerNext, ...innerIteratorsNexts]);
+          const nextEvent = await Promise.race([
+            outerNext,
+            ...innerIteratorsNexts,
+          ]);
           if ("index" in nextEvent) {
             //an actual result
             if (nextEvent.result.done) {
@@ -314,8 +317,8 @@ export function flatten<T>(
         } else {
           return { done: true, value: undefined };
         }
-      }
+      };
       return iteration();
-    }
+    },
   };
 }
