@@ -1,12 +1,12 @@
 {
   "configurations": [
     {
-      "name": "Play",
+      "name": "Main",
       "type": "pwa-node",
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "play.ts"],
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "main.ts"],
       "attachSimplePort": 9229,
       "args": [
         "net:172.17.0.2:8008~shs:bEhA+VRRIf8mTO474KlSuYTObJACRYZqkwxCl4Id4fk="
