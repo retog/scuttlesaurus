@@ -7,6 +7,7 @@ import { FeedId, log } from "./util.ts";
 import Agent from "./agents/Agent.ts";
 import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
 import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
+import WsTransport from "./comm/transport/WsTransport.ts";
 
 /** A host communicating to peers using the Secure Scuttlebutt protocol */
 export default class ScuttlebuttHost {
@@ -24,7 +25,9 @@ export default class ScuttlebuttHost {
     this.addTransport(
       new NetTransport(options),
     );
-
+    this.addTransport(
+      new WsTransport(),
+    );
     if (config.autoConnectLocalPeers) {
       /*  for await (const peer of udpPeerDiscoverer) {
         if (
@@ -41,13 +44,17 @@ export default class ScuttlebuttHost {
   }
 
   addTransport(transport: Transport) {
-    this.transports.set(transport.protocol, transport);
+    for (const protocol of transport.protocols) {
+      this.transports.set(protocol, transport);
+    }
   }
 
   async start() {
     log.info(`Starting SSB Host`);
     const agents: Agent[] = this.getAgents();
-    const boxInterface = new BoxInterface([...this.transports.values()]);
+    const boxInterface = new BoxInterface([
+      ...new Set(this.transports.values()), //So where do we map?
+    ]);
     //there are incoming connections, connections established explicitely by user, connections initiated by the feeds- or blobs-subsystem
     //incoming procedures call are handled by a RequestHandler provided by the subsystem for a specific peer
     //subsystem can send request over any connection and are notified on new connectins

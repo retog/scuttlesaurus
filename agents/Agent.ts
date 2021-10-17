@@ -1,3 +1,4 @@
+import CommClientInterface from "../comm/CommClientInterface.ts";
 import RpcConnection from "../comm/rpc/RpcConnection.ts";
 import { RpcContext } from "../comm/rpc/types.ts";
 import { Address, FeedId, log } from "../util.ts";
@@ -18,9 +19,7 @@ export default abstract class Agent {
   /** Act on a connection initiated by another agent */
   abstract outgoingConnection(rpcConnection: RpcConnection): Promise<void>;
 
-  start(connectorP: {
-    connect(address: Address): Promise<RpcConnection>;
-  }): Promise<void> {
+  start(connectorP: CommClientInterface<RpcConnection>): Promise<void> {
     // deno-lint-ignore no-this-alias
     const thisAgent = this;
     const connector = {

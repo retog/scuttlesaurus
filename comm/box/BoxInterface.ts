@@ -13,7 +13,6 @@ import {
 } from "../../util.ts";
 import BoxConnection from "./BoxConnection.ts";
 import config from "../../config.ts";
-import NetTransport from "../transport/NetTransport.ts";
 import CommInterface from "../CommInterface.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
@@ -22,10 +21,8 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
   keyPair = getClientKeyPair();
   id = new FeedId(this.keyPair.publicKey);
 
-  netTransport = new NetTransport();
-
   constructor(
-    public readonly underlying: CommInterface<
+    public readonly transports: CommInterface<
       Deno.Reader & Deno.Writer & Deno.Closer
     >[],
   ) {}
@@ -39,7 +36,13 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     // deno-lint-ignore no-this-alias
     const _host = this;
     const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
-    const conn = await this.netTransport.connect(address);
+    const conn = await Promise.any(this.transports.map((t) => {
+      try {
+        return t.connect(address);
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    }));
 
     const clientHello = () => {
       const hmac = sodium.crypto_auth(
@@ -309,7 +312,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
 
   async *listen() {
     const iterator = combine(
-      ...this.underlying.map((i) => i.listen()),
+      ...this.transports.map((i) => i.listen()),
     );
     for await (
       const conn of {
@@ -320,7 +323,11 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
         yield await this.acceptConnection(conn);
       } catch (error) {
         log.warning(
-          `Error with incoming connection  ${JSON.stringify(conn)}: ${error}`,
+          `Error with incoming connection with remote ${
+            JSON.stringify(
+              (conn as unknown as { remoteAddr: unknown }).remoteAddr!,
+            )
+          }: ${error}\n${error.stack}`,
         );
       }
     }
