@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "name": "Run",
+      "name": "Main",
       "type": "pwa-node",
       "request": "launch",
       "cwd": "${workspaceFolder}",
