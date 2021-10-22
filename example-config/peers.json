@@ -2,5 +2,6 @@
   "net:192.168.32.3:8008~shs:A2x/4olpyciSh+KXTULh9QFCCBCu5SSbL4ZmytwIuZw=",
   "net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc=",
   "net:ssb.celehner.com:8008~shs:5XaVcAJ5DklwuuIkjGz4lwm2rOnMHHovhNg7BFFnyJ8=",
-  "net:ssb.farewellutopia.com:8008~shs:w9f3dAPC900OhYJ+3n/q/S7Wflz1CXLkBKMnTkYGBZ8="
+  "net:ssb.farewellutopia.com:8008~shs:w9f3dAPC900OhYJ+3n/q/S7Wflz1CXLkBKMnTkYGBZ8=",
+  "wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo="
 ]

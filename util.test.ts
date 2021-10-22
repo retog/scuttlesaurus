@@ -6,6 +6,8 @@ Deno.test("flaten", async () => {
   function innerGenerator(label: string, interval: number) {
     return timedGenerator(() => label, interval);
   }
+  
+  // deno-lint-ignore no-explicit-any
   async function* timedGenerator(generate: () => any, interval: number) {
     for (let i = 0; i < 5; i++) {
       await delay(interval);

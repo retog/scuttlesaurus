@@ -194,8 +194,10 @@ export default class RpcConnection {
         const timeSinceRead = Date.now() - lastAnswer;
         if (timeSinceRead > answerTimeout * 1000) {
           log.info(
-            `RPCConnection readTimeout: ${timeSinceRead /
-              1000} seconds since last response was received.`,
+            `RPCConnection readTimeout: ${
+              timeSinceRead /
+              1000
+            } seconds since last response was received.`,
           );
           this.boxConnection.close();
           break;
@@ -203,8 +205,10 @@ export default class RpcConnection {
         const timeSinceActivity = Date.now() - lastActivity;
         if (timeSinceActivity > activityTimeout * 1000) {
           log.info(
-            `RPCConnection activityTimeout: ${timeSinceActivity /
-              1000} seconds since last data was read.`,
+            `RPCConnection activityTimeout: ${
+              timeSinceActivity /
+              1000
+            } seconds since last data was read.`,
           );
           this.boxConnection.close();
           break;

@@ -1,9 +1,11 @@
-import sodium, {
+import importedSodium, {
   base64_variants as base64Variants,
 } from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 export * as path from "https://deno.land/std@0.103.0/path/mod.ts";
 export * as log from "https://deno.land/std@0.103.0/log/mod.ts";
 export { delay } from "https://deno.land/std@0.103.0/async/mod.ts";
+export { exists } from "https://deno.land/std@0.103.0/fs/exists.ts";
+export const sodium = importedSodium;
 
 await sodium.ready;
 

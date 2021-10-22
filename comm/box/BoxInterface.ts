@@ -1,5 +1,4 @@
-// deno-lint-ignore-file camelcase
-import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
+//deno-lint-ignore-file camelcase
 import {
   Address,
   combine,
@@ -7,25 +6,30 @@ import {
   FeedId,
   fromBase64,
   log,
-  path,
   readBytes,
-  toBase64,
+  sodium,
 } from "../../util.ts";
 import BoxConnection from "./BoxConnection.ts";
-import config from "../../config.ts";
 import CommInterface from "../CommInterface.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
 export default class BoxInterface implements CommInterface<BoxConnection> {
-  network_identifier = config.networkIdentifier;
-  keyPair = getClientKeyPair();
-  id = new FeedId(this.keyPair.publicKey);
+  id;
 
   constructor(
     public readonly transports: CommInterface<
       Deno.Reader & Deno.Writer & Deno.Closer
     >[],
-  ) {}
+    public readonly keyPair: {
+      publicKey: Uint8Array;
+      privateKey: Uint8Array;
+    },
+    public readonly networkIdentifier: Uint8Array = fromBase64(
+      "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
+    ),
+  ) {
+    this.id = new FeedId(this.keyPair.publicKey);
+  }
 
   connections: BoxConnection[] = [];
 
@@ -47,7 +51,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const clientHello = () => {
       const hmac = sodium.crypto_auth(
         clientEphemeralKeyPair.publicKey,
-        this.network_identifier,
+        this.networkIdentifier,
       );
       return concat(hmac, clientEphemeralKeyPair.publicKey);
     };
@@ -62,7 +66,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
         shared_secret_ab,
       );
       const msg = concat(
-        this.network_identifier,
+        this.networkIdentifier,
         server_longterm_pk,
         shared_secret_ab_sha256,
       );
@@ -81,7 +85,11 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       );
       const nonce = new Uint8Array(24);
       const boxKey = sodium.crypto_hash_sha256(
-        concat(this.network_identifier, shared_secret_ab, shared_secret_aB),
+        concat(
+          this.networkIdentifier,
+          shared_secret_ab,
+          shared_secret_aB,
+        ),
       );
       await conn.write(sodium.crypto_secretbox_easy(boxMsg, nonce, boxKey));
       return detached_signature_A;
@@ -96,7 +104,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       !sodium.crypto_auth_verify(
         server_hmac,
         server_ephemeral_pk,
-        this.network_identifier,
+        this.networkIdentifier,
       )
     ) {
       throw new Error("Verification of the server's first response failed");
@@ -131,7 +139,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       new Uint8Array(24),
       sodium.crypto_hash_sha256(
         concat(
-          this.network_identifier,
+          this.networkIdentifier,
           shared_secret_ab,
           shared_secret_aB,
           shared_secret_Ab,
@@ -142,7 +150,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const verification2 = sodium.crypto_sign_verify_detached(
       detached_signature_B,
       concat(
-        this.network_identifier,
+        this.networkIdentifier,
         detached_signature_A,
         this.keyPair.publicKey,
         sodium.crypto_hash_sha256(shared_secret_ab),
@@ -157,7 +165,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const combinedSharedSecret = sodium.crypto_hash_sha256(
       sodium.crypto_hash_sha256(
         concat(
-          this.network_identifier,
+          this.networkIdentifier,
           shared_secret_ab,
           shared_secret_aB,
           shared_secret_Ab,
@@ -172,6 +180,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       server_longterm_pk,
       clientEphemeralKeyPair.publicKey,
       server_ephemeral_pk,
+      this.networkIdentifier,
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
@@ -195,7 +204,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       !sodium.crypto_auth_verify(
         client_hmac,
         client_ephemeral_pk,
-        this.network_identifier,
+        this.networkIdentifier,
       )
     ) {
       throw new Error("Verification of the client's hello failed");
@@ -203,7 +212,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const serverHello = concat(
       sodium.crypto_auth(
         serverEphemeralKeyPair.publicKey,
-        this.network_identifier,
+        this.networkIdentifier,
       ),
       serverEphemeralKeyPair.publicKey,
     );
@@ -227,7 +236,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       new Uint8Array(24),
       sodium.crypto_hash_sha256(
         concat(
-          this.network_identifier,
+          this.networkIdentifier,
           shared_secret_ab,
           shared_secret_aB,
         ),
@@ -244,7 +253,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const verification3 = sodium.crypto_sign_verify_detached(
       detached_signature_A,
       concat(
-        this.network_identifier,
+        this.networkIdentifier,
         this.keyPair.publicKey,
         sodium.crypto_hash_sha256(shared_secret_ab),
       ),
@@ -260,7 +269,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     );
     const detached_signature_B = sodium.crypto_sign_detached(
       concat(
-        this.network_identifier,
+        this.networkIdentifier,
         detached_signature_A,
         client_longterm_pk,
         sodium.crypto_hash_sha256(shared_secret_ab),
@@ -272,7 +281,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       new Uint8Array(24),
       sodium.crypto_hash_sha256(
         concat(
-          this.network_identifier,
+          this.networkIdentifier,
           shared_secret_ab,
           shared_secret_aB,
           shared_secret_Ab,
@@ -284,7 +293,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const combinedSharedSecret = sodium.crypto_hash_sha256(
       sodium.crypto_hash_sha256(
         concat(
-          this.network_identifier,
+          this.networkIdentifier,
           shared_secret_ab,
           shared_secret_aB,
           shared_secret_Ab,
@@ -299,6 +308,7 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
       client_longterm_pk,
       serverEphemeralKeyPair.publicKey,
       client_ephemeral_pk,
+      this.networkIdentifier,
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
@@ -330,45 +340,6 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
           }: ${error}\n${error.stack}`,
         );
       }
-    }
-  }
-}
-
-function getClientKeyPair() {
-  const secretFileDir = config.baseDir;
-  const secretFilePath = path.join(secretFileDir, "secret");
-  try {
-    const secretText = Deno.readTextFileSync(secretFilePath);
-    const secretTextNoComments = secretText.split("\n").filter((line) =>
-      line.charAt(0) !== "#"
-    ).join("\n");
-    const secret = JSON.parse(secretTextNoComments);
-    return {
-      keyType: secret.curve,
-      publicKey: fromBase64(
-        secret.public.substring(0, secret.public.length - ".ed25519".length),
-      ),
-      privateKey: fromBase64(
-        secret.private.substring(0, secret.private.length - ".ed25519".length),
-      ),
-    };
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      const newKey = sodium.crypto_sign_keypair("uint8array");
-      const secret = {
-        public: toBase64(newKey.publicKey) + ".ed25519",
-        "private": toBase64(newKey.privateKey) + ".ed25519",
-        curve: newKey.keyType,
-      };
-      Deno.mkdirSync(secretFileDir, { recursive: true });
-      Deno.writeTextFileSync(
-        secretFilePath,
-        JSON.stringify(secret, undefined, 2),
-      );
-      return newKey;
-    } else {
-      // unexpected error, pass it along
-      throw error;
     }
   }
 }

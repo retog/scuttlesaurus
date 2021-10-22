@@ -1,6 +1,4 @@
-import sodium from "https://deno.land/x/sodium@0.2.0/sumo.ts";
-import { concat, FeedId, isZero, log, readBytes } from "../../util.ts";
-import config from "../../config.ts";
+import { concat, FeedId, isZero, log, readBytes, sodium } from "../../util.ts";
 
 export default class BoxConnection extends EventTarget
   implements Deno.Reader, Deno.Writer, Deno.Closer {
@@ -17,6 +15,7 @@ export default class BoxConnection extends EventTarget
     theirLongTermPublicKey: Uint8Array,
     ourEphemeralPublicKey: Uint8Array,
     theirEphemeralTermPublicKey: Uint8Array,
+    networkIdentifier: Uint8Array,
   ) {
     super();
     this.peer = new FeedId(theirLongTermPublicKey);
@@ -36,11 +35,11 @@ export default class BoxConnection extends EventTarget
 
     this.serverToClientNonce = sodium.crypto_auth(
       ourEphemeralPublicKey,
-      config.networkIdentifier,
+      networkIdentifier,
     ).slice(0, 24);
     this.clientToServerNonce = sodium.crypto_auth(
       theirEphemeralTermPublicKey,
-      config.networkIdentifier,
+      networkIdentifier,
     ).slice(0, 24);
   }
 

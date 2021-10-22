@@ -9,7 +9,7 @@ import {
   parseBlobId,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
-import * as FsStorage from "../../fsStorage.ts";
+import FsStorage from "../../storage/FsStorage.ts";
 
 class BlobWant implements Record<string, unknown> {
   constructor(public blobId: BlobId, public level = -1) {}
@@ -57,6 +57,10 @@ class BlobHas {
 */
 
 export default class BlobsAgent extends Agent {
+
+  constructor(public fsStorage: FsStorage) {
+    super();
+  }
   want(blobId: BlobId) {
     this.processWant(new BlobWant(blobId));
   }
@@ -96,6 +100,7 @@ export default class BlobsAgent extends Agent {
   createRpcContext(feedId: FeedId): RpcContext {
     const wantFeeds = this.wantFeeds;
     const pendingWants = this.pendingWants;
+    const fsStorage = this.fsStorage;
     const rpcMethods = {
       blobs: {
         /*has(args: Record<string, string>[]): Promise<boolean> {
@@ -114,7 +119,7 @@ export default class BlobsAgent extends Agent {
             //TODO consider max and size
           }
           const blobId = parseBlobId(blobIdString);
-          yield await FsStorage.getBlob(blobId);
+          yield await fsStorage.getBlob(blobId);
         },
         async *createWants(
           args: Record<string, string>[],
@@ -186,7 +191,7 @@ export default class BlobsAgent extends Agent {
                   wantFeed(
                     new BlobWant(
                       hasOrWant.blobId,
-                      (await FsStorage.getBlob(hasOrWant.blobId)).length,
+                      (await this.fsStorage.getBlob(hasOrWant.blobId)).length,
                     ),
                   );
                 }
@@ -195,12 +200,12 @@ export default class BlobsAgent extends Agent {
           }
         } else {
           //a want
-          if (await FsStorage.hasBlob(hasOrWant.blobId)) {
+          if (await this.fsStorage.hasBlob(hasOrWant.blobId)) {
             const wantFeed = this.wantFeeds.get(
               rpcConnection.boxConnection.peer.base64Key,
             );
             if (wantFeed) {
-              const blob = await FsStorage.getBlob(hasOrWant.blobId);
+              const blob = await this.fsStorage.getBlob(hasOrWant.blobId);
               wantFeed(new BlobWant(hasOrWant.blobId, blob.length));
             } else {
               //TODO tell them if and when they invoke createWants, add to a broadened pendingWants set
@@ -244,7 +249,7 @@ export default class BlobsAgent extends Agent {
       chunks.push(chunk as Uint8Array);
     }
     const content = concat(...chunks);
-    const storedBlobId = await FsStorage.storeBlob(content);
+    const storedBlobId = await this.fsStorage.storeBlob(content);
     if (storedBlobId.base64Key !== blobId.base64Key) {
       throw new Error(`Got ${storedBlobId} but expected ${blobId}`);
     }
