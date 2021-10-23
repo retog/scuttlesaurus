@@ -12,7 +12,11 @@ function makeConnectionLike(socket: WebSocket) {
   let buffer = new Uint8Array(0);
   const openDataPromises: Promise<ArrayBuffer>[] = [];
   socket.onmessage = (m: MessageEvent) => {
-    openDataPromises.push(m.data.arrayBuffer());
+    if (m.data.arrayBuffer) {
+      openDataPromises.push(m.data.arrayBuffer());
+    } else {
+      openDataPromises.push(m.data);
+    }
     /*log.info(`Received ${new Uint8Array(data).length}:
               ${new Uint8Array(data)}`);*/
   };
@@ -99,8 +103,8 @@ export default class WsTransport implements Transport {
         continue;
       }
       const { socket, response } = Deno.upgradeWebSocket(requestEvent.request);
-      yield makeConnectionLike(socket);
       requestEvent.respondWith(response);
+      yield makeConnectionLike(socket);
       log.debug("ws response sent");
     }
   }
