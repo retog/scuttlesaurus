@@ -58,19 +58,21 @@ function makeConnectionLike(socket: WebSocket) {
         })
       ),
     write: (p: Uint8Array) =>
-      open.then(() => new Promise((resolve, _reject) => {
-        socket.send(p);
-        resolve(p.length);
-      })),
+      open.then(() =>
+        new Promise((resolve, _reject) => {
+          socket.send(p);
+          resolve(p.length);
+        })
+      ),
     close: () => {
-      socket.close()
+      socket.close();
     },
   };
   return result;
 }
 
 export default class WsTransport implements Transport {
-  constructor() {}
+  constructor(public options: { port: number } & Record<string, unknown> = { port: 8989 }) {}
   protocols = ["ws", "wss"];
   connect(
     addr: Address,
@@ -81,9 +83,9 @@ export default class WsTransport implements Transport {
     return Promise.resolve(makeConnectionLike(socket));
   }
   async *listen() {
-    this.plainServer();
+    const options = this.options;
     const getHttpConnections = async function* () {
-      const server = Deno.listen({ port: 5000 });
+      const server = Deno.listen(options);
       for await (const conn of server) {
         yield Deno.serveHttp(conn)[Symbol.asyncIterator]();
       }
@@ -106,35 +108,6 @@ export default class WsTransport implements Transport {
       requestEvent.respondWith(response);
       yield makeConnectionLike(socket);
       log.debug("ws response sent");
-    }
-  }
-
-  async plainServer() {
-    const getHttpConnections = async function* () {
-      const server = Deno.listen({ port: 8080 });
-      for await (const conn of server) {
-        yield Deno.serveHttp(conn)[Symbol.asyncIterator]();
-      }
-    };
-    const httpRequests = flatten(getHttpConnections()[Symbol.asyncIterator]());
-
-    function handleReq(req: Request): Response {
-      if (req.headers.get("upgrade") != "websocket") {
-        return new Response("request isn't trying to upgrade to websocket.");
-      }
-      const { socket, response } = Deno.upgradeWebSocket(req);
-      socket.onopen = () => console.log("socket opened");
-      socket.onmessage = (e) => {
-        console.log("socket message:", e.data);
-        socket.send(new Date().toString());
-      };
-      socket.onerror = (e) => console.log("socket errored:", e);
-      socket.onclose = () => console.log("socket closed");
-      return response;
-    }
-
-    for await (const requestEvent of {[Symbol.asyncIterator]: () => httpRequests}) {
-      await requestEvent.respondWith(handleReq(requestEvent.request));
     }
   }
 }

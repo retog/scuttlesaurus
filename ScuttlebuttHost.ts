@@ -19,7 +19,7 @@ export default class ScuttlebuttHost {
 
   constructor(
     readonly config: {
-      transport?: { net?: { port: number } };
+      transport?: { net?: { port: number }; ws?: { port: number } };
       autoConnectLocalPeers?: boolean;
       acceptIncomingConnections?: boolean;
       baseDir: string;
@@ -30,12 +30,16 @@ export default class ScuttlebuttHost {
     const fsStorage = new FsStorage(config.dataDir);
     this.feedsAgent = new FeedsAgent(fsStorage, config.baseDir);
     this.blobsAgent = new BlobsAgent(fsStorage);
-    this.addTransport(
-      new NetTransport(config.transport?.net),
-    );
-    this.addTransport(
-      new WsTransport(),
-    );
+    if (config.transport?.net) {
+      this.addTransport(
+        new NetTransport(config.transport?.net),
+      );
+    }
+    if (config.transport?.ws) {
+      this.addTransport(
+        new WsTransport(config.transport?.ws),
+      );
+    }
     if (config.autoConnectLocalPeers) {
       /*  for await (const peer of udpPeerDiscoverer) {
         if (

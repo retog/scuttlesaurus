@@ -47,6 +47,9 @@ function getDefaultConfig(baseDir: string) {
       net: {
         port: 8008,
       },
+      ws: {
+        port: 8989,
+      }
     },
     networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
     acceptIncomingConnections: true,
