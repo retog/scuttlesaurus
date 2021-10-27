@@ -135,7 +135,7 @@ export default class RpcConnection {
                     log.debug(
                       `Closing response stream to their request ${header.requestNumber}`,
                     );
-                    this.sendRpcMessage("true", {
+                    await this.sendRpcMessage("true", {
                       isStream: true,
                       endOrError: true,
                       bodyType: RpcBodyType.json,
