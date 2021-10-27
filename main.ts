@@ -49,7 +49,7 @@ function getDefaultConfig(baseDir: string) {
       },
       ws: {
         port: 8989,
-      }
+      },
     },
     networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
     acceptIncomingConnections: true,

@@ -57,7 +57,6 @@ class BlobHas {
 */
 
 export default class BlobsAgent extends Agent {
-
   constructor(public fsStorage: FsStorage) {
     super();
   }

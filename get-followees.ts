@@ -1,7 +1,6 @@
 import * as FSStorage from "./fsStorage.ts";
 import { log, parseFeedId, path } from "./util.ts";
 
-
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");
 }
@@ -13,7 +12,7 @@ if (follow) {
   args.splice(Deno.args.indexOf("--follow"), 1);
 }
 //TODO make configurable
-const baseDir = path.join(Deno.env.get("HOME")!, ".ssb/")
+const baseDir = path.join(Deno.env.get("HOME")!, ".ssb/");
 const feedId = args[0]; // "@+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=.ed25519"
 
 const feedKey = parseFeedId(feedId);
