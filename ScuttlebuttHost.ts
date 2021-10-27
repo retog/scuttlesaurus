@@ -81,14 +81,30 @@ export default class ScuttlebuttHost {
         ),
       boxInterface,
     );
-    agents.forEach((agent) => agent.start(rpcInterface));
+    agents.forEach(async (agent) => {
+      try {
+        await agent.start(rpcInterface);
+      } catch (error) {
+        log.warning(
+          `Error starting agent ${agent.constructor.name}: ${error}`,
+        );
+      }
+    });
     if (
       this.config.acceptIncomingConnections
     ) {
       log.info("listening for incoming connections");
       for await (const rpcConnection of rpcInterface.listen()) {
         Promise.all(
-          agents.map((agent) => agent.incomingConnection(rpcConnection)),
+          agents.map(async (agent) => {
+            try {
+              await agent.incomingConnection(rpcConnection);
+            } catch (error) {
+              log.warning(
+                `Error with agent ${agent.constructor.name} handling incoming connection: ${error}`,
+              );
+            }
+          }),
         );
       }
     }

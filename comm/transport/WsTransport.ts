@@ -72,15 +72,16 @@ function makeConnectionLike(socket: WebSocket) {
 }
 
 export default class WsTransport implements Transport {
-  constructor(public options: { port: number } & Record<string, unknown> = { port: 8989 }) {}
+  constructor(public options: { port: number } = { port: 8989 }) {}
   protocols = ["ws", "wss"];
-  connect(
+  //seemingly pointless aync ensures exceptions result in rejected promise
+  async connect(
     addr: Address,
   ): Promise<Deno.Reader & Deno.Writer & Deno.Closer> {
     const socket = new WebSocket(
       `${addr.protocol}:${addr.host}${addr.port ? `:${addr.port}` : ""}`,
     );
-    return Promise.resolve(makeConnectionLike(socket));
+    return await Promise.resolve(makeConnectionLike(socket));
   }
   async *listen() {
     const options = this.options;

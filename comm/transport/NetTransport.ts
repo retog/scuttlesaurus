@@ -2,7 +2,7 @@ import Transport from "./Transport.ts";
 import { Address } from "../../util.ts";
 export default class NetTransport implements Transport {
   constructor(
-    public options: { port: number } & Record<string, unknown> = { port: 8008 },
+    public options: { port: number } = { port: 8008 },
   ) {}
   protocols = ["net"];
   async connect(

@@ -41,11 +41,12 @@ export default class BoxInterface implements CommInterface<BoxConnection> {
     const _host = this;
     const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
     const conn = await Promise.any(this.transports.map((t) => {
-      try {
-        return t.connect(address);
-      } catch (e) {
+      return t.connect(address).catch((e) => {
+        log.debug(
+          `Error connecting with transport ${t.constructor.name}: ${e}`,
+        );
         return Promise.reject(e);
-      }
+      });
     }));
 
     const clientHello = () => {

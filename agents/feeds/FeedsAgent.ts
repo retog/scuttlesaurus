@@ -32,8 +32,9 @@ export default class FeedsAgent extends Agent {
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         this.subscriptions = [];
+      } else {
+        throw error;
       }
-      throw error;
     }
   }
 
@@ -127,7 +128,7 @@ export default class FeedsAgent extends Agent {
                   1
                 } connections left`,
               );
-              log.info(`stack: ${error.stack}`);
+              log.debug(`stack: ${error.stack}`);
               minutesDelay++;
             }
             onGoingSyncs--;

@@ -187,7 +187,9 @@ export default class RpcConnection {
         }
       }
     };
-    monitorConnection();
+    monitorConnection().catch((error) => {
+      log.warning(`Error monitoring RPC connection: ${error}`);
+    });
     const checkTimeout = async () => {
       while (!this.boxConnection.closed) {
         await delay(5000);
