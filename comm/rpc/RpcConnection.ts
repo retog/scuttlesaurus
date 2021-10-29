@@ -5,6 +5,7 @@ import {
   concat,
   delay,
   isZero,
+  JSONValue,
   log,
   readBytes,
 } from "../../util.ts";
@@ -52,7 +53,7 @@ const parse = (message: Uint8Array, bodyType: RpcBodyType) =>
     ? JSON.parse(textDecoder.decode(message))
     : bodyType === RpcBodyType.utf8
     ? textDecoder.decode(message)
-    : message) as Record<string, unknown> | string | Uint8Array;
+    : message) as JSONValue | Uint8Array;
 
 let lastAnswer = Date.now();
 let lastActivity = Date.now();
@@ -235,7 +236,7 @@ export default class RpcConnection {
       name: request.name,
       args: request.args,
       "type": "source",
-    }, {
+    } as { [x: string]: JSONValue }, {
       bodyType: RpcBodyType.json,
       isStream: true,
     });
@@ -263,7 +264,7 @@ export default class RpcConnection {
       try {
         while (true) {
           yield await new Promise<
-            Record<string, unknown> | string | Uint8Array
+            JSONValue | Uint8Array
           >(
             (resolve, reject) => {
               responseStreamListeners.set(
@@ -310,7 +311,7 @@ export default class RpcConnection {
       name: request.name,
       args: request.args,
       "type": "async",
-    }, {
+    } as { [x: string]: JSONValue }, {
       bodyType: RpcBodyType.json,
       isStream: false,
     });
@@ -330,7 +331,7 @@ export default class RpcConnection {
   };
   private requestCounter;
   private sendRpcMessage = async (
-    body: Record<string, unknown> | string | Uint8Array,
+    body: JSONValue | Uint8Array,
     options: {
       isStream?: boolean;
       endOrError?: boolean;
@@ -339,12 +340,12 @@ export default class RpcConnection {
     } = {},
   ) => {
     function isUint8Array(
-      v: Record<string, unknown> | string | Uint8Array,
+      v: JSONValue | Uint8Array,
     ): v is Uint8Array {
       return v.constructor.prototype === Uint8Array.prototype;
     }
     function isString(
-      v: Record<string, unknown> | string | Uint8Array,
+      v: JSONValue | Uint8Array,
     ): v is string {
       return v.constructor.prototype === String.prototype;
     }

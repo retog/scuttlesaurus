@@ -1,4 +1,4 @@
-import * as FSStorage from "./fsStorage.ts";
+import FSStorage from "./storage/FsStorage.ts";
 import { log, parseFeedId, path } from "./util.ts";
 
 if (Deno.args.length < 1) {
@@ -13,22 +13,17 @@ if (follow) {
 }
 //TODO make configurable
 const baseDir = path.join(Deno.env.get("HOME")!, ".ssb/");
+const dataDir = path.join(baseDir, "data/");
 const feedId = args[0]; // "@+qNos2XP9dfREX8qgNeA7V/KZPEYkRwreIuDqTWIqOI=.ed25519"
 
 const feedKey = parseFeedId(feedId);
 
 const subScriptions = new Set() as Set<string>;
-
-const lastMessage = await FSStorage.lastMessage(feedKey);
+const fsStorage = new FSStorage(dataDir);
+const lastMessage = await fsStorage.lastMessage(feedKey);
 for (let i = 1; i < lastMessage; i++) {
-  const fileName = path.join(
-    FSStorage.getFeedDir(feedKey),
-    i + ".json",
-  );
   try {
-    const parsedFile = JSON.parse(
-      await Deno.readTextFile(fileName),
-    );
+    const parsedFile = await fsStorage.getMessage(feedKey, i);
     const value = parsedFile.value;
     if (value!.content!.type === "contact") {
       if (value.content.following) {

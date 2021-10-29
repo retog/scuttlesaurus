@@ -1,3 +1,5 @@
+import type { JSONValue } from "../../util.ts";
+
 export interface RequestHandler {
   handleSourceRequest: (
     name: string[],
@@ -10,7 +12,7 @@ export interface RequestHandler {
   ) => Promise<ResultValue>;
 }
 
-export type ResultValue = Record<string, unknown> | string | Uint8Array;
+export type ResultValue = JSONValue | Uint8Array;
 export type RpcFunction = (
   args: Record<string, string>[],
 ) => (Promise<ResultValue> | AsyncIterable<ResultValue>);

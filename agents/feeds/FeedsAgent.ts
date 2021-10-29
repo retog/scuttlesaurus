@@ -5,6 +5,7 @@ import {
   computeMsgHash,
   delay,
   FeedId,
+  JSONValue,
   log,
   parseAddress,
   parseFeedId,
@@ -14,8 +15,6 @@ import {
 } from "../../util.ts";
 import Agent from "../Agent.ts";
 import FsStorage from "../../storage/FsStorage.ts";
-
-const textEncoder = new TextEncoder();
 
 export default class FeedsAgent extends Agent {
   followeesFile: string;
@@ -49,25 +48,18 @@ export default class FeedsAgent extends Agent {
         //console.log(`"@${feedKey}.ed25519",`)
         const lastMessage = await fsStorage.lastMessage(feedKey);
         while (seq <= lastMessage) {
-          const fileName = path.join(
-            fsStorage.getFeedDir(feedKey),
-            (seq++) + ".json",
-          );
           try {
-            const parsedFile = JSON.parse(
-              await Deno.readTextFile(fileName),
-            );
+            const parsedFile = await fsStorage.getMessage(feedKey, seq++);
             if (opts.keys === undefined || opts.keys) {
-              yield parsedFile as string | Record<string, unknown> | Uint8Array;
+              yield parsedFile as JSONValue | Uint8Array;
             } else {
               yield parsedFile.value as
-                | string
-                | Record<string, unknown>
+                | JSONValue
                 | Uint8Array;
             }
           } catch (error) {
             if (error instanceof Deno.errors.NotFound) {
-              log.debug(`File ${fileName} not found`);
+              log.debug(`Message ${seq} of ${feedKey} not found`);
             }
           }
         }
@@ -168,11 +160,9 @@ export default class FeedsAgent extends Agent {
         "seq": from,
       }],
     }) as AsyncIterable<{
-      value: Record<string, string>;
+      value: JSONValue;
       key: string;
     }>;
-    const feedDir = this.fsStorage.getFeedDir(feedKey);
-    await Deno.mkdir(feedDir, { recursive: true });
     for await (const msg of historyStream) {
       const hash = computeMsgHash(msg.value);
       const key = `%${toBase64(hash)}.sha256`;
@@ -186,20 +176,17 @@ export default class FeedsAgent extends Agent {
         !verifySignature(msg.value as { author: string; signature: string })
       ) {
         throw Error(
-          `failed to veriy signature of the message: ${
+          `failed to verify signature of the message: ${
             JSON.stringify(msg.value, undefined, 2)
           }`,
         );
       }
-      const msgFile = await Deno.create(
-        feedDir + "/" +
-          (msg as { value: Record<string, string> }).value!.sequence! +
-          ".json",
+      //TODO verify that msg.value.previous is correct
+      await this.fsStorage.storeMessage(
+        feedKey,
+        (msg as { value: { sequence?: number } }).value!.sequence!,
+        msg,
       );
-      await msgFile.write(
-        textEncoder.encode(JSON.stringify(msg, undefined, 2)),
-      );
-      msgFile.close();
     }
     log.debug(() => `Stream ended for feed ${feedKey}`);
   }

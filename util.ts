@@ -59,6 +59,13 @@ export interface Address {
   toString: () => string;
 }
 
+export type JSONValue =
+  | string
+  | number
+  | boolean
+  | { [x: string]: JSONValue }
+  | Array<JSONValue>;
+
 export function parseAddress(addr: string): Address {
   try {
     const [netAddr, keyString] = addr.split("~shs:");

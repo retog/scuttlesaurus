@@ -3,19 +3,48 @@ import {
   exists,
   FeedId,
   filenameSafeAlphabetRFC3548,
+  JSONValue,
   path,
   sha256Hash,
   toHex,
 } from "../util.ts";
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
 export default class FsStorage {
   constructor(public readonly dataDir: string) {}
 
-  getFeedDir(feedKey: FeedId) {
+  private getFeedDir(feedKey: FeedId) {
     const feedsDir = path.join(this.dataDir, "feeds");
     return path.join(feedsDir, filenameSafeAlphabetRFC3548(feedKey.base64Key));
   }
 
+  async storeMessage(feedKey: FeedId, position: number, msg: JSONValue) {
+    const dir = this.getFeedDir(feedKey);
+    const fileName = path.join(
+      dir,
+      position + ".json",
+    );
+    await Deno.mkdir(dir, { recursive: true });
+    Deno.writeFile(
+      fileName,
+      textEncoder.encode(JSON.stringify(msg, undefined, 2)),
+    );
+  }
+  async getMessage(feedKey: FeedId, position: number) {
+    const dir = this.getFeedDir(feedKey);
+    const fileName = path.join(
+      dir,
+      position + ".json",
+    );
+    const msgBytes = await Deno.readFile(
+      path.join(dir, fileName),
+    );
+    return JSON.parse(textDecoder.decode(msgBytes));
+  }
+
+  /** return the highest sequence number of an available message in the feed */
   async lastMessage(feedKey: FeedId) {
     try {
       let highest = -1;

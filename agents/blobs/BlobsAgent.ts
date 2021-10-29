@@ -5,6 +5,7 @@ import {
   BlobId,
   concat,
   FeedId,
+  JSONValue,
   log,
   parseBlobId,
 } from "../../util.ts";
@@ -20,8 +21,8 @@ class BlobWant implements Record<string, unknown> {
     return JSON.stringify(shortWant);
   }*/
 
-  get shortWant() {
-    const shortWant = {} as Record<string, number>;
+  get shortWant(): JSONValue {
+    const shortWant = {} as { [x: string]: JSONValue };
     shortWant[this.blobId.toString()] = this.level;
     return shortWant;
   }
@@ -122,7 +123,7 @@ export default class BlobsAgent extends Agent {
         },
         async *createWants(
           args: Record<string, string>[],
-        ): AsyncIterable<Record<string, unknown>> {
+        ): AsyncIterable<JSONValue> {
           log.info(
             `${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`,
           );
@@ -131,7 +132,7 @@ export default class BlobsAgent extends Agent {
               !p.alreadyAsked.has(feedId.base64Key) &&
               !p.interestedPeers.has(feedId.base64Key)
             ) {
-              yield p.want.shortWant;
+              yield p.want.shortWant as JSONValue;
               p.alreadyAsked.add(feedId.base64Key);
             }
           }

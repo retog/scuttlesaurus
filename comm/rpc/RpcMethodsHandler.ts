@@ -4,7 +4,7 @@ import {
   RpcContext,
   RpcFunction,
 } from "./types.ts";
-import { log } from "../../util.ts";
+import { JSONValue, log } from "../../util.ts";
 
 /** An RPC request handler providing default procedured based on FSStorage */
 export default class RpcMethodsHandler implements RequestHandler {
@@ -31,7 +31,7 @@ export default class RpcMethodsHandler implements RequestHandler {
       return method(args) as AsyncIterable<ResultValue>;
     } else {
       return (async function* () {})() as AsyncIterable<
-        string | Record<string, unknown> | Uint8Array
+        JSONValue | Uint8Array
       >;
     }
   }
