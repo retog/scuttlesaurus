@@ -14,12 +14,12 @@ import {
   verifySignature,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
-import FsStorage from "../../storage/FsStorage.ts";
+import FeedsStorage from "../../storage/FeedsStorage.ts";
 
 export default class FeedsAgent extends Agent {
   followeesFile: string;
   subscriptions: string[];
-  constructor(public fsStorage: FsStorage, public baseDir: string) {
+  constructor(public feedsStorage: FeedsStorage, public baseDir: string) {
     super();
 
     this.followeesFile = path.join(this.baseDir, "followees.json");
@@ -38,7 +38,7 @@ export default class FeedsAgent extends Agent {
   }
 
   createRpcContext(_feedId: FeedId): RpcContext {
-    const fsStorage = this.fsStorage;
+    const fsStorage = this.feedsStorage;
     const rpcMethods = {
       createHistoryStream: async function* (args: Record<string, string>[]) {
         const opts = args[0];
@@ -135,7 +135,7 @@ export default class FeedsAgent extends Agent {
     rpcConnection: RpcConnection,
     feedKey: FeedId,
   ) {
-    const messagesAlreadyHere = await this.fsStorage.lastMessage(feedKey);
+    const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
     try {
       await this.updateFeedFrom(
         rpcConnection,
@@ -182,7 +182,7 @@ export default class FeedsAgent extends Agent {
         );
       }
       //TODO verify that msg.value.previous is correct
-      await this.fsStorage.storeMessage(
+      await this.feedsStorage.storeMessage(
         feedKey,
         (msg as { value: { sequence?: number } }).value!.sequence!,
         msg,

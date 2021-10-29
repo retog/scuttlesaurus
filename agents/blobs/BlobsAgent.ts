@@ -10,7 +10,7 @@ import {
   parseBlobId,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
-import FsStorage from "../../storage/FsStorage.ts";
+import BlobsStorage from "../../storage/BlobsStorage.ts";
 
 class BlobWant implements Record<string, unknown> {
   constructor(public blobId: BlobId, public level = -1) {}
@@ -58,7 +58,7 @@ class BlobHas {
 */
 
 export default class BlobsAgent extends Agent {
-  constructor(public fsStorage: FsStorage) {
+  constructor(public fsStorage: BlobsStorage) {
     super();
   }
   want(blobId: BlobId) {

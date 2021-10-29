@@ -9,10 +9,13 @@ import {
   toHex,
 } from "../util.ts";
 
+import BlobsStorage from "./BlobsStorage.ts";
+import FeedsStorage from "./FeedsStorage.ts";
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-export default class FsStorage {
+export default class FsStorage implements BlobsStorage, FeedsStorage {
   constructor(public readonly dataDir: string) {}
 
   private getFeedDir(feedKey: FeedId) {
@@ -68,7 +71,7 @@ export default class FsStorage {
     }
   }
 
-  getBlobFileLocation(blobId: BlobId) {
+  private getBlobFileLocation(blobId: BlobId) {
     const blobsDir = path.join(this.dataDir, "blobs");
     const hexString = toHex(blobId);
     const dirName = hexString.substring(0, 2);
