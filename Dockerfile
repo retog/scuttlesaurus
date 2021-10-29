@@ -5,4 +5,4 @@ ENV DENO_DIR=/home/deno/.cache/deno
 COPY ./ /home/deno/application
 WORKDIR /home/deno/application
 RUN deno cache --unstable main.ts
-CMD ["run", "-A", "--unstable", "main.ts"]
+CMD deno run -A --unstable main.ts --logLevel ${LOG_LEVEL:-INFO}
