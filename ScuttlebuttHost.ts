@@ -10,9 +10,19 @@ import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import WsTransport from "./comm/transport/WsTransport.ts";
 import FsStorage from "./storage/FsStorage.ts";
 
-/** A host communicating to peers using the Secure Scuttlebutt protocol */
+/** A host communicating to peers using the Secure Scuttlebutt protocol.
+ *
+ * By default instances of this class provide implementations (Agents) for the `feeds` and the `blobs`
+ * sub-protocols with a file based storage. These can be configured with an object passed to the construcutor.
+ *
+ * Consumers can interact with the default agents via the fields `feedsAgent` and `blobsAgent`.
+ *
+ * Additional agents or transports can be added to the respective fields before invokig `start`.
+ */
 export default class ScuttlebuttHost {
   readonly transports = new Set<Transport>();
+
+  readonly agents = new Set<Agent>();
 
   feedsAgent: FeedsAgent;
   blobsAgent: BlobsAgent;
@@ -30,13 +40,15 @@ export default class ScuttlebuttHost {
     const fsStorage = new FsStorage(config.dataDir);
     this.feedsAgent = new FeedsAgent(fsStorage, config.baseDir);
     this.blobsAgent = new BlobsAgent(fsStorage);
+    this.agents.add(this.feedsAgent);
+    this.agents.add(this.blobsAgent);
     if (config.transport?.net) {
-      this.addTransport(
+      this.transports.add(
         new NetTransport(config.transport?.net),
       );
     }
     if (config.transport?.ws) {
-      this.addTransport(
+      this.transports.add(
         new WsTransport(config.transport?.ws),
       );
     }
@@ -55,13 +67,14 @@ export default class ScuttlebuttHost {
     }
   }
 
-  addTransport(transport: Transport) {
-    this.transports.add(transport);
-  }
-
   async start() {
     log.info(`Starting SSB Host`);
-    const agents: Agent[] = this.getAgents();
+    if (this.transports.size === 0) {
+      log.warning(
+        "No transport set, this host is unable to communicate with peers.",
+      );
+    }
+    const agents: Agent[] = [...this.agents];
     const boxInterface = new BoxInterface(
       [
         ...new Set(this.transports.values()),
@@ -108,10 +121,6 @@ export default class ScuttlebuttHost {
         );
       }
     }
-  }
-
-  getAgents() {
-    return [this.feedsAgent, this.blobsAgent];
   }
 }
 
