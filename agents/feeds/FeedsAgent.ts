@@ -7,9 +7,7 @@ import {
   FeedId,
   JSONValue,
   log,
-  parseAddress,
   parseFeedId,
-  path,
   toBase64,
   verifySignature,
 } from "../../util.ts";
@@ -17,24 +15,12 @@ import Agent from "../Agent.ts";
 import FeedsStorage from "../../storage/FeedsStorage.ts";
 
 export default class FeedsAgent extends Agent {
-  followeesFile: string;
-  subscriptions: string[];
-  constructor(public feedsStorage: FeedsStorage, public baseDir: string) {
+  constructor(
+    public feedsStorage: FeedsStorage,
+    public subscriptions: FeedId[],
+    public peers: Address[],
+  ) {
     super();
-
-    this.followeesFile = path.join(this.baseDir, "followees.json");
-
-    try {
-      this.subscriptions = JSON.parse(
-        Deno.readTextFileSync(this.followeesFile),
-      );
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        this.subscriptions = [];
-      } else {
-        throw error;
-      }
-    }
   }
 
   createRpcContext(_feedId: FeedId): RpcContext {
@@ -76,28 +62,9 @@ export default class FeedsAgent extends Agent {
   async run(connector: {
     connect(address: Address): Promise<RpcConnection>;
   }): Promise<void> {
-    const peersFile = path.join(this.baseDir, "peers.json");
-
-    function getPeersFromFile() {
-      try {
-        return JSON.parse(Deno.readTextFileSync(peersFile));
-      } catch (error) {
-        if (error instanceof Deno.errors.NotFound) {
-          return [];
-        }
-        throw error;
-      }
-    }
-
-    function getPeers() {
-      return getPeersFromFile().map(parseAddress);
-    }
-
-    const peers: Address[] = getPeers();
-
     let initialDelaySec = 0;
     let onGoingSyncs = 0;
-    await Promise.all(peers.map((address) =>
+    await Promise.all(this.peers.map((address) =>
       (async () => {
         initialDelaySec += 10;
         await delay(initialDelaySec * 1000);
@@ -194,9 +161,7 @@ export default class FeedsAgent extends Agent {
   updateFeeds(rpcConnection: RpcConnection) {
     const subscriptions = this.subscriptions;
     return Promise.all(
-      subscriptions.map((feed) =>
-        this.updateFeed(rpcConnection, parseFeedId(feed))
-      ),
+      subscriptions.map((feed) => this.updateFeed(rpcConnection, feed)),
     );
   }
 }

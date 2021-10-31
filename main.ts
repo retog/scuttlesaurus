@@ -1,4 +1,4 @@
-import ScuttlebuttHost from "./ScuttlebuttHost.ts";
+import ScuttlebuttHost from "./DenoScuttlebuttHost.ts";
 import { exists, log, path } from "./util.ts";
 import { parse } from "https://deno.land/std@0.112.0/flags/mod.ts";
 

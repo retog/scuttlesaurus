@@ -1,7 +1,8 @@
-import Transport from "./Transport.ts";
-import { Address, concat, flatten, log } from "../../util.ts";
+import { concat, log } from "../../../util.ts";
 
-function makeConnectionLike(socket: WebSocket) {
+export default function makeConnectionLike(
+  socket: WebSocket,
+): Deno.Reader & Deno.Writer & Deno.Closer {
   log.debug(`making connection like`);
   const open = new Promise((resolve, _reject) => {
     socket.onopen = () => {
@@ -18,7 +19,7 @@ function makeConnectionLike(socket: WebSocket) {
       openDataPromises.push(m.data);
     }
     /*log.info(`Received ${new Uint8Array(data).length}:
-              ${new Uint8Array(data)}`);*/
+                ${new Uint8Array(data)}`);*/
   };
   const result: Deno.Reader & Deno.Writer & Deno.Closer = {
     read: (p: Uint8Array) =>
@@ -69,46 +70,4 @@ function makeConnectionLike(socket: WebSocket) {
     },
   };
   return result;
-}
-
-export default class WsTransport implements Transport {
-  constructor(public options: { port: number } = { port: 8989 }) {}
-  protocols = ["ws", "wss"];
-  //seemingly pointless aync ensures exceptions result in rejected promise
-  async connect(
-    addr: Address,
-  ): Promise<Deno.Reader & Deno.Writer & Deno.Closer> {
-    const socket = new WebSocket(
-      `${addr.protocol}:${addr.host}${addr.port ? `:${addr.port}` : ""}`,
-    );
-    return await Promise.resolve(makeConnectionLike(socket));
-  }
-  async *listen() {
-    const options = this.options;
-    const getHttpConnections = async function* () {
-      const server = Deno.listen(options);
-      for await (const conn of server) {
-        yield Deno.serveHttp(conn)[Symbol.asyncIterator]();
-      }
-    };
-    const httpRequests = flatten(getHttpConnections()[Symbol.asyncIterator]());
-
-    for await (
-      const requestEvent of { [Symbol.asyncIterator]: () => httpRequests }
-    ) {
-      if (requestEvent.request.headers.get("upgrade") != "websocket") {
-        //request isn't trying to upgrade to websocket
-        requestEvent.respondWith(
-          new Response("This endpoint currently only supports websocket.", {
-            status: 200,
-          }),
-        );
-        continue;
-      }
-      const { socket, response } = Deno.upgradeWebSocket(requestEvent.request);
-      requestEvent.respondWith(response);
-      yield makeConnectionLike(socket);
-      log.debug("ws response sent");
-    }
-  }
 }

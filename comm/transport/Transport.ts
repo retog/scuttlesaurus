@@ -1,6 +1,6 @@
-import CommInterface from "../CommInterface.ts";
+import TransportClient from "./TransportClient.ts";
+import TransportServer from "./TransportServer.ts";
 
-export default interface Transport
-  extends CommInterface<Deno.Reader & Deno.Writer & Deno.Closer> {
+export default interface Transport extends TransportClient, TransportServer {
   protocols: string[];
 }
