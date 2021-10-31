@@ -1,15 +1,11 @@
 import ScuttlebuttHost from "./ScuttlebuttHost.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
-import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
-import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import {
   BlobId,
   FeedId,
   fromBase64,
   JSONValue,
-  parseAddress,
-  parseFeedId,
   sha256Hash,
   sodium,
   toBase64,
@@ -85,23 +81,18 @@ class LocalStoreBlobsStorage implements BlobsStorage {
 
 export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
   constructor() {
-    super({});
+    super({
+        follow: [ "@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519" ],
+        peers: [ "wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=" ]
+    });
     this.transportClients.add(new WsTransportClient());
   }
-  protected createFeedsAgent() {
-    const storage = new LocalStoreFeedsStorage();
-    return new FeedsAgent(storage, [
-      parseFeedId("@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519"),
-    ], [
-      parseAddress(
-        "wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=",
-      ),
-    ]);
+  protected createFeedsStorage(): FeedsStorage {
+    return new LocalStoreFeedsStorage();
   }
 
-  protected createBlobsAgent() {
-    const storage = new LocalStoreBlobsStorage();
-    return new BlobsAgent(storage);
+  protected createBlobsStorage() {
+    return new LocalStoreBlobsStorage();
   }
 
   protected getClientKeyPair() {

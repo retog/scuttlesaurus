@@ -17,8 +17,8 @@ import FeedsStorage from "../../storage/FeedsStorage.ts";
 export default class FeedsAgent extends Agent {
   constructor(
     public feedsStorage: FeedsStorage,
-    public subscriptions: FeedId[],
-    public peers: Address[],
+    public subscriptions: FeedId[] = [],
+    public peers: Address[] = [],
   ) {
     super();
   }

@@ -5,10 +5,19 @@ import BoxServerInterface from "./comm/box/BoxServerInterface.ts";
 import RpcClientInterface from "./comm/rpc/RpcClientInterface.ts";
 import RpcServerInterface from "./comm/rpc/RpcServerInterface.ts";
 import RpcMethodsHandler from "./comm/rpc/RpcMethodsHandler.ts";
-import { FeedId, fromBase64, KeyPair, log } from "./util.ts";
+import {
+  FeedId,
+  fromBase64,
+  KeyPair,
+  log,
+  parseAddress,
+  parseFeedId,
+} from "./util.ts";
 import Agent from "./agents/Agent.ts";
 import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
 import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
+import FeedsStorage from "./storage/FeedsStorage.ts";
+import BlobsStorage from "./storage/BlobsStorage.ts";
 
 /** A host communicating to peers using the Secure Scuttlebutt protocol.
  *
@@ -29,18 +38,32 @@ export default abstract class ScuttlebuttHost {
   blobsAgent: BlobsAgent;
 
   constructor(
-    readonly config: {
-      networkIdentifier?: string;
-    },
+    readonly config: Config,
   ) {
     this.feedsAgent = this.createFeedsAgent();
     this.blobsAgent = this.createBlobsAgent();
     this.agents.add(this.feedsAgent);
     this.agents.add(this.blobsAgent);
   }
-  protected abstract createFeedsAgent(): FeedsAgent;
 
-  protected abstract createBlobsAgent(): BlobsAgent;
+  protected createFeedsAgent(): FeedsAgent {
+    const storage = this.createFeedsStorage();
+    return new FeedsAgent(
+      storage,
+      this.config.follow?.map(parseFeedId),
+      this.config.peers?.map(parseAddress),
+    );
+  }
+
+  protected abstract createFeedsStorage(): FeedsStorage;
+
+  
+  protected abstract createBlobsStorage(): BlobsStorage;
+
+  protected createBlobsAgent() {
+    const storage = this.createBlobsStorage();
+    return new BlobsAgent(storage);
+  }
 
   protected abstract getClientKeyPair(): KeyPair;
 
@@ -105,3 +128,9 @@ export default abstract class ScuttlebuttHost {
     }
   }
 }
+
+export type Config = {
+  networkIdentifier?: string;
+  follow?: string[];
+  peers?: string[];
+};

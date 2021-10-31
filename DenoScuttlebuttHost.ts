@@ -1,13 +1,10 @@
-import ScuttlebuttHost from "./ScuttlebuttHost.ts";
+import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import {
-  Address,
-  FeedId,
   fromBase64,
-  parseAddress,
-  parseFeedId,
+  log,
   path,
   sodium,
   toBase64,
@@ -42,9 +39,31 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       acceptIncomingConnections?: boolean;
       baseDir: string;
       dataDir: string;
-      networkIdentifier?: string;
-    },
+    } & ParentConfig,
   ) {
+    
+    const followeesFile = path.join(config.baseDir, "followees.json");
+    try {
+      const followStrings = JSON.parse(
+        Deno.readTextFileSync(followeesFile),
+      );
+      config.follow = config.follow
+        ? config.follow.concat(followStrings)
+        : followStrings;
+    } catch (error) {
+      log.debug(`Error reading ${followeesFile}: ${error}`);
+    }
+
+    const peersFile = path.join(config.baseDir, "peers.json");
+
+    try {
+      const peersFromFile = JSON.parse(Deno.readTextFileSync(peersFile));
+      config.peers = config.peers
+        ? config.peers.concat(peersFromFile)
+        : peersFromFile;
+    } catch (error) {
+      log.debug(`Error reading ${peersFile}: ${error}`);
+    }
     super(config);
     this.feedsAgent = this.createFeedsAgent();
     this.blobsAgent = this.createBlobsAgent();
@@ -79,48 +98,14 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       }
       */
     }
+
   }
-  protected createFeedsAgent() {
-    const fsStorage = new FsStorage(this.config.dataDir);
-    let subscriptions: FeedId[] = [];
-    const followeesFile = path.join(this.config.baseDir, "followees.json");
-    try {
-      const subscriptionStrings = JSON.parse(
-        Deno.readTextFileSync(followeesFile),
-      );
-      subscriptions = subscriptionStrings.map(parseFeedId);
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        subscriptions = [];
-      } else {
-        throw error;
-      }
-    }
-    const peersFile = path.join(this.config.baseDir, "peers.json");
-
-    function getPeersFromFile() {
-      try {
-        return JSON.parse(Deno.readTextFileSync(peersFile));
-      } catch (error) {
-        if (error instanceof Deno.errors.NotFound) {
-          return [];
-        }
-        throw error;
-      }
-    }
-
-    function getPeers(): Address[] {
-      return getPeersFromFile().map(parseAddress);
-    }
-
-    const peers = getPeers();
-
-    return new FeedsAgent(fsStorage, subscriptions, peers);
+  protected createFeedsStorage() {
+    return new FsStorage(this.config.dataDir);
   }
 
-  protected createBlobsAgent() {
-    const fsStorage = new FsStorage(this.config.dataDir);
-    return new BlobsAgent(fsStorage);
+  protected createBlobsStorage() {
+    return new FsStorage(this.config.dataDir);
   }
 
   protected getClientKeyPair() {
