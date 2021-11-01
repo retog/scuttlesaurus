@@ -41,9 +41,7 @@ export default class FsStorage implements BlobsStorage, FeedsStorage {
       dir,
       position + ".json",
     );
-    const msgBytes = await Deno.readFile(
-      path.join(dir, fileName),
-    );
+    const msgBytes = await Deno.readFile(fileName);
     return JSON.parse(textDecoder.decode(msgBytes));
   }
 
