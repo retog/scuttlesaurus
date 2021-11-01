@@ -7,7 +7,7 @@ import {
   path,
   sha256Hash,
   toHex,
-} from "../util.ts";
+} from "../../util.ts";
 
 import BlobsStorage from "./BlobsStorage.ts";
 import FeedsStorage from "./FeedsStorage.ts";

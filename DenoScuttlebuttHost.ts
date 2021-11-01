@@ -2,19 +2,13 @@ import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
-import {
-  fromBase64,
-  log,
-  path,
-  sodium,
-  toBase64,
-} from "./util.ts";
+import { fromBase64, log, path, sodium, toBase64 } from "./util.ts";
 import Agent from "./agents/Agent.ts";
 import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
 import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
-import FsStorage from "./storage/FsStorage.ts";
+import FsStorage from "./storage/fs/FsStorage.ts";
 
 /** A ScuttlebutHost with features avialable in a Deno enviornment such as File and Network access.
  *
@@ -41,7 +35,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       dataDir: string;
     } & ParentConfig,
   ) {
-    
     const followeesFile = path.join(config.baseDir, "followees.json");
     try {
       const followStrings = JSON.parse(
@@ -98,7 +91,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       }
       */
     }
-
   }
   protected createFeedsStorage() {
     return new FsStorage(this.config.dataDir);
