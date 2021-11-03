@@ -42,11 +42,11 @@ export default abstract class ScuttlebuttHost {
   ) {
     this.feedsAgent = this.createFeedsAgent();
     this.blobsAgent = this.createBlobsAgent();
-    this.agents.add(this.feedsAgent);
-    this.agents.add(this.blobsAgent);
+    if (this.feedsAgent) this.agents.add(this.feedsAgent);
+    if (this.blobsAgent) this.agents.add(this.blobsAgent);
   }
 
-  protected createFeedsAgent(): FeedsAgent {
+  protected createFeedsAgent(): FeedsAgent | undefined {
     const storage = this.createFeedsStorage();
     return new FeedsAgent(
       storage,
@@ -57,10 +57,9 @@ export default abstract class ScuttlebuttHost {
 
   protected abstract createFeedsStorage(): FeedsStorage;
 
-  
   protected abstract createBlobsStorage(): BlobsStorage;
 
-  protected createBlobsAgent() {
+  protected createBlobsAgent(): BlobsAgent | undefined {
     const storage = this.createBlobsStorage();
     return new BlobsAgent(storage);
   }
