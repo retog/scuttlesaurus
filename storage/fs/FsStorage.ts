@@ -9,8 +9,8 @@ import {
   toHex,
 } from "../../util.ts";
 
-import BlobsStorage from "./BlobsStorage.ts";
-import FeedsStorage from "./FeedsStorage.ts";
+import BlobsStorage from "../BlobsStorage.ts";
+import FeedsStorage from "../FeedsStorage.ts";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();

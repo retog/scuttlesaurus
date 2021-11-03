@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scuttlesaurus in the Browser</title>
+  <style>
+    body {
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Scuttlesaurus in the browser</h1>
+  Messages as they are stored:<br/>
+  <div id="log">
+
+  </div>
+  <script type="module">
+    import ScuttlebuttHost from "./js/scuttlebutt-host.js";
+
+    const logArea = document.getElementById("log");
+    class OpenHost extends ScuttlebuttHost {
+      constructor(config) {
+        super(config);
+      }
+      createFeedsStorage() {
+        const storage = super.createFeedsStorage();
+        const origStoreMessage = storage.storeMessage;
+        storage.storeMessage = function (feedKey, position, msg) {
+          origStoreMessage.apply(this, [feedKey, position, msg]);
+          logArea.innerHTML += `<hr/> Feed: ${feedKey} Position: ${position}<br/>
+          <code>${JSON.stringify(msg)}</code>`
+        };
+        return storage;
+      }
+      createBlobsAgent() {
+        return undefined;
+      }
+    }
+    const host = new OpenHost({
+      peers: ["wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo="
+      ],
+      follow: [
+        "@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519"
+      ]
+    });
+    host.start();
+  </script>
+</body>
+
+
+</html>
