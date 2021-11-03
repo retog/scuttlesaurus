@@ -1,5 +1,5 @@
 //import { delay } from "https://deno.land/std@0.103.0/async/mod.ts";
-import { log } from "./util.ts";
+import { log } from "../util.ts";
 
 const l = Deno.listenDatagram({
   port: 8008,
