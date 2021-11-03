@@ -36,3 +36,13 @@ jobs:
 
       - name: Run tests
         run: deno test -A --unstable
+
+      - name: Build webapp
+        run: deno run --unstable -A build.ts
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@4.1.5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh-pages
+          folder: web
