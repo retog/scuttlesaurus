@@ -107,7 +107,7 @@ export default class FeedsAgent extends Agent {
       await this.updateFeedFrom(
         rpcConnection,
         feedKey,
-        messagesAlreadyHere > 0 ? messagesAlreadyHere : 1,
+        messagesAlreadyHere + 1,
       );
     } catch (error) {
       log.info(`error updating feed ${feedKey}: ${error}`);
