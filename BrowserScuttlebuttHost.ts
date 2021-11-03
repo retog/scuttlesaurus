@@ -1,18 +1,14 @@
-import ScuttlebuttHost from "./ScuttlebuttHost.ts";
+import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
-import { sodium } from "./util.ts";
+import { log, sodium } from "./util.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import { LocalStorageFeedsStorage } from "./storage/local-storage/LocalStorageFeedsStorage.ts";
 import { LocalStorageBlobsStorage } from "./storage/local-storage/LocalStorageBlobsStorage.ts";
 
 export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
-  constructor() {
-    super({
-      follow: ["@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519"],
-      peers: [
-        "wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=",
-      ],
-    });
+  constructor(config: ParentConfig) {
+    super(config);
+    configureLogging();
     this.transportClients.add(new WsTransportClient());
   }
   protected createFeedsStorage(): FeedsStorage {
@@ -29,3 +25,28 @@ export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
     return newKey;
   }
 }
+
+async function configureLogging() {
+  const params = new URLSearchParams(window.location.search);
+  const logLevel = params.has("log") ? params.get("log") as string : "INFO";
+  await log.setup({
+    handlers: {
+      console: new log.handlers.ConsoleHandler(logLevel as LogLevel),
+    },
+    loggers: {
+      default: {
+        level: logLevel as LogLevel,
+        handlers: ["console"],
+      },
+    },
+  });
+  log.info(`Log level of set to ${logLevel}`);
+}
+type LogLevel = (
+  | "INFO"
+  | "NOTSET"
+  | "DEBUG"
+  | "WARNING"
+  | "ERROR"
+  | "CRITICAL"
+);
