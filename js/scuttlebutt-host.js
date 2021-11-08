@@ -19674,26 +19674,7 @@ function getFunctionInContext(names, methods) {
     }
 }
 class Agent {
-    static agents = [];
-    constructor(){
-        Agent.agents.push(this);
-    }
-    start(connectorP) {
-        const thisAgent = this;
-        const connector = {
-            async connect (address) {
-                const con = await connectorP.connect(address);
-                Agent.agents.filter((agent)=>agent !== thisAgent
-                ).forEach(async (agent)=>{
-                    try {
-                        await agent.outgoingConnection(con);
-                    } catch (error) {
-                        mod2.error(`Error processing outgoing connection to ${address} by ${agent.constructor.name}: ${error}\n${error.stack}`);
-                    }
-                });
-                return con;
-            }
-        };
+    start(connector) {
         return this.run(connector);
     }
 }
@@ -19751,7 +19732,7 @@ class FeedsAgent extends Agent {
                         mod2.info(`${onGoingSyncs} connections open, connecting to ${address}`);
                         onGoingSyncs++;
                         try {
-                            const rpcConnection = await connector.connect(address);
+                            const rpcConnection = await connector.getConnectionWith(address);
                             await this.updateFeeds(rpcConnection);
                         } catch (error) {
                             mod2.error(`In connection with ${address}: ${error}, now having ${onGoingSyncs - 1} connections left`);
@@ -19974,6 +19955,46 @@ class BlobsAgent extends Agent {
         }
     }
 }
+class ConnectionManager {
+    rpcClientInterface;
+    rpcServerInterface;
+    connections = new Map();
+    constructor(rpcClientInterface, rpcServerInterface){
+        this.rpcClientInterface = rpcClientInterface;
+        this.rpcServerInterface = rpcServerInterface;
+    }
+    notifyOutgoingConnection = (_conn)=>{
+    };
+    newConnection(conn) {
+        this.connections.set(conn.boxConnection.peer.base64Key, new WeakRef(conn));
+    }
+    async *listen() {
+        for await (const conn of this.rpcServerInterface.listen()){
+            this.newConnection(conn);
+            yield conn;
+        }
+    }
+    async *outgoingConnections() {
+        while(true){
+            yield await new Promise((resolve)=>{
+                this.notifyOutgoingConnection = resolve;
+            });
+        }
+    }
+    async connect(addr) {
+        const conn = await this.rpcClientInterface.connect(addr);
+        this.newConnection(conn);
+        return conn;
+    }
+    async getConnectionWith(addr) {
+        const conn = this.connections.get(addr.key.base64Key)?.deref();
+        if (conn) {
+            return conn;
+        } else {
+            return await this.connect(addr);
+        }
+    }
+}
 class ScuttlebuttHost {
     config;
     transportClients = new Set();
@@ -20016,14 +20037,26 @@ class ScuttlebuttHost {
         const rpcServerInterface = new RpcSeverInterface((feedId)=>new RpcMethodsHandler(agents.map((agent)=>agent.createRpcContext(feedId)
             ))
         , boxServerInterface);
+        const connectionManager = new ConnectionManager(rpcClientInterface, rpcServerInterface);
         agents.forEach(async (agent)=>{
             try {
-                await agent.start(rpcClientInterface);
+                await agent.start(connectionManager);
             } catch (error) {
                 mod2.warning(`Error starting agent ${agent.constructor.name}: ${error}`);
             }
         });
-        for await (const rpcConnection of rpcServerInterface.listen()){
+        (async ()=>{
+            for await (const rpcConnection of connectionManager.outgoingConnections()){
+                Promise.all(agents.map(async (agent)=>{
+                    try {
+                        await agent.outgoingConnection(rpcConnection);
+                    } catch (error) {
+                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error}`);
+                    }
+                }));
+            }
+        })();
+        for await (const rpcConnection of connectionManager.listen()){
             Promise.all(agents.map(async (agent)=>{
                 try {
                     await agent.incomingConnection(rpcConnection);
