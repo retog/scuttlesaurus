@@ -18,6 +18,7 @@ import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
 import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
+import ConnectionManager from "./agents/ConnectionManager.ts";
 
 /** A host communicating to peers using the Secure Scuttlebutt protocol.
  *
@@ -34,8 +35,8 @@ export default abstract class ScuttlebuttHost {
 
   readonly agents = new Set<Agent>();
 
-  feedsAgent: FeedsAgent;
-  blobsAgent: BlobsAgent;
+  feedsAgent: FeedsAgent | undefined;
+  blobsAgent: BlobsAgent | undefined;
 
   constructor(
     readonly config: Config,
@@ -102,9 +103,13 @@ export default abstract class ScuttlebuttHost {
         ),
       boxServerInterface,
     );
+    const connectionManager = new ConnectionManager(
+      rpcClientInterface,
+      rpcServerInterface,
+    );
     agents.forEach(async (agent) => {
       try {
-        await agent.start(rpcClientInterface);
+        await agent.start(connectionManager);
       } catch (error) {
         log.warning(
           `Error starting agent ${agent.constructor.name}: ${error}`,
@@ -112,7 +117,25 @@ export default abstract class ScuttlebuttHost {
       }
     });
 
-    for await (const rpcConnection of rpcServerInterface.listen()) {
+    (async () => {
+      for await (
+        const rpcConnection of connectionManager.outgoingConnections()
+      ) {
+        Promise.all(
+          agents.map(async (agent) => {
+            try {
+              await agent.outgoingConnection(rpcConnection);
+            } catch (error) {
+              log.warning(
+                `Error with agent ${agent.constructor.name} handling incoming connection: ${error}`,
+              );
+            }
+          }),
+        );
+      }
+    })();
+
+    for await (const rpcConnection of connectionManager.listen()) {
       Promise.all(
         agents.map(async (agent) => {
           try {

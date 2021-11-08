@@ -13,6 +13,7 @@ import {
 } from "../../util.ts";
 import Agent from "../Agent.ts";
 import FeedsStorage from "../../storage/FeedsStorage.ts";
+import ConnectionManager from "../ConnectionManager.ts";
 
 export default class FeedsAgent extends Agent {
   constructor(
@@ -59,9 +60,7 @@ export default class FeedsAgent extends Agent {
 
   outgoingConnection = this.incomingConnection;
 
-  async run(connector: {
-    connect(address: Address): Promise<RpcConnection>;
-  }): Promise<void> {
+  async run(connector: ConnectionManager): Promise<void> {
     let initialDelaySec = 0;
     let onGoingSyncs = 0;
     await Promise.all(this.peers.map((address) =>
@@ -78,7 +77,7 @@ export default class FeedsAgent extends Agent {
             );
             onGoingSyncs++;
             try {
-              const rpcConnection = await connector.connect(address);
+              const rpcConnection = await connector.getConnectionWith(address);
               await this.updateFeeds(rpcConnection);
             } catch (error) {
               log.error(
