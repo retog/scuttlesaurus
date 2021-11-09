@@ -3,7 +3,8 @@ import CommClientInterface from "../comm/CommClientInterface.ts";
 import CommServerInterface from "../comm/CommServerInterface.ts";
 import RpcConnection from "../comm/rpc/RpcConnection.ts";
 
-export default class ConnectionManager implements CommServerInterface<RpcConnection> {
+export default class ConnectionManager
+  implements CommServerInterface<RpcConnection> {
   /** key is base64 of FeedId */
   private connections = new Map<string, WeakRef<RpcConnection>>();
 
@@ -17,7 +18,6 @@ export default class ConnectionManager implements CommServerInterface<RpcConnect
     //nobody listening, and we ignore
   };
   protected newConnection(conn: RpcConnection) {
-    //Fire event?
     this.connections.set(
       conn.boxConnection.peer.base64Key,
       new WeakRef(conn),
@@ -42,6 +42,7 @@ export default class ConnectionManager implements CommServerInterface<RpcConnect
   async connect(addr: Address): Promise<RpcConnection> {
     const conn = await this.rpcClientInterface.connect(addr);
     this.newConnection(conn);
+    this.notifyOutgoingConnection(conn);
     return conn;
   }
 
@@ -50,7 +51,7 @@ export default class ConnectionManager implements CommServerInterface<RpcConnect
    */
   async getConnectionWith(addr: Address): Promise<RpcConnection> {
     const conn = this.connections.get(addr.key.base64Key)?.deref();
-    if (conn) {
+    if (conn && conn.boxConnection.closed) {
       return conn;
     } else {
       return await this.connect(addr);
