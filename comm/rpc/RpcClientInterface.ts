@@ -9,7 +9,17 @@ export default class RpcClientInterface
   constructor(
     public requestHandlerBuilder: (_: FeedId) => RequestHandler,
     public boxClientInterface: BoxClientInterface,
-  ) {}
+    public config: {
+      answerTimeout?: number;
+      activityTimeout?: number;
+    } = {
+      answerTimeout: 30000,
+      activityTimeout: 6000,
+    },
+  ) {
+    config.answerTimeout ??= 30000;
+    config.activityTimeout ??= 6000;
+  }
 
   async connect(
     address: Address,
@@ -18,6 +28,7 @@ export default class RpcClientInterface
     return new RpcConnection(
       boxConnection,
       this.requestHandlerBuilder(boxConnection.peer),
+      this.config,
     );
   }
 }
