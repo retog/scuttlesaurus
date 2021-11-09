@@ -3,7 +3,6 @@ import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import { fromBase64, log, path, sodium, toBase64 } from "./util.ts";
-import Agent from "./agents/Agent.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
 import FsStorage from "./storage/fs/FsStorage.ts";
@@ -18,8 +17,6 @@ import FsStorage from "./storage/fs/FsStorage.ts";
 export default class DenoScuttlebuttHost extends ScuttlebuttHost {
   readonly transportClients = new Set<TransportClient>();
   readonly transportServers = new Set<TransportServer>();
-
-  readonly agents = new Set<Agent>();
 
   constructor(
     readonly config: {
@@ -53,7 +50,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       log.debug(`Error reading ${peersFile}: ${error}`);
     }
     super(config);
- 
+
     if (config.transport?.net) {
       this.transportClients.add(
         new NetTransport(config.transport?.net),
