@@ -127,9 +127,10 @@ export default class RpcConnection {
                         });
                       } catch (error) {
                         log.error(
-                          `Error sending back ${
-                            JSON.stringify(value)
-                          }: ${error}`,
+                          `Error sending back response to request ${
+                            JSON.stringify(request)
+                          } by
+                          ${this.boxConnection.peer}: ${error}`,
                         );
                       }
                     }
@@ -245,6 +246,9 @@ export default class RpcConnection {
       buffer.push([message, header]);
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
+    log.debug(
+      `Ready to get response messages for ${request.name} nr ${requestNumber}`,
+    );
     const responseStreamListeners = this.responseStreamListeners;
     const boxConnection = this.boxConnection;
     const generate = async function* () {
