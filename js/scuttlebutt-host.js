@@ -18904,6 +18904,8 @@ function delay(ms) {
     );
 }
 const sodium = __default;
+class NotFoundError extends Error {
+}
 await __default.ready;
 const textEncoder = new TextEncoder();
 class FeedId extends Uint8Array {
@@ -18954,7 +18956,7 @@ function parseAddress(addr) {
         throw new Error(`Error parsing ${addr}: ${error}`);
     }
 }
-function parseFeedId(feedIdString) {
+function parseFeedId1(feedIdString) {
     const base64Key = feedIdString.startsWith("@") && feedIdString.endsWith(".ed25519") ? feedIdString.substring(1, feedIdString.length - 8) : feedIdString;
     return new FeedId(fromBase64(base64Key));
 }
@@ -19421,7 +19423,8 @@ class RpcConnection {
                                                     inReplyTo: header.requestNumber
                                                 });
                                             } catch (error) {
-                                                mod2.error(`Error sending back ${JSON.stringify(value)}: ${error}`);
+                                                mod2.error(`Error sending back response to request ${JSON.stringify(request)} by
+                          ${this.boxConnection.peer}: ${error}`);
                                             }
                                         }
                                         mod2.debug(`Closing response stream to their request ${header.requestNumber}`);
@@ -19504,6 +19507,7 @@ class RpcConnection {
             ]);
         };
         this.responseStreamListeners.set(requestNumber, bufferer);
+        mod2.debug(`Ready to get response messages for ${request.name} nr ${requestNumber}`);
         const responseStreamListeners = this.responseStreamListeners;
         const boxConnection = this.boxConnection;
         const generate = async function*() {
@@ -19614,25 +19618,37 @@ class RpcConnection {
 class RpcClientInterface {
     requestHandlerBuilder;
     boxClientInterface;
-    constructor(requestHandlerBuilder, boxClientInterface){
+    config;
+    constructor(requestHandlerBuilder, boxClientInterface, config = {
+        answerTimeout: 30000,
+        activityTimeout: 6000
+    }){
         this.requestHandlerBuilder = requestHandlerBuilder;
         this.boxClientInterface = boxClientInterface;
+        this.config = config;
+        config.answerTimeout ??= 30000;
+        config.activityTimeout ??= 6000;
     }
     async connect(address) {
         const boxConnection = await this.boxClientInterface.connect(address);
-        return new RpcConnection(boxConnection, this.requestHandlerBuilder(boxConnection.peer));
+        return new RpcConnection(boxConnection, this.requestHandlerBuilder(boxConnection.peer), this.config);
     }
 }
 class RpcSeverInterface {
     requestHandlerBuilder;
     boxServerInterface;
-    constructor(requestHandlerBuilder, boxServerInterface){
+    answerTimeout;
+    activityTimeout;
+    constructor(requestHandlerBuilder, boxServerInterface, { answerTimeout =30000 , activityTimeout =6000  } = {
+    }){
         this.requestHandlerBuilder = requestHandlerBuilder;
         this.boxServerInterface = boxServerInterface;
+        this.answerTimeout = answerTimeout;
+        this.activityTimeout = activityTimeout;
     }
     async *listen() {
         for await (const boxConnection of this.boxServerInterface.listen()){
-            yield new RpcConnection(boxConnection, this.requestHandlerBuilder(boxConnection.peer));
+            yield new RpcConnection(boxConnection, this.requestHandlerBuilder(boxConnection.peer), this);
         }
     }
 }
@@ -19693,7 +19709,7 @@ class FeedsAgent extends Agent {
         const rpcMethods = {
             createHistoryStream: async function*(args) {
                 const opts = args[0];
-                const feedKey = parseFeedId(opts.id);
+                const feedKey = parseFeedId1(opts.id);
                 let seq = Number.parseInt(opts.seq);
                 const lastMessage = await fsStorage.lastMessage(feedKey);
                 while(seq <= lastMessage){
@@ -19705,7 +19721,7 @@ class FeedsAgent extends Agent {
                             yield parsedFile.value;
                         }
                     } catch (error) {
-                        if (error instanceof Deno.errors.NotFound) {
+                        if (error instanceof NotFoundError) {
                             mod2.debug(`Message ${seq} of ${feedKey} not found`);
                         }
                     }
@@ -19746,6 +19762,35 @@ class FeedsAgent extends Agent {
             })()
         ));
     }
+    newMessageListeners = [];
+    async *getFeed(feedId, { oldMessages =10 , newMessages =true  } = {
+    }) {
+        const lastMessage = await this.feedsStorage.lastMessage(feedId);
+        oldMessages = Math.min(oldMessages, lastMessage);
+        for(let pos = 0; pos < oldMessages; pos++){
+            try {
+                yield this.feedsStorage.getMessage(feedId, lastMessage - oldMessages + pos);
+            } catch (error) {
+                if (error instanceof NotFoundError) {
+                    mod2.info(`Message ${lastMessage - oldMessages + pos} of ${feedId} not found`);
+                }
+            }
+        }
+        if (newMessages) {
+            while(true){
+                let listenerPos = -1;
+                yield await new Promise((resolve)=>{
+                    listenerPos = this.newMessageListeners.length;
+                    this.newMessageListeners[listenerPos] = (msgFeedId, msg)=>{
+                        if (feedId.base64Key === msgFeedId.base64Key) {
+                            resolve(msg);
+                        }
+                    };
+                });
+                this.newMessageListeners.splice(listenerPos, 1);
+            }
+        }
+    }
     async updateFeed(rpcConnection, feedKey) {
         const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
         try {
@@ -19777,6 +19822,8 @@ class FeedsAgent extends Agent {
                 throw Error(`failed to verify signature of the message: ${JSON.stringify(msg.value, undefined, 2)}`);
             }
             await this.feedsStorage.storeMessage(feedKey, msg.value.sequence, msg);
+            this.newMessageListeners.forEach((listener)=>listener(feedKey, msg)
+            );
         }
         mod2.debug(()=>`Stream ended for feed ${feedKey}`
         );
@@ -19984,11 +20031,12 @@ class ConnectionManager {
     async connect(addr) {
         const conn = await this.rpcClientInterface.connect(addr);
         this.newConnection(conn);
+        this.notifyOutgoingConnection(conn);
         return conn;
     }
     async getConnectionWith(addr) {
         const conn = this.connections.get(addr.key.base64Key)?.deref();
-        if (conn) {
+        if (conn && conn.boxConnection.closed) {
             return conn;
         } else {
             return await this.connect(addr);
@@ -20011,7 +20059,7 @@ class ScuttlebuttHost {
     }
     createFeedsAgent() {
         const storage = this.createFeedsStorage();
-        return new FeedsAgent(storage, this.config.follow?.map(parseFeedId), this.config.peers?.map(parseAddress));
+        return new FeedsAgent(storage, this.config.follow?.map(parseFeedId1), this.config.peers?.map(parseAddress));
     }
     createBlobsAgent() {
         const storage = this.createBlobsStorage();
@@ -20160,7 +20208,7 @@ class LocalStorageFeedsStorage {
     getMessage(feedKey, position) {
         const jsonMsg = window.localStorage.getItem(this.storageKey(feedKey, position));
         if (!jsonMsg) {
-            throw new Deno.errors.NotFound();
+            throw new NotFoundError();
         }
         return Promise.resolve(JSON.parse(jsonMsg));
     }
@@ -20193,6 +20241,7 @@ class LocalStorageBlobsStorage {
         return await fromBase64(encodedData);
     }
 }
+export { parseFeedId1 as parseFeedId };
 class BrowserScuttlebuttHost extends ScuttlebuttHost {
     constructor(config){
         super(config);

@@ -14,39 +14,37 @@
 
 <body>
   <h1>Scuttlesaurus in the browser</h1>
-  Messages as they are stored:<br/>
+  The most recent messages as they arrive:<br/>
   <div id="log">
 
   </div>
   <script type="module">
-    import ScuttlebuttHost from "./js/scuttlebutt-host.js";
+    import ScuttlebuttHost, { parseFeedId } from "./js/scuttlebutt-host.js";
 
     const logArea = document.getElementById("log");
     class OpenHost extends ScuttlebuttHost {
       constructor(config) {
         super(config);
       }
-      createFeedsStorage() {
-        const storage = super.createFeedsStorage();
-        const origStoreMessage = storage.storeMessage;
-        storage.storeMessage = function (feedKey, position, msg) {
-          origStoreMessage.apply(this, [feedKey, position, msg]);
-          logArea.innerHTML += `<hr/> Feed: ${feedKey} Position: ${position}<br/>
-          <code>${JSON.stringify(msg)}</code>`
-        };
-        return storage;
-      }
       createBlobsAgent() {
         return undefined;
       }
     }
-    const host = new OpenHost({
+    const host = new ScuttlebuttHost({
       peers: ["wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo="
       ],
       follow: [
-        "@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519"
+        "@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519",
+        "@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519"
       ]
     });
+    const feedId = parseFeedId("@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519");
+    (async () =>{  
+     for await (const msg of host.feedsAgent.getFeed(feedId)){
+      logArea.innerHTML = `<br/> Feed: ${feedId} <br/>
+          <code>${JSON.stringify(msg)}</code><hr/>` + logArea.innerHTML;
+     } 
+    })(); 
     host.start();
   </script>
 </body>
