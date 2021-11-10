@@ -7,6 +7,7 @@ import {
   FeedId,
   JSONValue,
   log,
+  NotFoundError,
   parseFeedId,
   toBase64,
   verifySignature,
@@ -14,6 +15,11 @@ import {
 import Agent from "../Agent.ts";
 import FeedsStorage from "../../storage/FeedsStorage.ts";
 import ConnectionManager from "../ConnectionManager.ts";
+
+export type Message = {
+  value: JSONValue;
+  key: string;
+};
 
 export default class FeedsAgent extends Agent {
   constructor(
@@ -45,7 +51,7 @@ export default class FeedsAgent extends Agent {
                 | Uint8Array;
             }
           } catch (error) {
-            if (error instanceof Deno.errors.NotFound) {
+            if (error instanceof NotFoundError) {
               log.debug(`Message ${seq} of ${feedKey} not found`);
             }
           }
@@ -97,7 +103,49 @@ export default class FeedsAgent extends Agent {
     ));
   }
 
-  async updateFeed(
+  private newMessageListeners: Array<(feedId: FeedId, msg: Message) => void> =
+    [];
+
+  async *getFeed(feedId: FeedId, {
+    oldMessages = 10,
+    newMessages = true,
+  }: { oldMessages?: number; newMessages?: boolean } = {}) {
+    const lastMessage = await this.feedsStorage.lastMessage(feedId);
+    oldMessages = Math.min(oldMessages, lastMessage);
+    for (let pos = 0; pos < oldMessages; pos++) {
+      try {
+        yield this.feedsStorage.getMessage(
+          feedId,
+          lastMessage - oldMessages + pos,
+        );
+      } catch (error) {
+        if (error instanceof NotFoundError) {
+          log.info(
+            `Message ${lastMessage - oldMessages + pos} of ${feedId} not found`,
+          );
+        }
+      }
+    }
+    if (newMessages) {
+      while (true) {
+        let listenerPos = -1;
+        yield await new Promise((resolve) => {
+          listenerPos = this.newMessageListeners.length;
+          this.newMessageListeners[listenerPos] = (
+            msgFeedId: FeedId,
+            msg: Message,
+          ) => {
+            if (feedId.base64Key === msgFeedId.base64Key) {
+              resolve(msg);
+            }
+          };
+        });
+        this.newMessageListeners.splice(listenerPos, 1);
+      }
+    }
+  }
+
+  private async updateFeed(
     rpcConnection: RpcConnection,
     feedKey: FeedId,
   ) {
@@ -113,7 +161,7 @@ export default class FeedsAgent extends Agent {
     }
   }
 
-  async updateFeedFrom(
+  private async updateFeedFrom(
     rpcConnection: RpcConnection,
     feedKey: FeedId,
     from: number,
@@ -125,10 +173,7 @@ export default class FeedsAgent extends Agent {
         "id": feedKey.toString(),
         "seq": from,
       }],
-    }) as AsyncIterable<{
-      value: JSONValue;
-      key: string;
-    }>;
+    }) as AsyncIterable<Message>;
     for await (const msg of historyStream) {
       const hash = computeMsgHash(msg.value);
       const key = `%${toBase64(hash)}.sha256`;
@@ -153,11 +198,12 @@ export default class FeedsAgent extends Agent {
         (msg as { value: { sequence?: number } }).value!.sequence!,
         msg,
       );
+      this.newMessageListeners.forEach((listener) => listener(feedKey, msg));
     }
     log.debug(() => `Stream ended for feed ${feedKey}`);
   }
 
-  updateFeeds(rpcConnection: RpcConnection) {
+  private updateFeeds(rpcConnection: RpcConnection) {
     const subscriptions = this.subscriptions;
     return Promise.all(
       subscriptions.map((feed) => this.updateFeed(rpcConnection, feed)),

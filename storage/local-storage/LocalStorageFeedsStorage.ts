@@ -1,5 +1,5 @@
 import FeedsStorage from "../FeedsStorage.ts";
-import { FeedId, JSONValue } from "../../util.ts";
+import { FeedId, JSONValue, NotFoundError } from "../../util.ts";
 
 export class LocalStorageFeedsStorage implements FeedsStorage {
   private storageKey(feedKey: FeedId, position: number) {
@@ -31,7 +31,7 @@ export class LocalStorageFeedsStorage implements FeedsStorage {
       this.storageKey(feedKey, position),
     );
     if (!jsonMsg) {
-      throw new Deno.errors.NotFound();
+      throw new NotFoundError();
     }
     return Promise.resolve(JSON.parse(jsonMsg));
   }

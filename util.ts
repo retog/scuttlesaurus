@@ -8,6 +8,8 @@ export { delay } from "https://deno.land/std@0.103.0/async/mod.ts";
 export { exists } from "https://deno.land/std@0.103.0/fs/exists.ts";
 export const sodium = importedSodium;
 export type KeyPair = importKeypair;
+//line Denno.error.NofFound, but available in browser
+export class NotFoundError extends Error {}
 
 await sodium.ready;
 

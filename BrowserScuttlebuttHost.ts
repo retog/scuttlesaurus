@@ -5,6 +5,8 @@ import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import { LocalStorageFeedsStorage } from "./storage/local-storage/LocalStorageFeedsStorage.ts";
 import { LocalStorageBlobsStorage } from "./storage/local-storage/LocalStorageBlobsStorage.ts";
 
+export { parseFeedId } from "./util.ts";
+
 export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
   constructor(config: ParentConfig) {
     super(config);
