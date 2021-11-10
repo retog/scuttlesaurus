@@ -22,14 +22,6 @@
     import ScuttlebuttHost, { parseFeedId } from "./js/scuttlebutt-host.js";
 
     const logArea = document.getElementById("log");
-    class OpenHost extends ScuttlebuttHost {
-      constructor(config) {
-        super(config);
-      }
-      createBlobsAgent() {
-        return undefined;
-      }
-    }
     const host = new ScuttlebuttHost({
       peers: ["wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo="
       ],
