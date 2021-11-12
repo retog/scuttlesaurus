@@ -5,7 +5,6 @@ import ConnectionManager from "./ConnectionManager.ts";
 
 /** An object handling a sub-protocol, such as Feeds or Blobs */
 export default abstract class Agent {
-
   abstract createRpcContext(feedId: FeedId): RpcContext;
 
   /** Act on incoming connection */
