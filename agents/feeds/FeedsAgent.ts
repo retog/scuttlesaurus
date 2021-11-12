@@ -129,7 +129,7 @@ export default class FeedsAgent extends Agent {
     if (newMessages) {
       while (true) {
         let listenerPos = -1;
-        yield await new Promise((resolve) => {
+        yield await new Promise<Message>((resolve) => {
           listenerPos = this.newMessageListeners.length;
           this.newMessageListeners[listenerPos] = (
             msgFeedId: FeedId,
