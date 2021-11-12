@@ -19821,6 +19821,12 @@ class FeedsAgent extends Agent {
             if (!verifySignature(msg.value)) {
                 throw Error(`failed to verify signature of the message: ${JSON.stringify(msg.value, undefined, 2)}`);
             }
+            if (msg.value.sequence > 1) {
+                const previousMessage = await this.feedsStorage.getMessage(feedKey, msg.value.sequence - 1);
+                if (previousMessage.key !== msg.value.previous) {
+                    throw new Error(`Broken Crypto-Chain in ${feedKey} at ${msg.value.sequence}`);
+                }
+            }
             await this.feedsStorage.storeMessage(feedKey, msg.value.sequence, msg);
             this.newMessageListeners.forEach((listener)=>listener(feedKey, msg)
             );
