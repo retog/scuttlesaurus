@@ -16,8 +16,16 @@ import Agent from "../Agent.ts";
 import FeedsStorage from "../../storage/FeedsStorage.ts";
 import ConnectionManager from "../ConnectionManager.ts";
 
+export type MessageValue = JSONValue & {
+  sequence: number;
+  author: string;
+  signature: string;
+  previous: string | null;
+  content: JSONValue;
+};
+
 export type Message = {
-  value: JSONValue;
+  value: MessageValue;
   key: string;
 };
 
@@ -184,7 +192,7 @@ export default class FeedsAgent extends Agent {
         );
       }
       if (
-        !verifySignature(msg.value as { author: string; signature: string })
+        !verifySignature(msg.value)
       ) {
         throw Error(
           `failed to verify signature of the message: ${
@@ -192,10 +200,20 @@ export default class FeedsAgent extends Agent {
           }`,
         );
       }
-      //TODO verify that msg.value.previous is correct
+      if (msg.value.sequence > 1) {
+        const previousMessage = await this.feedsStorage.getMessage(
+          feedKey,
+          msg.value.sequence - 1,
+        );
+        if (previousMessage.key !== msg.value.previous) {
+          throw new Error(
+            `Broken Crypto-Chain in ${feedKey} at ${msg.value.sequence}`,
+          );
+        }
+      }
       await this.feedsStorage.storeMessage(
         feedKey,
-        (msg as { value: { sequence?: number } }).value!.sequence!,
+        msg.value.sequence,
         msg,
       );
       this.newMessageListeners.forEach((listener) => listener(feedKey, msg));
