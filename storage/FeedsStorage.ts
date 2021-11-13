@@ -1,4 +1,5 @@
 import type { FeedId, JSONValue } from "../util.ts";
+import type { Message } from "../agents/feeds/FeedsAgent.ts";
 
 export default interface FeedsStorage {
   storeMessage(
@@ -10,7 +11,7 @@ export default interface FeedsStorage {
   getMessage(
     feedKey: FeedId,
     position: number,
-  ): Promise<{ key: string; value: JSONValue; timestamp: number }>;
+  ): Promise<Message>;
 
   /** return the highest sequence number of an available message in the feed */
   lastMessage(feedKey: FeedId): Promise<number>;

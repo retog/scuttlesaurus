@@ -117,7 +117,7 @@ export default class FeedsAgent extends Agent {
   async *getFeed(feedId: FeedId, {
     oldMessages = 10,
     newMessages = true,
-  }: { oldMessages?: number; newMessages?: boolean } = {}) {
+  }: { oldMessages?: number; newMessages?: boolean } = {}): AsyncIterable<Message> {
     const lastMessage = await this.feedsStorage.lastMessage(feedId);
     oldMessages = Math.min(oldMessages, lastMessage);
     for (let pos = 0; pos < oldMessages; pos++) {

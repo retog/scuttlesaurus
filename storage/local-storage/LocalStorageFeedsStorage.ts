@@ -1,5 +1,6 @@
 import FeedsStorage from "../FeedsStorage.ts";
 import { FeedId, JSONValue, NotFoundError } from "../../util.ts";
+import type { Message } from "../../agents/feeds/FeedsAgent.ts";
 
 export class LocalStorageFeedsStorage implements FeedsStorage {
   private storageKey(feedKey: FeedId, position: number) {
@@ -26,7 +27,7 @@ export class LocalStorageFeedsStorage implements FeedsStorage {
   getMessage(
     feedKey: FeedId,
     position: number,
-  ): Promise<{ key: string; value: JSONValue; timestamp: number }> {
+  ): Promise<Message> {
     const jsonMsg = window.localStorage.getItem(
       this.storageKey(feedKey, position),
     );
