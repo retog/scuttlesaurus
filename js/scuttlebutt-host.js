@@ -18918,6 +18918,9 @@ class FeedId extends Uint8Array {
     get base64FilenameSafe() {
         return filenameSafeAlphabetRFC3548(this.base64Key);
     }
+    toUri() {
+        return "ssb:feed/ed25519/" + this.base64FilenameSafe;
+    }
     toString() {
         return `@${this.base64Key}.ed25519`;
     }
@@ -18932,6 +18935,9 @@ class BlobId extends Uint8Array {
     }
     get base64FilenameSafe() {
         return filenameSafeAlphabetRFC3548(this.base64Key);
+    }
+    toUri() {
+        return "ssb:blob/sha256/" + this.base64FilenameSafe;
     }
     toString() {
         return `&${this.base64Key}.sha256`;
