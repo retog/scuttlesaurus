@@ -28,6 +28,11 @@ export class FeedId extends Uint8Array {
     return filenameSafeAlphabetRFC3548(this.base64Key);
   }
 
+  toUri(): string {
+    //URIs according to https://github.com/ssb-ngi-pointer/ssb-uri-spec
+    return "ssb:feed/ed25519/" + this.base64FilenameSafe;
+  }
+
   toString(): string {
     return `@${this.base64Key}.ed25519`;
   }
@@ -48,8 +53,38 @@ export class BlobId extends Uint8Array {
     return filenameSafeAlphabetRFC3548(this.base64Key);
   }
 
+  toUri(): string {
+    //URIs according to https://github.com/ssb-ngi-pointer/ssb-uri-spec
+    return "ssb:blob/sha256/" + this.base64FilenameSafe;
+  }
+
   toString(): string {
     return `&${this.base64Key}.sha256`;
+  }
+
+  toJSON = this.toString;
+}
+
+export class MsgKey extends Uint8Array {
+  constructor(key: Uint8Array) {
+    super(key);
+  }
+
+  get base64Key() {
+    return toBase64(this);
+  }
+
+  get base64FilenameSafe() {
+    return filenameSafeAlphabetRFC3548(this.base64Key);
+  }
+
+  toUri(): string {
+    //URIs according to https://github.com/ssb-ngi-pointer/ssb-uri-spec
+    return "ssb:message/sha256/" + this.base64FilenameSafe;
+  }
+
+  toString(): string {
+    return `%${this.base64Key}.sha256`;
   }
 
   toJSON = this.toString;
@@ -103,6 +138,14 @@ export function parseBlobId(blobIdString: string) {
       ? blobIdString.substring(1, blobIdString.length - 7)
       : blobIdString;
   return new BlobId(fromBase64(base64Key));
+}
+
+export function parseMsgKey(msgKeyString: string) {
+  const base64Key =
+    msgKeyString.startsWith("%") && msgKeyString.endsWith(".sha256")
+      ? msgKeyString.substring(1, msgKeyString.length - 7)
+      : msgKeyString;
+  return new MsgKey(fromBase64(base64Key));
 }
 
 export function bytes2NumberUnsigned(bytes: Uint8Array): number {
