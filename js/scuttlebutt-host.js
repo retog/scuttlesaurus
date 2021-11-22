@@ -19769,16 +19769,21 @@ class FeedsAgent extends Agent {
         ));
     }
     newMessageListeners = [];
-    async *getFeed(feedId, { oldMessages =10 , newMessages =true  } = {
+    async *getFeed(feedId, { fromMessage =-10 , newMessages =true  } = {
     }) {
-        const lastMessage = await this.feedsStorage.lastMessage(feedId);
-        oldMessages = Math.min(oldMessages, lastMessage);
-        for(let pos = 0; pos < oldMessages; pos++){
-            try {
-                yield this.feedsStorage.getMessage(feedId, lastMessage - oldMessages + pos);
-            } catch (error) {
-                if (error instanceof NotFoundError) {
-                    mod2.info(`Message ${lastMessage - oldMessages + pos} of ${feedId} not found`);
+        if (fromMessage != 0) {
+            const lastMessage = await this.feedsStorage.lastMessage(feedId);
+            fromMessage = fromMessage > 0 ? fromMessage : lastMessage + fromMessage + 1;
+            if (fromMessage < 1) {
+                fromMessage = 1;
+            }
+            for(let pos = fromMessage; pos <= lastMessage; pos++){
+                try {
+                    yield this.feedsStorage.getMessage(feedId, pos);
+                } catch (error) {
+                    if (error instanceof NotFoundError) {
+                        mod2.info(`Message ${pos} of ${feedId} not found`);
+                    }
                 }
             }
         }
