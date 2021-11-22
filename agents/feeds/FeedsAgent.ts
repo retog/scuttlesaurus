@@ -115,22 +115,33 @@ export default class FeedsAgent extends Agent {
     [];
 
   async *getFeed(feedId: FeedId, {
-    oldMessages = 10,
+    /** negative numbers are relative to the latest message, 0 means no existing message,
+     * positive numbers indicate the index of the oldest message to be returned */
+    fromMessage = -10,
     newMessages = true,
-  }: { oldMessages?: number; newMessages?: boolean } = {}): AsyncIterable<Message> {
-    const lastMessage = await this.feedsStorage.lastMessage(feedId);
-    oldMessages = Math.min(oldMessages, lastMessage);
-    for (let pos = 0; pos < oldMessages; pos++) {
-      try {
-        yield this.feedsStorage.getMessage(
-          feedId,
-          lastMessage - oldMessages + pos,
-        );
-      } catch (error) {
-        if (error instanceof NotFoundError) {
-          log.info(
-            `Message ${lastMessage - oldMessages + pos} of ${feedId} not found`,
+  }: { fromMessage?: number; newMessages?: boolean } = {}): AsyncIterable<
+    Message
+  > {
+    if (fromMessage != 0) {
+      const lastMessage = await this.feedsStorage.lastMessage(feedId);
+      fromMessage = fromMessage > 0
+        ? fromMessage
+        : lastMessage + fromMessage + 1;
+      if (fromMessage < 1) {
+        fromMessage = 1;
+      }
+      for (let pos = fromMessage; pos <= lastMessage; pos++) {
+        try {
+          yield this.feedsStorage.getMessage(
+            feedId,
+            pos,
           );
+        } catch (error) {
+          if (error instanceof NotFoundError) {
+            log.info(
+              `Message ${pos} of ${feedId} not found`,
+            );
+          }
         }
       }
     }
