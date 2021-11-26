@@ -7,6 +7,7 @@ import {
   path,
   sha256Hash,
   toHex,
+  writeAll,
 } from "../../util.ts";
 
 import BlobsStorage from "../BlobsStorage.ts";
@@ -30,10 +31,9 @@ export default class FsStorage implements BlobsStorage, FeedsStorage {
       position + ".json",
     );
     await Deno.mkdir(dir, { recursive: true });
-    Deno.writeFile(
-      fileName,
-      textEncoder.encode(JSON.stringify(msg, undefined, 2)),
-    );
+    const file = await Deno.open(fileName, { createNew: true, write: true });
+    await writeAll(file, textEncoder.encode(JSON.stringify(msg, undefined, 2)));
+    Deno.close(file.rid);
   }
   async getMessage(feedKey: FeedId, position: number) {
     const dir = this.getFeedDir(feedKey);

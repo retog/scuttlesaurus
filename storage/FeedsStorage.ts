@@ -2,6 +2,7 @@ import type { FeedId, JSONValue } from "../util.ts";
 import type { Message } from "../agents/feeds/FeedsAgent.ts";
 
 export default interface FeedsStorage {
+  /** implementations must throw an error, if a message at that position already exist */
   storeMessage(
     feedKey: FeedId,
     position: number,

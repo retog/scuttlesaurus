@@ -12,8 +12,12 @@ export class LocalStorageFeedsStorage implements FeedsStorage {
     position: number,
     msg: JSONValue,
   ): Promise<void> {
+    const key = this.storageKey(feedKey, position);
+    if (window.localStorage.getItem(key) !== null) {
+      throw new Error("Already have message at that position.")
+    }
     window.localStorage.setItem(
-      this.storageKey(feedKey, position),
+      key,
       JSON.stringify(msg),
     );
     if (position > this.lastMessageSync(feedKey)) {

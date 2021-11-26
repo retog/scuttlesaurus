@@ -222,23 +222,16 @@ export default class FeedsAgent extends Agent {
           );
         }
       }
-      //TODO: check if msg mew
-      let existingMsg = undefined;
+
       try {
-        existingMsg = await this.feedsStorage.getMessage(
-          feedKey,
-          msg.value.sequence,
-        );
-      } catch (e) {
-        //no existing msg
-      }
-      if (!existingMsg) {
         await this.feedsStorage.storeMessage(
           feedKey,
           msg.value.sequence,
           msg,
         );
         this.newMessageListeners.forEach((listener) => listener(feedKey, msg));
+      } catch (e) {
+        log.debug(`Storing message: ${e}`)
       }
     }
     log.debug(() => `Stream ended for feed ${feedKey}`);
