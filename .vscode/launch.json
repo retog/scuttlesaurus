@@ -1,12 +1,21 @@
 {
   "configurations": [
     {
-      "name": "Main",
+      "name": "Main (verbose)",
       "type": "pwa-node",
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
       "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "main.ts"],
+      "attachSimplePort": 9229
+    },
+    {
+      "name": "Main (INFO)",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "main.ts", "--logLevel", "INFO"],
       "attachSimplePort": 9229
     },
     {
