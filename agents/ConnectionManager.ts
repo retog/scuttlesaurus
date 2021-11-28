@@ -51,7 +51,7 @@ export default class ConnectionManager
    */
   async getConnectionWith(addr: Address): Promise<RpcConnection> {
     const conn = this.connections.get(addr.key.base64Key)?.deref();
-    if (conn && conn.boxConnection.closed) {
+    if (conn && !conn.boxConnection.closed) {
       return conn;
     } else {
       return await this.connect(addr);
