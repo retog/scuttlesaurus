@@ -91,8 +91,8 @@ export default class FeedsAgent extends Agent {
             );
             onGoingSyncs++;
             try {
-              const rpcConnection = await connector.getConnectionWith(address);
-              await this.updateFeeds(rpcConnection);
+              //this will cause `outgoingConnection` to be invoked
+              await connector.getConnectionWith(address);
             } catch (error) {
               log.error(
                 `In connection with ${address}: ${error}, now having ${
@@ -231,7 +231,7 @@ export default class FeedsAgent extends Agent {
         );
         this.newMessageListeners.forEach((listener) => listener(feedKey, msg));
       } catch (e) {
-        log.debug(`Storing message: ${e}`)
+        log.debug(`Storing message: ${e}`);
       }
     }
     log.debug(() => `Stream ended for feed ${feedKey}`);
