@@ -68,47 +68,56 @@ export default class FeedsAgent extends Agent {
     };
     return rpcMethods;
   }
+
+  /** contains the adress strings of ongoing sync partners */
+  private onGoingSyncPeers = new Set<string>();
+
   async incomingConnection(rpcConnection: RpcConnection) {
-    await this.updateFeeds(rpcConnection);
+    const peerStr = rpcConnection.boxConnection.peer.base64Key;
+    if (!this.onGoingSyncPeers.has(peerStr)) {
+      this.onGoingSyncPeers.add(peerStr);
+      try {
+        await this.updateFeeds(rpcConnection);
+      } finally {
+        this.onGoingSyncPeers.delete(peerStr);
+      }
+    }
   }
 
   outgoingConnection = this.incomingConnection;
 
+  private pickPeer(): Address {
+    //The maximum is exclusive and the minimum is inclusive
+    function getRandomInt(min: number, max: number) {
+      return Math.floor(Math.random() * (max - min) + min);
+    }
+    return this.peers[getRandomInt(0, this.peers.length)];
+  }
+
   async run(connector: ConnectionManager): Promise<void> {
-    let initialDelaySec = 0;
-    let onGoingSyncs = 0;
-    await Promise.all(this.peers.map((address) =>
-      (async () => {
-        initialDelaySec += 10;
-        await delay(initialDelaySec * 1000);
-        let minutesDelay = 1;
-        while (true) {
-          if (onGoingSyncs > 20) {
-            log.info("More than 20 connections open, standing by.");
-          } else {
-            log.info(
-              `${onGoingSyncs} connections open, connecting to ${address}`,
+    const onGoingVonnectionAttempts = new Set<string>();
+    while (true) {
+      const pickedPeer = this.pickPeer();
+      const pickedPeerStr = pickedPeer.key.base64Key;
+      if (!onGoingVonnectionAttempts.has(pickedPeerStr)) {
+        onGoingVonnectionAttempts.add(pickedPeerStr);
+        (async () => {
+          try {
+            //this will cause `outgoingConnection` to be invoked
+            await connector.getConnectionWith(pickedPeer);
+          } catch (error) {
+            log.error(
+              `In connection with ${pickedPeer}: ${error}`,
             );
-            onGoingSyncs++;
-            try {
-              //this will cause `outgoingConnection` to be invoked
-              await connector.getConnectionWith(address);
-            } catch (error) {
-              log.error(
-                `In connection with ${address}: ${error}, now having ${
-                  onGoingSyncs -
-                  1
-                } connections left`,
-              );
-              log.debug(`stack: ${error.stack}`);
-              minutesDelay++;
-            }
-            onGoingSyncs--;
+            //TODO this shoul cause this peer to be attempted less frequently
           }
-          await delay(minutesDelay * 60 * 1000);
-        }
-      })()
-    ));
+        })().finally(() => {
+          onGoingVonnectionAttempts.delete(pickedPeerStr);
+        });
+      }
+      // wait some time depending on how many syncs are going on
+      await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000);
+    }
   }
 
   private newMessageListeners: Array<(feedId: FeedId, msg: Message) => void> =
@@ -193,7 +202,14 @@ export default class FeedsAgent extends Agent {
         "seq": from,
       }],
     }) as AsyncIterable<Message>;
+    let expectedSequence = from;
     for await (const msg of historyStream) {
+      if (expectedSequence !== msg.value.sequence) {
+        throw new Error(
+          `Expected sequence ${expectedSequence} but got ${msg.value.sequence}`,
+        );
+      }
+      expectedSequence++;
       const hash = computeMsgHash(msg.value);
       const key = `%${toBase64(hash)}.sha256`;
       if (key !== msg.key) {
