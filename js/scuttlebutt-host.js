@@ -20184,8 +20184,7 @@ class FeedsAgent extends Agent {
                         mod2.info(`${onGoingSyncs} connections open, connecting to ${address}`);
                         onGoingSyncs++;
                         try {
-                            const rpcConnection = await connector.getConnectionWith(address);
-                            await this.updateFeeds(rpcConnection);
+                            await connector.getConnectionWith(address);
                         } catch (error) {
                             mod2.error(`In connection with ${address}: ${error}, now having ${onGoingSyncs - 1} connections left`);
                             mod2.debug(`stack: ${error.stack}`);
@@ -20487,7 +20486,7 @@ class ConnectionManager {
     }
     async getConnectionWith(addr) {
         const conn = this.connections.get(addr.key.base64Key)?.deref();
-        if (conn && conn.boxConnection.closed) {
+        if (conn && !conn.boxConnection.closed) {
             return conn;
         } else {
             return await this.connect(addr);
