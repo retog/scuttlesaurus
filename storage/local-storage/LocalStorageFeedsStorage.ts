@@ -14,7 +14,7 @@ export class LocalStorageFeedsStorage implements FeedsStorage {
   ): Promise<void> {
     const key = this.storageKey(feedKey, position);
     if (window.localStorage.getItem(key) !== null) {
-      throw new Error("Already have message at that position.")
+      throw new Error("Already have message at that position.");
     }
     window.localStorage.setItem(
       key,

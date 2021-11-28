@@ -11,10 +11,11 @@ export default class NetTransport implements Transport {
     if (this.protocols.indexOf(addr.protocol) === -1) {
       throw new Error("Unsupported protocol");
     }
-    return await Deno.connect({
+    const connection = await Deno.connect({
       hostname: addr.host,
       port: addr.port,
     });
+    return connection;
   }
   listen() {
     return Deno.listen(this.options);
