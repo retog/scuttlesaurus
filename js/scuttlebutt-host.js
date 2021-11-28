@@ -19863,7 +19863,6 @@ class RpcConnection {
                           ${this.boxConnection.peer}: ${error}`);
                                             }
                                         }
-                                        mod2.debug(`Closing response stream to their request ${header.requestNumber}`);
                                         await this.sendRpcMessage("true", {
                                             isStream: true,
                                             endOrError: true,
@@ -19877,7 +19876,6 @@ class RpcConnection {
                                 })();
                             } else {
                                 if (header.endOrError && textDecoder.decode(body) === "true") {
-                                    mod2.debug(`Remote confirms closing of our response stream ${header.requestNumber}.`);
                                 } else {
                                     mod2.info(`Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${textDecoder.decode(body)}`);
                                 }
@@ -19947,21 +19945,21 @@ class RpcConnection {
         const responseStreamListeners = this.responseStreamListeners;
         const boxConnection = this.boxConnection;
         const generate = async function*() {
-            while(buffer.length > 0){
-                const [message, header] = buffer.shift();
-                if (!header.endOrError) {
-                    yield parse3(message, header.bodyType);
-                } else {
-                    const endMessage = textDecoder.decode(message);
-                    if (endMessage === "true") {
-                        return;
-                    } else {
-                        throw new Error(endMessage);
-                    }
-                }
-            }
             try {
                 while(true){
+                    while(buffer.length > 0){
+                        const [message, header] = buffer.shift();
+                        if (!header.endOrError) {
+                            yield parse3(message, header.bodyType);
+                        } else {
+                            const endMessage = textDecoder.decode(message);
+                            if (endMessage === "true") {
+                                return;
+                            } else {
+                                throw new Error(endMessage);
+                            }
+                        }
+                    }
                     yield await new Promise((resolve, reject)=>{
                         responseStreamListeners.set(requestNumber, (message, header)=>{
                             if (!header.endOrError) {
@@ -20033,7 +20031,6 @@ class RpcConnection {
         const payload = getPayload();
         const flags = (options.isStream ? 8 : 0) | (options.endOrError ? 4 : 0) | options.bodyType;
         const requestNumber = options.inReplyTo ? options.inReplyTo * -1 : ++this.requestCounter;
-        mod2.debug(`Sending RPC Message ${requestNumber}`);
         const header = new Uint8Array(9);
         header[0] = flags;
         header.set(new Uint8Array(new Uint32Array([
@@ -20166,36 +20163,44 @@ class FeedsAgent extends Agent {
         };
         return rpcMethods;
     }
+    onGoingSyncPeers = new Set();
     async incomingConnection(rpcConnection) {
-        await this.updateFeeds(rpcConnection);
+        const peerStr = rpcConnection.boxConnection.peer.base64Key;
+        if (!this.onGoingSyncPeers.has(peerStr)) {
+            this.onGoingSyncPeers.add(peerStr);
+            try {
+                await this.updateFeeds(rpcConnection);
+            } finally{
+                this.onGoingSyncPeers.delete(peerStr);
+            }
+        }
     }
     outgoingConnection = this.incomingConnection;
+    pickPeer() {
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min) + min);
+        }
+        return this.peers[getRandomInt(0, this.peers.length)];
+    }
     async run(connector) {
-        let initialDelaySec = 0;
-        let onGoingSyncs = 0;
-        await Promise.all(this.peers.map((address)=>(async ()=>{
-                initialDelaySec += 10;
-                await delay(initialDelaySec * 1000);
-                let minutesDelay = 1;
-                while(true){
-                    if (onGoingSyncs > 20) {
-                        mod2.info("More than 20 connections open, standing by.");
-                    } else {
-                        mod2.info(`${onGoingSyncs} connections open, connecting to ${address}`);
-                        onGoingSyncs++;
-                        try {
-                            await connector.getConnectionWith(address);
-                        } catch (error) {
-                            mod2.error(`In connection with ${address}: ${error}, now having ${onGoingSyncs - 1} connections left`);
-                            mod2.debug(`stack: ${error.stack}`);
-                            minutesDelay++;
-                        }
-                        onGoingSyncs--;
+        const onGoingVonnectionAttempts = new Set();
+        while(true){
+            const pickedPeer = this.pickPeer();
+            const pickedPeerStr = pickedPeer.key.base64Key;
+            if (!onGoingVonnectionAttempts.has(pickedPeerStr)) {
+                onGoingVonnectionAttempts.add(pickedPeerStr);
+                (async ()=>{
+                    try {
+                        await connector.getConnectionWith(pickedPeer);
+                    } catch (error) {
+                        mod2.error(`In connection with ${pickedPeer}: ${error}`);
                     }
-                    await delay(minutesDelay * 60 * 1000);
-                }
-            })()
-        ));
+                })().finally(()=>{
+                    onGoingVonnectionAttempts.delete(pickedPeerStr);
+                });
+            }
+            await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000);
+        }
     }
     newMessageListeners = [];
     async *getFeed(feedId, { fromMessage =-10 , newMessages =true  } = {
@@ -20252,7 +20257,12 @@ class FeedsAgent extends Agent {
                 }
             ]
         });
+        let expectedSequence = from;
         for await (const msg of historyStream){
+            if (expectedSequence !== msg.value.sequence) {
+                throw new Error(`Expected sequence ${expectedSequence} but got ${msg.value.sequence}`);
+            }
+            expectedSequence++;
             const hash = computeMsgHash(msg.value);
             const key = `%${toBase64(hash)}.sha256`;
             if (key !== msg.key) {
