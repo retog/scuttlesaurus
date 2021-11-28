@@ -134,9 +134,9 @@ export default class RpcConnection {
                         );
                       }
                     }
-                    log.debug(
+                    /*log.debug(
                       `Closing response stream to their request ${header.requestNumber}`,
-                    );
+                    );*/
                     await this.sendRpcMessage("true", {
                       isStream: true,
                       endOrError: true,
@@ -156,9 +156,9 @@ export default class RpcConnection {
                 if (
                   header.endOrError && (textDecoder.decode(body) === "true")
                 ) {
-                  log.debug(
+                  /*log.debug(
                     `Remote confirms closing of our response stream ${header.requestNumber}.`,
-                  );
+                  );*/
                 } else {
                   log.info(
                     `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
@@ -252,21 +252,21 @@ export default class RpcConnection {
     const responseStreamListeners = this.responseStreamListeners;
     const boxConnection = this.boxConnection;
     const generate = async function* () {
-      while (buffer.length > 0) {
-        const [message, header] = buffer.shift() as [Uint8Array, Header];
-        if (!header.endOrError) {
-          yield parse(message, header.bodyType);
-        } else {
-          const endMessage = textDecoder.decode(message);
-          if (endMessage === "true") {
-            return;
-          } else {
-            throw new Error(endMessage);
-          }
-        }
-      }
       try {
         while (true) {
+          while (buffer.length > 0) {
+            const [message, header] = buffer.shift() as [Uint8Array, Header];
+            if (!header.endOrError) {
+              yield parse(message, header.bodyType);
+            } else {
+              const endMessage = textDecoder.decode(message);
+              if (endMessage === "true") {
+                return;
+              } else {
+                throw new Error(endMessage);
+              }
+            }
+          }
           yield await new Promise<
             JSONValue | Uint8Array
           >(
@@ -373,7 +373,7 @@ export default class RpcConnection {
     const requestNumber = options.inReplyTo
       ? options.inReplyTo * -1
       : ++this.requestCounter;
-    log.debug(`Sending RPC Message ${requestNumber}`);
+    //log.debug(`Sending RPC Message ${requestNumber}`);
     const header = new Uint8Array(9);
     header[0] = flags;
     header.set(
