@@ -38,6 +38,7 @@ jobs:
         run: deno test -A --unstable
 
       - name: Build webapp
+        working-directory: compsoscuttly
         run: deno run --unstable -A build.ts
 
       - name: Deploy to GitHub Pages
