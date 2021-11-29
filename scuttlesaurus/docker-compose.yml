@@ -1,0 +1,11 @@
+version: '2'
+
+services:
+  ssb-deno:
+    image: reto/ssb-deno
+    build: .
+    ports:
+      - "8008:8008"
+    volumes:
+      - /var/ssb-deno:/root/.ssb
+    restart: unless-stopped
