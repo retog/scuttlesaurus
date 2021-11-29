@@ -3,8 +3,7 @@
 A Scuttlebutt client and feed viewer running entirely in the browser. It can connect to pubs
 via websockets and display the contents of feeds.
 
-The project mascot is a (Compsognathus
-longipes)[https://www.wikidata.org/wiki/Q95815262]
+The project mascot is a [Compsognathus longipes](https://synospecies.plazi.org/#Compsognathus+longipes)
 ![](https://upload.wikimedia.org/wikipedia/commons/c/c4/Compsognathus_BW.jpg)
 
 ## Usage

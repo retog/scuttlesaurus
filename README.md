@@ -14,6 +14,3 @@ Scuttlesaurus comprises the following projects:
 - [Compsoscuttly](compsoscuttly): This is a small client application running
   entirely in the browser. It can connect to pubs via websockets and display the
   contents of feeds.
-
-The project mascot is a [Compsognathus longipes](https://synospecies.plazi.org/#Compsognathus+longipes)
-![](https://upload.wikimedia.org/wikipedia/commons/c/c4/Compsognathus_BW.jpg)

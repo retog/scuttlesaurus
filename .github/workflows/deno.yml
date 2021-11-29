@@ -46,4 +46,4 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: gh-pages
-          folder: web
+          folder: compsoscuttly
