@@ -1,0 +1,12 @@
+{
+  "lint": {
+    "files": {
+      "exclude": ["js/scuttlebutt-host.js"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "exclude": ["js/scuttlebutt-host.js"]
+    }
+  }
+}
