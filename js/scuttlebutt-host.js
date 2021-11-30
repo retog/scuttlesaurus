@@ -19374,7 +19374,7 @@ class BlobId extends Uint8Array {
     }
     toJSON = this.toString;
 }
-function parseAddress(addr) {
+function parseAddress1(addr) {
     try {
         const [netAddr, keyString] = addr.split("~shs:");
         const [protocol, host, portString] = netAddr.split(":");
@@ -20519,7 +20519,7 @@ class ScuttlebuttHost {
     }
     createFeedsAgent() {
         const storage = this.createFeedsStorage();
-        return new FeedsAgent(storage, this.config.follow?.map(parseFeedId1), this.config.peers?.map(parseAddress));
+        return new FeedsAgent(storage, this.config.follow?.map(parseFeedId1), this.config.peers?.map(parseAddress1));
     }
     createBlobsAgent() {
         const storage = this.createBlobsStorage();
@@ -20705,7 +20705,7 @@ class LocalStorageBlobsStorage {
         return await fromBase64(encodedData);
     }
 }
-export { parseFeedId1 as parseFeedId };
+export { parseFeedId1 as parseFeedId, parseAddress1 as parseAddress };
 class BrowserScuttlebuttHost extends ScuttlebuttHost {
     constructor(config){
         super(config);

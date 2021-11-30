@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "request": "launch",
+            "name": "Web server",
+            "type": "pwa-node",
+            "program": "https://deno.land/std@0.106.0/http/file_server.ts",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "deno",
+            "runtimeArgs": [
+                "run",
+                "--inspect",
+                "--allow-all"
+            ],
+            "args": [
+                "-p",
+                "8080"
+            ],
+            "attachSimplePort": 9229
+        },
+        {
+            "name": "Build",
+            "type": "pwa-node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "deno",
+            "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "build.ts"],
+            "attachSimplePort": 9229
+          }
+    ]
+}

@@ -14,16 +14,27 @@
 
 <body>
   <h1>Compsoscuttly: Scuttlesaurus in the browser</h1>
+  
   The most recent messages as they arrive:<br/>
   <div id="log">
 
   </div>
+  
+  <editable-list
+  title="Peers"
+  add-item-text="Add new list item:"
+>
+</editable-list>
+  <script type="text/javascript" src="./editable-list.js"></script>
+
   <script type="module">
-    import ScuttlebuttHost, { parseFeedId } from "./js/scuttlebutt-host.js";
+    import ScuttlebuttHost, { parseFeedId, parseAddress } from "./js/scuttlebutt-host.js";
 
     const logArea = document.getElementById("log");
     const host = new ScuttlebuttHost({
-      peers: ["wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo="
+      peers: [
+        "wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=",
+        "ws:ssb.farewellutopia.com:8989~shs:A2x/4olpyciSh+KXTULh9QFCCBCu5SSbL4ZmytwIuZw="
       ],
       follow: [
         "@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519",
@@ -36,8 +47,16 @@
       logArea.innerHTML = `<br/> Feed: ${feedId} <br/>
           <code>${JSON.stringify(msg)}</code><hr/>` + logArea.innerHTML;
      } 
-    })(); 
+    })();
+    //this diables blobs
+    host.agents = [host.feedsAgent];
     host.start();
+    const peerList = document.getElementsByTagName("editable-list")[0];
+    host.feedsAgent.peers.forEach(peer => peerList.addValue(peer.toString()));
+    peerList.addEventListener("change", (e) => {
+      console.log(`setting: ${peerList.values}`);
+      host.feedsAgent.peers = peerList.values.map(parseAddress);
+    });
   </script>
 </body>
 
