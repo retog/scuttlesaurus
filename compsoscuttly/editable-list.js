@@ -1,6 +1,6 @@
-'use strict';
+"use strict";
 //https://github.com/mdn/web-components-examples/blob/master/editable-list/main.js
-(function() {
+(function () {
   class EditableList extends HTMLElement {
     constructor() {
       // establish prototype chain
@@ -8,10 +8,10 @@
 
       // attaches shadow tree and returns shadow root reference
       // https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow
-      const shadow = this.attachShadow({ mode: 'open' });
+      const shadow = this.attachShadow({ mode: "open" });
 
       // creating a container for the editable-list component
-      const editableListContainer = document.createElement('div');
+      const editableListContainer = document.createElement("div");
 
       // get attribute values from getters
       const title = this.title;
@@ -19,7 +19,7 @@
       this.items = [];
 
       // adding a class to our container for the sake of clarity
-      editableListContainer.classList.add('editable-list');
+      editableListContainer.classList.add("editable-list");
 
       // creating the inner HTML of the editable list element
       editableListContainer.innerHTML = `
@@ -40,7 +40,7 @@
         </style>
         <h3>${title}</h3>
         <ul class="item-list">
-          ${this.items.map(this.createListItem).join('')}
+          ${this.items.map(this.createListItem).join("")}
         </ul>
         <div>
           <label>${addItemText}</label>
@@ -51,7 +51,9 @@
 
       // binding methods
       this.addListItem = this.addListItem.bind(this);
-      this.handleRemoveItemListeners = this.handleRemoveItemListeners.bind(this);
+      this.handleRemoveItemListeners = this.handleRemoveItemListeners.bind(
+        this,
+      );
       this.removeListItem = this.removeListItem.bind(this);
 
       // appending the container to the shadow DOM
@@ -59,56 +61,65 @@
     }
 
     createListItem(value) {
-      return  `
+      return `
       <li><span class="value">${value}</span>
         <button class="editable-list-remove-item icon">&ominus;</button>
       </li>
-    `
+    `;
     }
     // add items to the list
     addListItem() {
-      const textInput = this.shadowRoot.querySelector('.add-new-list-item-input');
+      const textInput = this.shadowRoot.querySelector(
+        ".add-new-list-item-input",
+      );
 
       if (textInput.value) {
         this.addValue(textInput.value);
-        textInput.value = '';
+        textInput.value = "";
         this.dispatchEvent(new CustomEvent("change"));
       }
     }
 
     addValue(value) {
       this.itemList.innerHTML += this.createListItem(value);
-      this.handleRemoveItemListeners([...this.shadowRoot.querySelectorAll('.editable-list-remove-item')]);
+      this.handleRemoveItemListeners([
+        ...this.shadowRoot.querySelectorAll(".editable-list-remove-item"),
+      ]);
     }
 
     // fires after the element has been attached to the DOM
     connectedCallback() {
-      const removeElementButtons = [...this.shadowRoot.querySelectorAll('.editable-list-remove-item')];
-      const addElementButton = this.shadowRoot.querySelector('.editable-list-add-item');
+      const removeElementButtons = [
+        ...this.shadowRoot.querySelectorAll(".editable-list-remove-item"),
+      ];
+      const addElementButton = this.shadowRoot.querySelector(
+        ".editable-list-add-item",
+      );
 
-      this.itemList = this.shadowRoot.querySelector('.item-list');
+      this.itemList = this.shadowRoot.querySelector(".item-list");
 
       this.handleRemoveItemListeners(removeElementButtons);
-      addElementButton.addEventListener('click', this.addListItem, false);
+      addElementButton.addEventListener("click", this.addListItem, false);
     }
 
     // gathering data from element attributes
     get title() {
-      return this.getAttribute('title') || '';
+      return this.getAttribute("title") || "";
     }
 
-
     get addItemText() {
-      return this.getAttribute('add-item-text') || '';
+      return this.getAttribute("add-item-text") || "";
     }
 
     get values() {
-      return [...this.shadowRoot.querySelectorAll('.value')].map(e => e.textContent)
+      return [...this.shadowRoot.querySelectorAll(".value")].map((e) =>
+        e.textContent
+      );
     }
 
     handleRemoveItemListeners(arrayOfElements) {
-      arrayOfElements.forEach(element => {
-        element.addEventListener('click', this.removeListItem, false);
+      arrayOfElements.forEach((element) => {
+        element.addEventListener("click", this.removeListItem, false);
       });
     }
 
@@ -119,5 +130,5 @@
   }
 
   // let the browser know about the custom element
-  customElements.define('editable-list', EditableList);
+  customElements.define("editable-list", EditableList);
 })();
