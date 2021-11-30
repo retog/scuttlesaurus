@@ -1,3 +1,8 @@
 {
-  "deno.config": "deno.json"
+  "deno.config": "deno.json",
+  "deno.codeLens.testArgs": [
+    "--allow-all",
+    "--unstable"
+  ],
+  "deno.unstable": true
 }
