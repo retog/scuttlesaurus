@@ -14,6 +14,6 @@ To create a library to use in the browser run
 
 Subsequently you can serve the files in the web directory, such as with:
 
-    deno run --allow-net --allow-read https://deno.land/std@0.106.0/http/file_server.ts web -p 8080
+    deno run --allow-net --allow-read https://deno.land/std@0.106.0/http/file_server.ts -p 8080
 
 and access http://localhost:8080/ .
