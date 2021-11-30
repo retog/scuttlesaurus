@@ -66,7 +66,7 @@
     `
     }
     // add items to the list
-    addListItem(e) {
+    addListItem() {
       const textInput = this.shadowRoot.querySelector('.add-new-list-item-input');
 
       if (textInput.value) {
