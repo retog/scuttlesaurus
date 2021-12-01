@@ -66,6 +66,8 @@ export default abstract class ScuttlebuttHost {
   }
 
   protected abstract getClientKeyPair(): KeyPair;
+  
+  connectionManager: ConnectionManager|undefined;
 
   async start() {
     log.info(`Starting SSB Host`);
@@ -103,13 +105,13 @@ export default abstract class ScuttlebuttHost {
         ),
       boxServerInterface,
     );
-    const connectionManager = new ConnectionManager(
+    this.connectionManager = new ConnectionManager(
       rpcClientInterface,
       rpcServerInterface,
     );
     agents.forEach(async (agent) => {
       try {
-        await agent.start(connectionManager);
+        await agent.start(this.connectionManager!);
       } catch (error) {
         log.warning(
           `Error starting agent ${agent.constructor.name}: ${error}`,
@@ -119,7 +121,7 @@ export default abstract class ScuttlebuttHost {
 
     (async () => {
       for await (
-        const rpcConnection of connectionManager.outgoingConnections()
+        const rpcConnection of this.connectionManager!.outgoingConnections()
       ) {
         Promise.all(
           agents.map(async (agent) => {
@@ -135,7 +137,7 @@ export default abstract class ScuttlebuttHost {
       }
     })();
 
-    for await (const rpcConnection of connectionManager.listen()) {
+    for await (const rpcConnection of this.connectionManager.listen()) {
       Promise.all(
         agents.map(async (agent) => {
           try {

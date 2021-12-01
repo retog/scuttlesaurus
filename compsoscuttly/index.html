@@ -5,7 +5,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compsoscuttly: Scuttlesaurus in the Browser</title>
+  <script type="text/javascript" src="./js/editable-list.js"></script>
+  <script type="module" src="https://unpkg.com/side-drawer/dist/esm/side-drawer.min.js"></script>
+  <script nomodule src="https://unpkg.com/side-drawer/dist/iife/side-drawer.min.js"></script>
   <style>
+    side-drawer {
+      background-color: #ffffff;
+      color: inherit;
+      width: 900px;
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
     body {
       margin: 0;
     }
@@ -14,18 +25,26 @@
 
 <body>
   <h1>Compsoscuttly: Scuttlesaurus in the browser</h1>
-  
-  The most recent messages as they arrive:<br/>
+  <a id="opener">settings</a><br>
+  <p>The most recent messages as they arrive:</p>
+  <select id="feedChooser"></select>
   <div id="log">
-
   </div>
-  
-  <editable-list
-  title="Peers"
-  add-item-text="Add new list item:"
->
-</editable-list>
-  <script type="text/javascript" src="./js/editable-list.js"></script>
+  <side-drawer id="drawer">
+    <editable-list id="peerList" title="Peers" add-item-text="Add new peer:">
+    </editable-list>
+    <editable-list id="feedsList" title="Subscribed Feeds" add-item-text="Add new feed:">
+    </editable-list>
+  </side-drawer>
+
+  <script>
+    const opener = document.getElementById("opener");
+    const drawer = document.getElementById("drawer");
+
+    opener.addEventListener("click", () => {
+      drawer.open = true;
+    });
+  </script>
 
   <script type="module">
     import ScuttlebuttHost, { parseFeedId, parseAddress } from "./js/scuttlebutt-host.js";
@@ -38,24 +57,51 @@
       ],
       follow: [
         "@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519",
-        "@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519"
+        "@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519",
+        "@rdUCfjvbTlNYr0SWekHzrkiI5WcLJ6rx+VzYc8MFRuY=.ed25519"
       ]
     });
-    const feedId = parseFeedId("@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519");
-    (async () =>{  
-     for await (const msg of host.feedsAgent.getFeed(feedId, {fromMessage: -5})){
-      logArea.innerHTML = `<br/> Feed: ${feedId} <br/>
-          <code>${JSON.stringify(msg)}</code><hr/>` + logArea.innerHTML;
-     } 
-    })();
-    //this diables blobs
+
+    const feedChooser = document.getElementById("feedChooser");
+    const populateFeedChooser = () => {
+      feedChooser.innerHTML = "";
+      host.feedsAgent.subscriptions.forEach(feed => feedChooser.innerHTML += `<option>${feed.toString()}</option>`);
+    }
+    populateFeedChooser();
+
+    let feedShowTaskCount = 0;
+    const showSelectedFeed  = () => {
+      const thisShowTask = ++feedShowTaskCount;
+      const feedId = parseFeedId(feedChooser.value);
+      const showFeed = async () => {
+        logArea.innerHTML = "";
+        for await (const msg of host.feedsAgent.getFeed(feedId, { fromMessage: -5 })) {
+          if (thisShowTask < feedShowTaskCount) break;
+          logArea.innerHTML = `<br/> Feed: ${feedId} <br/>
+            <code>${JSON.stringify(msg)}</code><hr/>` + logArea.innerHTML;
+        }
+      };
+      showFeed();
+    }
+    showSelectedFeed();
+    feedChooser.addEventListener("change", showSelectedFeed);
+
+    //this disables blobs
     host.agents = [host.feedsAgent];
     host.start();
-    const peerList = document.getElementsByTagName("editable-list")[0];
+    const peerList = document.getElementById("peerList");
     host.feedsAgent.peers.forEach(peer => peerList.addValue(peer.toString()));
     peerList.addEventListener("change", (e) => {
       console.log(`setting: ${peerList.values}`);
       host.feedsAgent.peers = peerList.values.map(parseAddress);
+    });
+    const feedsList = document.getElementById("feedsList");
+    host.feedsAgent.subscriptions.forEach(peer => feedsList.addValue(peer.toString()));
+    feedsList.addEventListener("change", (e) => {
+      console.log(`setting: ${feedsList.values}`);
+      host.feedsAgent.subscriptions = feedsList.values.map(parseFeedId);
+      host.connectionManager.reset();
+      populateFeedChooser();
     });
   </script>
 </body>
