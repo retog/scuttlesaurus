@@ -42,11 +42,6 @@ configuration files in `~/.ssb`. By default feeds are stored in
 `@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` are in the folder
 `data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`:
 
-FindPeers: listens for peers announcing themselves with UDP broadcast.
-
-    deno run --unstable -A FindPeers.ts
-
-
 ## Using this project as a dev containers with VSCode:
 
 1. Install Docker
