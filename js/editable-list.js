@@ -5,6 +5,9 @@
     constructor() {
       // establish prototype chain
       super();
+    }
+    // fires after the element has been attached to the DOM
+    connectedCallback() {
 
       // attaches shadow tree and returns shadow root reference
       // https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow
@@ -37,6 +40,10 @@
             float: right;
             font-size: 1.8rem;
           }
+
+          .add-new-list-item-input {
+            width: 70%;
+          }
         </style>
         <h3>${title}</h3>
         <ul class="item-list">
@@ -58,6 +65,17 @@
 
       // appending the container to the shadow DOM
       shadow.appendChild(editableListContainer);
+      const removeElementButtons = [
+        ...this.shadowRoot.querySelectorAll(".editable-list-remove-item"),
+      ];
+      const addElementButton = this.shadowRoot.querySelector(
+        ".editable-list-add-item",
+      );
+
+      this.itemList = this.shadowRoot.querySelector(".item-list");
+
+      this.handleRemoveItemListeners(removeElementButtons);
+      addElementButton.addEventListener("click", this.addListItem, false);
     }
 
     createListItem(value) {
@@ -87,24 +105,13 @@
       ]);
     }
 
-    // fires after the element has been attached to the DOM
-    connectedCallback() {
-      const removeElementButtons = [
-        ...this.shadowRoot.querySelectorAll(".editable-list-remove-item"),
-      ];
-      const addElementButton = this.shadowRoot.querySelector(
-        ".editable-list-add-item",
-      );
-
-      this.itemList = this.shadowRoot.querySelector(".item-list");
-
-      this.handleRemoveItemListeners(removeElementButtons);
-      addElementButton.addEventListener("click", this.addListItem, false);
-    }
+    
+      
+    
 
     // gathering data from element attributes
     get title() {
-      return this.getAttribute("title") || "";
+      return this.getAttribute("title") || "no tile attribute";
     }
 
     get addItemText() {

@@ -20502,6 +20502,14 @@ class ConnectionManager {
             return await this.connect(addr);
         }
     }
+    async reset() {
+        for (const connRef of this.connections.values()){
+            const conn = connRef.deref();
+            if (conn) {
+                await conn.boxConnection.close();
+            }
+        }
+    }
 }
 class ScuttlebuttHost {
     config;
@@ -20525,6 +20533,7 @@ class ScuttlebuttHost {
         const storage = this.createBlobsStorage();
         return new BlobsAgent(storage);
     }
+    connectionManager;
     async start() {
         mod2.info(`Starting SSB Host`);
         if (this.transportClients.size + this.transportServers.size === 0) {
@@ -20545,16 +20554,16 @@ class ScuttlebuttHost {
         const rpcServerInterface = new RpcSeverInterface((feedId)=>new RpcMethodsHandler(agents.map((agent)=>agent.createRpcContext(feedId)
             ))
         , boxServerInterface);
-        const connectionManager = new ConnectionManager(rpcClientInterface, rpcServerInterface);
+        this.connectionManager = new ConnectionManager(rpcClientInterface, rpcServerInterface);
         agents.forEach(async (agent)=>{
             try {
-                await agent.start(connectionManager);
+                await agent.start(this.connectionManager);
             } catch (error) {
                 mod2.warning(`Error starting agent ${agent.constructor.name}: ${error}`);
             }
         });
         (async ()=>{
-            for await (const rpcConnection of connectionManager.outgoingConnections()){
+            for await (const rpcConnection of this.connectionManager.outgoingConnections()){
                 Promise.all(agents.map(async (agent)=>{
                     try {
                         await agent.outgoingConnection(rpcConnection);
@@ -20564,7 +20573,7 @@ class ScuttlebuttHost {
                 }));
             }
         })();
-        for await (const rpcConnection of connectionManager.listen()){
+        for await (const rpcConnection of this.connectionManager.listen()){
             Promise.all(agents.map(async (agent)=>{
                 try {
                     await agent.incomingConnection(rpcConnection);
