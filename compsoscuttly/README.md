@@ -9,11 +9,11 @@ The project mascot is a
 
 ## Usage
 
-To create a library to use in the browser run
+To create a library of the relevant parts of [Scuttlesaurus](../scuttlesaurus) to use in the browser run:
 
     deno run --unstable -A build.ts
 
-Subsequently you can serve the files in the web directory, such as with:
+Subsequently you can serve the files in this directory, such as with:
 
     deno run --allow-net --allow-read https://deno.land/std@0.106.0/http/file_server.ts -p 8080
 
