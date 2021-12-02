@@ -20176,16 +20176,20 @@ class FeedsAgent extends Agent {
         }
     }
     outgoingConnection = this.incomingConnection;
-    pickPeer() {
+    async pickPeer() {
         function getRandomInt(min, max) {
             return Math.floor(Math.random() * (max - min) + min);
+        }
+        if (this.peers.length === 0) {
+            console.warn("No peer known.");
+            while(this.peers.length === 0)await delay(1000);
         }
         return this.peers[getRandomInt(0, this.peers.length)];
     }
     async run(connector) {
         const onGoingVonnectionAttempts = new Set();
         while(true){
-            const pickedPeer = this.pickPeer();
+            const pickedPeer = await this.pickPeer();
             const pickedPeerStr = pickedPeer.key.base64Key;
             if (!onGoingVonnectionAttempts.has(pickedPeerStr)) {
                 onGoingVonnectionAttempts.add(pickedPeerStr);
@@ -20714,7 +20718,7 @@ class LocalStorageBlobsStorage {
         return await fromBase64(encodedData);
     }
 }
-export { parseFeedId1 as parseFeedId, parseAddress1 as parseAddress };
+export { parseAddress1 as parseAddress, parseFeedId1 as parseFeedId };
 class BrowserScuttlebuttHost extends ScuttlebuttHost {
     constructor(config){
         super(config);
