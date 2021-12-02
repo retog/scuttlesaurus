@@ -1,6 +1,4 @@
-# Deno SSB Experiments
-
-![](https://tokei.rs/b1/github/retog/deno-ssb-experiments)
+# Scuttlesaurus
 
 Scuttlesaurus implements the Secure Scuttlebutt (SSB) protocol in Typescript to
 run in [Deno](https://deno.land/) as well as in browsers. It is based on the
@@ -40,7 +38,13 @@ will start a host interacting on the Scuttlebut network according to the
 configuration files in `~/.ssb`. By default feeds are stored in
 `~/.ssb/data/feeds`, one folder per feed, e.g. all messages of
 `@2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=.ed255` are in the folder
-`data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`:
+`data/feeds/2NANnQVdsoqk0XPiJG2oMZqaEpTeoGrxOHJkLIqs7eY=/`.
+
+The following command-line options are supported:
+
+- baseDir: The base directory (default: `~/.ssb`)
+- logLevel: DEBUG, INFO, WARNING , ERROR or CRITICAL
+- incoming: Accept incoming connections (default: true)
 
 ## Using this project as a dev containers with VSCode:
 
