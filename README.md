@@ -16,3 +16,5 @@ friends. Together they aim at providing decentralized social media based on
 - [Compsoscuttly](compsoscuttly): This is a small client application running
   entirely in the browser. It can connect to pubs via websockets and display the
   contents of feeds.
+
+- [Tricerascuttler](tricerascuttler): stores the feeds retrieved by Scuttlesaurus in an RDF Graph-Database to allow fast and easy access to relevant content.

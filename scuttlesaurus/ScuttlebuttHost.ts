@@ -66,8 +66,8 @@ export default abstract class ScuttlebuttHost {
   }
 
   protected abstract getClientKeyPair(): KeyPair;
-  
-  connectionManager: ConnectionManager|undefined;
+
+  connectionManager: ConnectionManager | undefined;
 
   async start() {
     log.info(`Starting SSB Host`);

@@ -86,10 +86,14 @@ export default class FeedsAgent extends Agent {
 
   outgoingConnection = this.incomingConnection;
 
-  private pickPeer(): Address {
+  private async pickPeer(): Promise<Address> {
     //The maximum is exclusive and the minimum is inclusive
     function getRandomInt(min: number, max: number) {
       return Math.floor(Math.random() * (max - min) + min);
+    }
+    if (this.peers.length === 0) {
+      console.warn("No peer known.");
+      while (this.peers.length === 0) await delay(1000);
     }
     return this.peers[getRandomInt(0, this.peers.length)];
   }
@@ -97,7 +101,7 @@ export default class FeedsAgent extends Agent {
   async run(connector: ConnectionManager): Promise<void> {
     const onGoingVonnectionAttempts = new Set<string>();
     while (true) {
-      const pickedPeer = this.pickPeer();
+      const pickedPeer = await this.pickPeer();
       const pickedPeerStr = pickedPeer.key.base64Key;
       if (!onGoingVonnectionAttempts.has(pickedPeerStr)) {
         onGoingVonnectionAttempts.add(pickedPeerStr);

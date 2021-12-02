@@ -62,7 +62,7 @@ export default class ConnectionManager
     for (const connRef of this.connections.values()) {
       const conn = connRef.deref();
       if (conn) {
-        await conn.boxConnection.close()
+        await conn.boxConnection.close();
       }
     }
   }

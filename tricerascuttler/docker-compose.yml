@@ -1,0 +1,19 @@
+version: '3'
+services:
+  tricerascuttler:
+    image: reto/tricerascuttler
+    build: .
+    ports:
+      - "18008:8008"
+    depends_on:
+      - "fuseki"
+    environment:
+      - SPARQL_ENDPOINT_QUERY=http://fuseki:3330/ds/query
+      - SPARQL_ENDPOINT_UPDATE=http://fuseki:3330/ds/update
+      - LOG_LEVEL=DEBUG
+  fuseki:
+    image: "reto/fuseki-minimal"
+    ports:
+      - "3330:3330" # handy for development, remove in production
+    volumes:
+      - ./fuseki-dataset:/var/fuseki-minimal

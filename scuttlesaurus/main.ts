@@ -1,28 +1,32 @@
-import ScuttlebuttHost from "./DenoScuttlebuttHost.ts";
+import DenoScuttlebuttHost from "./DenoScuttlebuttHost.ts";
 import { exists, log, path } from "./util.ts";
-import { parse } from "https://deno.land/std@0.112.0/flags/mod.ts";
+import { Args, parse } from "https://deno.land/std@0.112.0/flags/mod.ts";
 
-/* starts an SSB peer configured according to command line options */
+/* return an SSB peer configured according to command line options */
+export async function createScuttlebuttHost() {
+  const options = parse(Deno.args, {
+    /*boolean: "incoming"*/
+  });
+  await configureLogging(options);
 
-const options = parse(Deno.args, {
-  /*boolean: "incoming"*/
-});
+  //read base config from file, use defaults if missing
+  const config = await getBaseConfig(options);
 
-await configureLogging();
+  //adapt config according to params
+  if (typeof (options.incoming) !== "undefined") {
+    config.acceptIncomingConnections =
+      options.incoming.toLowerCase() === "true";
+  }
 
-//read base config from file, use defaults if missing
-const config = await getBaseConfig();
-
-//adapt config according to params
-if (typeof (options.incoming) !== "undefined") {
-  config.acceptIncomingConnections = options.incoming.toLowerCase() === "true";
+  return new DenoScuttlebuttHost(config);
 }
 
-const host = new ScuttlebuttHost(config);
-host.start();
+if (import.meta.main) {
+  const host = await createScuttlebuttHost();
+  host.start();
+}
 
-//functions
-async function configureLogging() {
+async function configureLogging(options: Args) {
   const logLevel = options.logLevel ? options.logLevel : "DEBUG";
   await log.setup({
     handlers: {
@@ -56,7 +60,7 @@ function getDefaultConfig(baseDir: string) {
   };
 }
 
-async function getBaseConfig() {
+async function getBaseConfig(options: Args) {
   const baseDir = options.baseDir
     ? options.baseDir
     : path.join(Deno.env.get("HOME")!, ".ssb/");
