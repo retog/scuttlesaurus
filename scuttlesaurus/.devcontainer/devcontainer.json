@@ -1,5 +1,5 @@
 {
-  "name": "Deno SSB Dev Environment",
+  "name": "Scuttlesaurus",
 
   "dockerComposeFile": [
     "docker-compose.yml"
