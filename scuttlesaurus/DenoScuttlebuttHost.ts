@@ -1,8 +1,20 @@
+import {
+  Application,
+  Context,
+  Router,
+} from "https://deno.land/x/oak@v10.0.0/mod.ts";
 import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
-import { fromBase64, log, path, sodium, toBase64 } from "./util.ts";
+import {
+  fromBase64,
+  log,
+  parseAddress,
+  path,
+  sodium,
+  toBase64,
+} from "./util.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
 import FsStorage from "./storage/fs/FsStorage.ts";
@@ -17,6 +29,8 @@ import FsStorage from "./storage/fs/FsStorage.ts";
 export default class DenoScuttlebuttHost extends ScuttlebuttHost {
   readonly transportClients = new Set<TransportClient>();
   readonly transportServers = new Set<TransportServer>();
+  readonly controlApp?: Application;
+  readonly controlAppRouter?: Router<Record<string, unknown>>;
 
   constructor(
     readonly config: {
@@ -25,6 +39,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       acceptIncomingConnections?: boolean;
       baseDir: string;
       dataDir: string;
+      webControl?: boolean;
     } & ParentConfig,
   ) {
     const followeesFile = path.join(config.baseDir, "followees.json");
@@ -65,6 +80,24 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       );
       this.transportServers.add(
         new WsTransportServer(config.transport?.ws),
+      );
+    }
+    if (config.webControl || (typeof (config.webControl) === "undefined")) {
+      this.controlApp = new Application();
+      this.controlAppRouter = new Router();
+      this.controlAppRouter.post("/peers", async (ctx: Context) => {
+        const { value } = ctx.request.body({ type: "json" });
+        const { address } = await value;
+        this.peers.add(parseAddress(address));
+        ctx.response.body = "Added peer";
+      });
+      this.controlApp.use(this.controlAppRouter.routes());
+      this.controlApp.use(this.controlAppRouter.allowedMethods());
+      this.controlApp.use((ctx: Context) => {
+        ctx.response.body = "Scuttlesaurus contrtol interface";
+      });
+      this.controlApp.listen({ port: 8000 }).catch((e) =>
+        log.error(`Error with control app ${e}`)
       );
     }
     if (config.autoConnectLocalPeers) {

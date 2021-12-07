@@ -379,3 +379,38 @@ export function flatten<T>(
     },
   };
 }
+
+export class ObservableSet<T> extends Set<T> {
+  private addListeners: Set<((value: T) => void)> = new Set();
+  addAddListener(l: (value: T) => void) {
+    this.addListeners.add(l);
+  }
+  removeAddListener(l: (value: T) => void) {
+    this.addListeners.delete(l);
+  }
+
+  private removeListeners: Set<((value: T) => void)> = new Set();
+  addRemoveListener(l: (value: T) => void) {
+    this.removeListeners.add(l);
+  }
+  removeRemoveListener(l: (value: T) => void) {
+    this.removeListeners.delete(l);
+  }
+
+  add(value: T) {
+    super.add(value);
+    this.addListeners.forEach((l) => l(value));
+    return this;
+  }
+  delete(value: T) {
+    if (super.delete(value)) {
+      this.removeListeners.forEach((l) => l(value));
+      return true;
+    } else {
+      return false;
+    }
+  }
+  clear() {
+    super.forEach((entry) => this.delete(entry));
+  }
+}

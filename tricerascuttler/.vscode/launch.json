@@ -16,7 +16,11 @@
         "--inspect",
         "--allow-all"
       ],
-      "attachSimplePort": 9229
+      "attachSimplePort": 9229,
+      "env": {
+        "SPARQL_ENDPOINT_QUERY": "http://fuseki:3330/ds/query",
+        "SPARQL_ENDPOINT_UPDATE": "http://fuseki:3330/ds/update"
+      }
     }
   ]
 }

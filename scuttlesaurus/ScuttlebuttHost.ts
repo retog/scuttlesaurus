@@ -6,10 +6,12 @@ import RpcClientInterface from "./comm/rpc/RpcClientInterface.ts";
 import RpcServerInterface from "./comm/rpc/RpcServerInterface.ts";
 import RpcMethodsHandler from "./comm/rpc/RpcMethodsHandler.ts";
 import {
+Address,
   FeedId,
   fromBase64,
   KeyPair,
   log,
+  ObservableSet,
   parseAddress,
   parseFeedId,
 } from "./util.ts";
@@ -35,12 +37,26 @@ export default abstract class ScuttlebuttHost {
 
   readonly agents = new Set<Agent>();
 
+  /** Maintained here as they might be used by several agents */
+  readonly followees = new ObservableSet<FeedId>();
+  readonly peers = new ObservableSet<Address>();
+
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
 
   constructor(
     readonly config: Config,
   ) {
+    if (this.config.follow) {
+      this.config.follow.forEach((feedIdStr) =>
+        this.followees.add(parseFeedId(feedIdStr))
+      );
+    }
+    if (this.config.peers) {
+      this.config.peers.forEach((addrStr) =>
+        this.peers.add(parseAddress(addrStr))
+      );
+    }
     this.feedsAgent = this.createFeedsAgent();
     this.blobsAgent = this.createBlobsAgent();
     if (this.feedsAgent) this.agents.add(this.feedsAgent);
@@ -51,8 +67,8 @@ export default abstract class ScuttlebuttHost {
     const storage = this.createFeedsStorage();
     return new FeedsAgent(
       storage,
-      this.config.follow?.map(parseFeedId),
-      this.config.peers?.map(parseAddress),
+      this.followees,
+      this.peers,
     );
   }
 

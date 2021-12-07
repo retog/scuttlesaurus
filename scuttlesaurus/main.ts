@@ -57,6 +57,7 @@ function getDefaultConfig(baseDir: string) {
     },
     networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
     acceptIncomingConnections: true,
+    webControl: true,
   };
 }
 

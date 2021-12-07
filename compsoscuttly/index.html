@@ -26,11 +26,11 @@
 <body>
   <h1>Compsoscuttly: Scuttlesaurus in the browser</h1>
   <a id="opener"><svg viewBox="0 0 100 80" width="40" height="40">
-    <title>Settings</title>
-    <rect width="100" height="20"></rect>
-    <rect y="30" width="100" height="20"></rect>
-    <rect y="60" width="100" height="20"></rect>
-  </svg></a><br>
+      <title>Settings</title>
+      <rect width="100" height="20"></rect>
+      <rect y="30" width="100" height="20"></rect>
+      <rect y="60" width="100" height="20"></rect>
+    </svg></a><br>
   <p>The most recent messages as they arrive:</p>
   <select id="feedChooser"></select>
   <div id="log">
@@ -75,7 +75,7 @@
     populateFeedChooser();
 
     let feedShowTaskCount = 0;
-    const showSelectedFeed  = () => {
+    const showSelectedFeed = () => {
       const thisShowTask = ++feedShowTaskCount;
       const feedId = parseFeedId(feedChooser.value);
       const showFeed = async () => {
@@ -95,16 +95,21 @@
     host.agents = [host.feedsAgent];
     host.start();
     const peerList = document.getElementById("peerList");
-    host.feedsAgent.peers.forEach(peer => peerList.addValue(peer.toString()));
+    host.peers.forEach(peer => peerList.addValue(peer.toString()));
     peerList.addEventListener("change", (e) => {
+      console.log(`event: ${e.detail}`);
       console.log(`setting: ${peerList.values}`);
-      host.feedsAgent.peers = peerList.values.map(parseAddress);
+      //TODO be smarter
+      host.peers.clear();
+      peerList.values.forEach(addrStr => host.peers.add(parseAddress(addrStr)));
     });
     const feedsList = document.getElementById("feedsList");
-    host.feedsAgent.subscriptions.forEach(peer => feedsList.addValue(peer.toString()));
+    host.followees.forEach(peer => feedsList.addValue(peer.toString()));
     feedsList.addEventListener("change", (e) => {
       console.log(`setting: ${feedsList.values}`);
-      host.feedsAgent.subscriptions = feedsList.values.map(parseFeedId);
+      //TODO be smarter
+      host.followees.clear();
+      feedsList.values.forEach(feedIdStr => host.followees.add(parseFeedId(feedIdStr)));
       host.connectionManager.reset();
       populateFeedChooser();
     });

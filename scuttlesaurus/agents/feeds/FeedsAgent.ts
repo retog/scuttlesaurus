@@ -8,6 +8,7 @@ import {
   JSONValue,
   log,
   NotFoundError,
+  ObservableSet,
   parseFeedId,
   toBase64,
   verifySignature,
@@ -32,8 +33,8 @@ export type Message = {
 export default class FeedsAgent extends Agent {
   constructor(
     public feedsStorage: FeedsStorage,
-    public subscriptions: FeedId[] = [],
-    public peers: Address[] = [],
+    public subscriptions: ObservableSet<FeedId>,
+    public peers: ObservableSet<Address>,
   ) {
     super();
   }
@@ -91,11 +92,19 @@ export default class FeedsAgent extends Agent {
     function getRandomInt(min: number, max: number) {
       return Math.floor(Math.random() * (max - min) + min);
     }
-    if (this.peers.length === 0) {
+    if (this.peers.size === 0) {
       console.warn("No peer known.");
-      while (this.peers.length === 0) await delay(1000);
+      //return the first we get
+      return await new Promise((resolve) => {
+        const listener = (addr: Address) => {
+          this.peers.removeAddListener(listener);
+          resolve(addr);
+        };
+        this.peers.addAddListener(listener);
+      });
+    } else {
+      return [...this.peers][getRandomInt(0, this.peers.size)];
     }
-    return this.peers[getRandomInt(0, this.peers.length)];
   }
 
   async run(connector: ConnectionManager): Promise<void> {
@@ -260,7 +269,7 @@ export default class FeedsAgent extends Agent {
   private updateFeeds(rpcConnection: RpcConnection) {
     const subscriptions = this.subscriptions;
     return Promise.all(
-      subscriptions.map((feed) => this.updateFeed(rpcConnection, feed)),
+      [...subscriptions].map((feed) => this.updateFeed(rpcConnection, feed)),
     );
   }
 }
