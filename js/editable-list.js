@@ -92,9 +92,10 @@
       );
 
       if (textInput.value) {
-        this.addValue(textInput.value);
+        const newValue = textInput.value
+        this.addValue(newValue);
         textInput.value = "";
-        this.dispatchEvent(new CustomEvent("change"));
+        this.dispatchEvent(new CustomEvent("change", {detail: newValue}));
       }
     }
 
@@ -105,9 +106,9 @@
       ]);
     }
 
-    
-      
-    
+
+
+
 
     // gathering data from element attributes
     get title() {

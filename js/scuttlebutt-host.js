@@ -19530,6 +19530,41 @@ async function* combine(...iterable) {
     }
     return results;
 }
+class ObservableSet extends Set {
+    addListeners = new Set();
+    addAddListener(l) {
+        this.addListeners.add(l);
+    }
+    removeAddListener(l) {
+        this.addListeners.delete(l);
+    }
+    removeListeners = new Set();
+    addRemoveListener(l) {
+        this.removeListeners.add(l);
+    }
+    removeRemoveListener(l) {
+        this.removeListeners.delete(l);
+    }
+    add(value) {
+        super.add(value);
+        this.addListeners.forEach((l)=>l(value)
+        );
+        return this;
+    }
+    delete(value) {
+        if (super.delete(value)) {
+            this.removeListeners.forEach((l)=>l(value)
+            );
+            return true;
+        } else {
+            return false;
+        }
+    }
+    clear() {
+        super.forEach((entry)=>this.delete(entry)
+        );
+    }
+}
 class BoxConnection extends EventTarget {
     conn;
     closed = false;
@@ -20131,7 +20166,7 @@ class FeedsAgent extends Agent {
     feedsStorage;
     subscriptions;
     peers;
-    constructor(feedsStorage, subscriptions = [], peers = []){
+    constructor(feedsStorage, subscriptions, peers){
         super();
         this.feedsStorage = feedsStorage;
         this.subscriptions = subscriptions;
@@ -20180,11 +20215,20 @@ class FeedsAgent extends Agent {
         function getRandomInt(min, max) {
             return Math.floor(Math.random() * (max - min) + min);
         }
-        if (this.peers.length === 0) {
+        if (this.peers.size === 0) {
             console.warn("No peer known.");
-            while(this.peers.length === 0)await delay(1000);
+            return await new Promise((resolve)=>{
+                const listener = (addr)=>{
+                    this.peers.removeAddListener(listener);
+                    resolve(addr);
+                };
+                this.peers.addAddListener(listener);
+            });
+        } else {
+            return [
+                ...this.peers
+            ][getRandomInt(0, this.peers.size)];
         }
-        return this.peers[getRandomInt(0, this.peers.length)];
     }
     async run(connector) {
         const onGoingVonnectionAttempts = new Set();
@@ -20294,7 +20338,9 @@ class FeedsAgent extends Agent {
     }
     updateFeeds(rpcConnection) {
         const subscriptions = this.subscriptions;
-        return Promise.all(subscriptions.map((feed)=>this.updateFeed(rpcConnection, feed)
+        return Promise.all([
+            ...subscriptions
+        ].map((feed)=>this.updateFeed(rpcConnection, feed)
         ));
     }
 }
@@ -20520,10 +20566,20 @@ class ScuttlebuttHost {
     transportClients = new Set();
     transportServers = new Set();
     agents = new Set();
+    followees = new ObservableSet();
+    peers = new ObservableSet();
     feedsAgent;
     blobsAgent;
     constructor(config){
         this.config = config;
+        if (this.config.follow) {
+            this.config.follow.forEach((feedIdStr)=>this.followees.add(parseFeedId1(feedIdStr))
+            );
+        }
+        if (this.config.peers) {
+            this.config.peers.forEach((addrStr)=>this.peers.add(parseAddress1(addrStr))
+            );
+        }
         this.feedsAgent = this.createFeedsAgent();
         this.blobsAgent = this.createBlobsAgent();
         if (this.feedsAgent) this.agents.add(this.feedsAgent);
@@ -20531,7 +20587,7 @@ class ScuttlebuttHost {
     }
     createFeedsAgent() {
         const storage = this.createFeedsStorage();
-        return new FeedsAgent(storage, this.config.follow?.map(parseFeedId1), this.config.peers?.map(parseAddress1));
+        return new FeedsAgent(storage, this.followees, this.peers);
     }
     createBlobsAgent() {
         const storage = this.createBlobsStorage();
