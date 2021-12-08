@@ -19386,6 +19386,9 @@ function parseAddress1(addr) {
             key: new FeedId(fromBase64(keyString)),
             toString: ()=>{
                 return addr;
+            },
+            toJSON: ()=>{
+                return addr;
             }
         };
     } catch (error) {
