@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peers</title>
+</head>
+
+<body>
+    <ul id="peerList">
+
+    </ul>
+    Add peer: <input id="newPeer" type="text" size="90" />
+    <script>
+        async function populateList() {
+            const response = await fetch("./peers");
+            const peers = await response.json();
+            peerList.replaceChildren();
+            peers.forEach(peer => {
+                peerList.insertAdjacentHTML("beforeend", `<li>${peer}</li>`)
+            });
+        }
+        newPeer.addEventListener("keypress", async (e) => {
+            if (e.key === 'Enter') {
+                await fetch("./peers", {
+                    "headers": {
+                        "Accept": "application/json,*/*;q=0.9",
+                        "Content-Type": "application/json",
+                    },
+                    "body": JSON.stringify({ "address": e.target.value }),
+                    "method": "POST",
+                });
+                populateList();
+                e.target.value = "";
+            }
+        });
+        populateList();
+        console.log("all set")
+    </script>
+</body>
+
+</html>
