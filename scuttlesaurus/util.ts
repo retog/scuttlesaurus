@@ -398,8 +398,10 @@ export class ObservableSet<T> extends Set<T> {
   }
 
   add(value: T) {
-    super.add(value);
-    this.addListeners.forEach((l) => l(value));
+    if (!super.has(value)) {
+      super.add(value);
+      this.addListeners.forEach((l) => l(value));
+    }
     return this;
   }
   delete(value: T) {
