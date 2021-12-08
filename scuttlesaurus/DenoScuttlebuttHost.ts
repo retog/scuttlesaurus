@@ -11,6 +11,7 @@ import {
   fromBase64,
   log,
   parseAddress,
+  parseFeedId,
   path,
   sodium,
   toBase64,
@@ -90,6 +91,12 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         const { address } = await value;
         this.peers.add(parseAddress(address));
         ctx.response.body = "Added peer";
+      });
+      this.controlAppRouter.post("/followees", async (ctx: Context) => {
+        const { value } = ctx.request.body({ type: "json" });
+        const { id } = await value;
+        this. followees.add(parseFeedId(id));
+        ctx.response.body = "Added followee";
       });
       this.controlApp.use(this.controlAppRouter.routes());
       this.controlApp.use(this.controlAppRouter.allowedMethods());
