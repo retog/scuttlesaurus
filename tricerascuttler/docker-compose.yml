@@ -16,4 +16,4 @@ services:
     ports:
       - "3330:3330" # handy for development, remove in production
     volumes:
-      - ./fuseki-dataset:/var/fuseki-minimal
+      - ./fuseki-dataset:/root/.fuseki-minimal
