@@ -19533,7 +19533,53 @@ async function* combine(...iterable) {
     }
     return results;
 }
-class ObservableSet extends Set {
+class TSESet {
+    map = new Map();
+    add(value) {
+        this.map.set(value.toString(), value);
+        return this;
+    }
+    clear() {
+        this.map.clear();
+    }
+    delete(value) {
+        return this.map.delete(value.toString());
+    }
+    forEach(callbackfn, thisArg) {
+        this.map.forEach((value)=>{
+            callbackfn.apply(thisArg, [
+                value,
+                value,
+                this
+            ]);
+        });
+    }
+    has(value) {
+        return this.map.has(value.toString());
+    }
+    get size() {
+        return this.map.size;
+    }
+    *entries() {
+        for (const value of this.values()){
+            yield [
+                value,
+                value
+            ];
+        }
+    }
+    keys() {
+        return this.map.values();
+    }
+    values() {
+        return this.map.values();
+    }
+    [Symbol.iterator]() {
+        return this.map.values();
+    }
+    [Symbol.toStringTag] = "TSESet";
+}
+class ObservableSet extends TSESet {
     addListeners = new Set();
     addAddListener(l) {
         this.addListeners.add(l);
