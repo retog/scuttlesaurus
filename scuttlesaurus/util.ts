@@ -383,8 +383,52 @@ export function flatten<T>(
     },
   };
 }
+/** toString-Equality Set */
+export class TSESet<T extends { toString: () => string }> implements Set<T> {
+  map = new Map<string, T>();
+  add(value: T): this {
+    this.map.set(value.toString(), value);
+    return this;
+  }
+  clear(): void {
+    this.map.clear();
+  }
+  delete(value: T): boolean {
+    return this.map.delete(value.toString());
+  }
+  forEach(
+    callbackfn: (value: T, value2: T, set: Set<T>) => void,
+    // deno-lint-ignore no-explicit-any
+    thisArg?: any,
+  ): void {
+    this.map.forEach((value) => {
+      callbackfn.apply(thisArg, [value, value, this]);
+    });
+  }
+  has(value: T): boolean {
+    return this.map.has(value.toString());
+  }
+  get size() {
+    return this.map.size;
+  }
+  *entries(): IterableIterator<[T, T]> {
+    for (const value of this.values()) {
+      yield [value, value];
+    }
+  }
+  keys(): IterableIterator<T> {
+    return this.map.values();
+  }
+  values(): IterableIterator<T> {
+    return this.map.values();
+  }
+  [Symbol.iterator](): IterableIterator<T> {
+    return this.map.values();
+  }
+  [Symbol.toStringTag]: string = "TSESet";
+}
 
-export class ObservableSet<T> extends Set<T> {
+export class ObservableSet<T> extends TSESet<T> {
   private addListeners: Set<((value: T) => void)> = new Set();
   addAddListener(l: (value: T) => void) {
     this.addListeners.add(l);
