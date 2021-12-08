@@ -4,49 +4,76 @@ import FeedsAgent, {
 import {
   FeedId,
   JSONValue,
-  log,
   parseBlobId,
   parseFeedId,
   parseMsgKey,
 } from "../scuttlesaurus/util.ts";
 
-function getRequiredEnvVar(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) {
-    throw new Error(`The environment variable "${name}" must be set.`);
-  }
-  log.debug(() => `${name} set to ${value}`);
-  return value;
-}
+export default class SparqlStorer {
+  constructor(
+    public sparqlEndpointQuery: string,
+    public sparqlEndpointUpdate: string,
+  ) {}
 
-const sparqlEndpointQuery = getRequiredEnvVar("SPARQL_ENDPOINT_QUERY");
-const sparqlEndpointUpdate = getRequiredEnvVar("SPARQL_ENDPOINT_UPDATE");
-
-export function loadIntoGraph(feedsAgent: FeedsAgent) {
-  feedsAgent.subscriptions.map(async (feedId: FeedId) => {
-    const fromMessage = await firstUnrecordedMessage(feedId);
-    const msgFeed = feedsAgent.getFeed(feedId, {
-      fromMessage,
+  /** stored exsting and new messages in the triple store*/
+  connectAgent(feedsAgent: FeedsAgent) {
+    feedsAgent.subscriptions.forEach(async (feedId: FeedId) => {
+      const fromMessage = await this.firstUnrecordedMessage(feedId);
+      const msgFeed = feedsAgent.getFeed(feedId, {
+        fromMessage,
+      });
+      const graphFeed = msgsToSparql(msgFeed);
+      for await (const sparqlStatement of graphFeed) {
+        await this.runSparqlStatement(sparqlStatement);
+      }
     });
-    const graphFeed = msgsToSparql(msgFeed);
-    for await (const sparqlStatement of graphFeed) {
-      await runSparqlStatement(sparqlStatement);
-    }
-  });
-}
-
-async function runSparqlStatement(sparqlStatement: string) {
-  const response = await fetch(sparqlEndpointUpdate, {
-    "headers": {
-      "Accept": "text/plain,*/*;q=0.9",
-      "Content-Type": "application/sparql-update",
-    },
-    "body": sparqlStatement,
-    "method": "POST",
-  });
-  if (response.status >= 300) {
-    throw new Error(response.statusText);
   }
+  private async runSparqlStatement(sparqlStatement: string) {
+    const response = await fetch(this.sparqlEndpointUpdate, {
+      "headers": {
+        "Accept": "text/plain,*/*;q=0.9",
+        "Content-Type": "application/sparql-update",
+      },
+      "body": sparqlStatement,
+      "method": "POST",
+    });
+    if (response.status >= 300) {
+      throw new Error(response.statusText);
+    }
+  }
+  private async firstUnrecordedMessage(feedId: FeedId): Promise<number> {
+    const query = `
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX ssb: <ssb:ontology:>
+    
+    SELECT ?author ?seq WHERE {
+      ?msg rdf:type ssb:Message;
+      ssb:author <${feedId.toUri()}>;
+      ssb:seq ?seq.
+    
+    } ORDER BY DESC(?seq) LIMIT 1`;
+    const response = await fetch(this.sparqlEndpointQuery, {
+      "headers": {
+        "Accept": "application/sparql-results+json,*/*;q=0.9",
+        "Content-Type": "application/sparql-query",
+      },
+      "body": query,
+      "method": "POST",
+    });
+    if (response.status >= 300) {
+      throw new Error(response.statusText);
+    }
+  
+    const resultJson = await response.json();
+    if (resultJson.results.bindings.length === 1) {
+      return parseInt(resultJson.results.bindings[0].seq.value) + 1;
+    } else {
+      return 1;
+    }
+  }
+  
+  //end clas
 }
 
 type RichMessage = Message & {
@@ -90,6 +117,7 @@ function msgToSparql(msg: RichMessage) {
             <${msgUri}> rdf:type <ssb:type:encrypted>
         }`;
   }
+
 }
 
 type FeedIdStr = `@${string}.ed25519`;
@@ -235,37 +263,6 @@ function sigilToIri(sigil: string) {
   }
 }
 
-async function firstUnrecordedMessage(feedId: FeedId): Promise<number> {
-  const query = `
-  PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-  PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-  PREFIX ssb: <ssb:ontology:>
-  
-  SELECT ?author ?seq WHERE {
-    ?msg rdf:type ssb:Message;
-    ssb:author <${feedId.toUri()}>;
-    ssb:seq ?seq.
-  
-  } ORDER BY DESC(?seq) LIMIT 1`;
-  const response = await fetch(sparqlEndpointQuery, {
-    "headers": {
-      "Accept": "application/sparql-results+json,*/*;q=0.9",
-      "Content-Type": "application/sparql-query",
-    },
-    "body": query,
-    "method": "POST",
-  });
-  if (response.status >= 300) {
-    throw new Error(response.statusText);
-  }
-
-  const resultJson = await response.json();
-  if (resultJson.results.bindings.length === 1) {
-    return parseInt(resultJson.results.bindings[0].seq.value) + 1;
-  } else {
-    return 1;
-  }
-}
 
 function escapeLiteral(text: string) {
   return text.replaceAll("\\", "\\\\")
