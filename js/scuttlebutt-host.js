@@ -19546,9 +19546,11 @@ class ObservableSet extends Set {
         this.removeListeners.delete(l);
     }
     add(value) {
-        super.add(value);
-        this.addListeners.forEach((l)=>l(value)
-        );
+        if (!super.has(value)) {
+            super.add(value);
+            this.addListeners.forEach((l)=>l(value)
+            );
+        }
         return this;
     }
     delete(value) {

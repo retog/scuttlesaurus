@@ -8,7 +8,6 @@
     }
     // fires after the element has been attached to the DOM
     connectedCallback() {
-
       // attaches shadow tree and returns shadow root reference
       // https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow
       const shadow = this.attachShadow({ mode: "open" });
@@ -92,10 +91,10 @@
       );
 
       if (textInput.value) {
-        const newValue = textInput.value
+        const newValue = textInput.value;
         this.addValue(newValue);
         textInput.value = "";
-        this.dispatchEvent(new CustomEvent("change", {detail: newValue}));
+        this.dispatchEvent(new CustomEvent("change", { detail: newValue }));
       }
     }
 
@@ -105,10 +104,6 @@
         ...this.shadowRoot.querySelectorAll(".editable-list-remove-item"),
       ]);
     }
-
-
-
-
 
     // gathering data from element attributes
     get title() {
