@@ -161,6 +161,11 @@ type About = {
   description?: string;
   title?: string;
 };
+type OldSchoolAddress = { host: string; port: number; key: FeedIdStr };
+type Pub = {
+  type: "pub";
+  address: string | OldSchoolAddress;
+};
 
 /**
  * functions that return the turtle/sparql predicates describning the content of a message
@@ -233,6 +238,17 @@ const contentSerializers: Record<string, (content: JSONValue) => string> = {
         : ""
     }
     `;
+  }) as (content: JSONValue) => string,
+  "pub": ((content: Pub) => {
+    console.log(JSON.stringify(content));
+    const oldSchool2String = (old: OldSchoolAddress) =>
+      `net:${old.host}:${old.port}~shs:${parseFeedId(old.key).base64Key}`;
+    const address = typeof content.address === "string"
+      ? content.address
+      : oldSchool2String(content.address as OldSchoolAddress);
+    return `
+      rdf:type ssb:Pub;
+      ssb:address "${escapeLiteral(address)}"`;
   }) as (content: JSONValue) => string,
 };
 
