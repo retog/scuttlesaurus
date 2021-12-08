@@ -1,5 +1,6 @@
 //https://deno.land/x/scuttlesaurus@0.1.0/
 import { Context } from "https://deno.land/x/oak@v10.0.0/context.ts";
+import staticFiles from "https://x.nest.land/static_files@1.1.2/mod.ts";
 import { createScuttlebuttHost } from "../scuttlesaurus/main.ts";
 import SparqlStorer from "./SparqlStorer.ts";
 import { log } from "../scuttlesaurus/util.ts";
@@ -22,4 +23,5 @@ storer.connectAgent(host.feedsAgent!);
 host.controlAppRouter!.get("/query", (ctx: Context) => {
   ctx.response.body = `TODO: Query proxy to ${sparqlEndpointQuery}`;
 });
+host.controlApp!.use(staticFiles("static"));
 host.start();
