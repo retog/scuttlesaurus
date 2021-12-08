@@ -9,7 +9,8 @@ The project mascot is a
 
 ## Usage
 
-To create a library of the relevant parts of [Scuttlesaurus](../scuttlesaurus) to use in the browser run:
+To create a library of the relevant parts of [Scuttlesaurus](../scuttlesaurus)
+to use in the browser run:
 
     deno run --unstable -A build.ts
 

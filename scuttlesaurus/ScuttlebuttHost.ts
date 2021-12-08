@@ -6,7 +6,7 @@ import RpcClientInterface from "./comm/rpc/RpcClientInterface.ts";
 import RpcServerInterface from "./comm/rpc/RpcServerInterface.ts";
 import RpcMethodsHandler from "./comm/rpc/RpcMethodsHandler.ts";
 import {
-Address,
+  Address,
   FeedId,
   fromBase64,
   KeyPair,

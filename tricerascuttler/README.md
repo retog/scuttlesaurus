@@ -3,7 +3,7 @@
 Consumes a set of feeds using Scuttlesaurus to aggregate the data in an RDF
 store accessed via SPARQL.
 
-![](https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/LA-Triceratops_mount-2.jpg/1280px-LA-Triceratops_mount-2.jpg) 
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/LA-Triceratops_mount-2.jpg/1280px-LA-Triceratops_mount-2.jpg)
 
 ## Running
 
@@ -26,5 +26,8 @@ environment variables.
 
 ## Mascot
 
-The project mascot is a [Triceratops prorsus](https://synospecies.plazi.org/#Triceratops+prorsus) a friendly herbivore than can weigh up to 12'000 Kg. Its image near the top of this document is from [Wikimedia](https://commons.wikimedia.org/wiki/File:LA-Triceratops_mount-1.jpg).
-
+The project mascot is a
+[Triceratops prorsus](https://synospecies.plazi.org/#Triceratops+prorsus) a
+friendly herbivore than can weigh up to 12'000 Kg. Its image near the top of
+this document is from
+[Wikimedia](https://commons.wikimedia.org/wiki/File:LA-Triceratops_mount-1.jpg).

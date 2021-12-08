@@ -1,5 +1,4 @@
 //https://deno.land/x/scuttlesaurus@0.1.0/
-import { Context } from "https://deno.land/x/oak@v10.0.0/context.ts";
 import staticFiles from "https://x.nest.land/static_files@1.1.2/mod.ts";
 import { proxy } from "https://deno.land/x/oak_http_proxy@2.0.0/mod.ts";
 import { createScuttlebuttHost } from "../scuttlesaurus/main.ts";
