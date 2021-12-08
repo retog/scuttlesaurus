@@ -93,9 +93,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       });
       this.controlApp.use(this.controlAppRouter.routes());
       this.controlApp.use(this.controlAppRouter.allowedMethods());
-      this.controlApp.use((ctx: Context) => {
-        ctx.response.body = "Scuttlesaurus contrtol interface";
-      });
       this.controlApp.listen({ port: 8000 }).catch((e) =>
         log.error(`Error with control app ${e}`)
       );
