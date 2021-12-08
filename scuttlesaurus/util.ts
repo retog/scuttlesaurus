@@ -97,6 +97,7 @@ export interface Address {
   port: number;
   key: FeedId;
   toString: () => string;
+  toJSON: () => string;
 }
 
 export type JSONValue =
@@ -117,6 +118,9 @@ export function parseAddress(addr: string): Address {
       port,
       key: new FeedId(fromBase64(keyString)),
       toString: () => {
+        return addr;
+      },
+      toJSON: () => {
         return addr;
       },
     };

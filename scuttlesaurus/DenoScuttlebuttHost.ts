@@ -92,11 +92,17 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         this.peers.add(parseAddress(address));
         ctx.response.body = "Added peer";
       });
+      this.controlAppRouter.get("/peers", (ctx: Context) => {
+        ctx.response.body = JSON.stringify([...this.peers]);
+      });
       this.controlAppRouter.post("/followees", async (ctx: Context) => {
         const { value } = ctx.request.body({ type: "json" });
         const { id } = await value;
         this.followees.add(parseFeedId(id));
         ctx.response.body = "Added followee";
+      });
+      this.controlAppRouter.get("/followees", (ctx: Context) => {
+        ctx.response.body = JSON.stringify([...this.followees]);
       });
       this.controlApp.use(this.controlAppRouter.routes());
       this.controlApp.use(this.controlAppRouter.allowedMethods());
