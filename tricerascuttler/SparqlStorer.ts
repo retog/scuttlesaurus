@@ -17,7 +17,7 @@ export default class SparqlStorer {
 
   /** stored exsting and new messages in the triple store*/
   connectAgent(feedsAgent: FeedsAgent) {
-    feedsAgent.subscriptions.forEach(async (feedId: FeedId) => {
+    const processFeed = async (feedId: FeedId) => {
       const fromMessage = await this.firstUnrecordedMessage(feedId);
       const msgFeed = feedsAgent.getFeed(feedId, {
         fromMessage,
@@ -26,7 +26,9 @@ export default class SparqlStorer {
       for await (const sparqlStatement of graphFeed) {
         await this.runSparqlStatement(sparqlStatement);
       }
-    });
+    };
+    feedsAgent.subscriptions.forEach(processFeed);
+    feedsAgent.subscriptions.addAddListener(processFeed);
   }
   private async runSparqlStatement(sparqlStatement: string) {
     const response = await fetch(this.sparqlEndpointUpdate, {
@@ -64,7 +66,7 @@ export default class SparqlStorer {
     if (response.status >= 300) {
       throw new Error(response.statusText);
     }
-  
+
     const resultJson = await response.json();
     if (resultJson.results.bindings.length === 1) {
       return parseInt(resultJson.results.bindings[0].seq.value) + 1;
@@ -72,7 +74,7 @@ export default class SparqlStorer {
       return 1;
     }
   }
-  
+
   //end clas
 }
 
@@ -117,7 +119,6 @@ function msgToSparql(msg: RichMessage) {
             <${msgUri}> rdf:type <ssb:type:encrypted>
         }`;
   }
-
 }
 
 type FeedIdStr = `@${string}.ed25519`;
@@ -262,7 +263,6 @@ function sigilToIri(sigil: string) {
       throw new Error("unrecognized sigil type: " + sigil);
   }
 }
-
 
 function escapeLiteral(text: string) {
   return text.replaceAll("\\", "\\\\")
