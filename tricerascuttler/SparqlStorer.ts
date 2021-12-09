@@ -87,7 +87,7 @@ async function* msgsToSparql(feed: AsyncIterable<Message>) {
     try {
       yield msgToSparql(msg as RichMessage);
     } catch (error) {
-      console.error(`Transforming ${JSON.stringify(msg)}: ${error}`);
+      console.error(`Transforming ${JSON.stringify(msg)}: ${error}\nThe message will be ignored`);
     }
   }
 }
