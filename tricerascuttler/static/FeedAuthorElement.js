@@ -3,11 +3,12 @@ async function getDescription(feedUri) {
 
   SELECT ?name ?description ?image {
     ?about ssb:content ?aboutContent.
+    ?about ssb:timestamp ?timestamp.
     ?aboutContent ssb:about <${feedUri}>.
     OPTIONAL {  ?aboutContent ssb:name ?name }
     OPTIONAL {  ?aboutContent ssb:description ?description }
     OPTIONAL {  ?aboutContent ssb:image ?image }
-  }`; //TODO sort
+  } ORDER BY ASC(?timestamp)`; 
   const response = await fetch("/query", {
     "headers": {
       "Accept": "application/sparql-results+json,*/*;q=0.9",
