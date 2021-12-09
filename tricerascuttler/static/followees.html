@@ -6,31 +6,31 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-    <title>Peers</title>
+    <title>Followees</title>
 </head>
 
 <body>
-    <ul id="peerList">
+    <ul id="followeeList">
 
     </ul>
-    Add peer: <input id="newPeer" type="text" size="90" />
+    Add followee: <input id="newFollowee" type="text" size="90" />
     <script>
         async function populateList() {
-            const response = await fetch("./peers");
-            const peers = await response.json();
-            peerList.replaceChildren();
-            peers.forEach(peer => {
-                peerList.insertAdjacentHTML("beforeend", `<li>${peer}</li>`)
+            const response = await fetch("./followees");
+            const followees = await response.json();
+            followeeList.replaceChildren();
+            followees.forEach(followee => {
+                followeeList.insertAdjacentHTML("beforeend", `<li>${followee}</li>`)
             });
         }
-        newPeer.addEventListener("keypress", async (e) => {
+        newFollowee.addEventListener("keypress", async (e) => {
             if (e.key === 'Enter') {
-                await fetch("./peers", {
+                await fetch("./followees", {
                     "headers": {
                         "Accept": "application/json,*/*;q=0.9",
                         "Content-Type": "application/json",
                     },
-                    "body": JSON.stringify({ "address": e.target.value }),
+                    "body": JSON.stringify({ "id": e.target.value }),
                     "method": "POST",
                 });
                 populateList();
