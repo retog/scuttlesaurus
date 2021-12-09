@@ -21,6 +21,24 @@
         "SPARQL_ENDPOINT_QUERY": "http://fuseki:3330/ds/query",
         "SPARQL_ENDPOINT_UPDATE": "http://fuseki:3330/ds/update"
       }
+    },
+    {
+      "request": "launch",
+      "name": "Launch Current file",
+      "type": "pwa-node",
+      "program": "${workspaceFolder}/${relativeFile}",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": [
+        "run",
+        "--inspect",
+        "--allow-all"
+      ],
+      "attachSimplePort": 9229,
+      "env": {
+        "SPARQL_ENDPOINT_QUERY": "http://fuseki:3330/ds/query",
+        "SPARQL_ENDPOINT_UPDATE": "http://fuseki:3330/ds/update"
+      }
     }
   ]
 }
