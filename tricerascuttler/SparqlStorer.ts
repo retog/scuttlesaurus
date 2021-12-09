@@ -105,12 +105,13 @@ function msgToSparql(msg: RichMessage) {
             <${msgUri}> rdf:type ssb:Message;
             ssb:seq ${msg.value.sequence};
             ssb:author <${feedIdToUri(msg.value.author as FeedIdStr)}>;
-            ssb:content ${
+            ${
       contentSerializers[content.type]
-        ? `[${contentSerializers[content.type!](content)}].`
-        : `"${escapeLiteral(JSON.stringify(content))}".`
+        ? `ssb:content [${contentSerializers[content.type!](content)}];`
+        : `;`
     }
-        }`;
+    ssb:raw "${escapeLiteral(JSON.stringify(content))}".
+          }`;
   } else {
     return `PREFIX ssb: <ssb:ontology:>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
