@@ -80,6 +80,7 @@ export default class SparqlStorer {
 
 type RichMessage = Message & {
   value: { content: { type?: string } };
+  timestamp: number;
 };
 
 async function* msgsToSparql(feed: AsyncIterable<Message>) {
@@ -94,6 +95,7 @@ async function* msgsToSparql(feed: AsyncIterable<Message>) {
 
 function msgToSparql(msg: RichMessage) {
   const msgUri = parseMsgKey(msg.key).toUri();
+  const timestamp = msg.timestamp;
   const content = (msg.value).content;
   if (content.type) {
     return `
@@ -104,6 +106,7 @@ function msgToSparql(msg: RichMessage) {
         {
             <${msgUri}> rdf:type ssb:Message;
             ssb:seq ${msg.value.sequence};
+            ssb:timestamp ${timestamp};
             ssb:author <${feedIdToUri(msg.value.author as FeedIdStr)}>;
             ${
       contentSerializers[content.type]
