@@ -26,7 +26,7 @@ export class FeedId extends Uint8Array {
   }
 
   get base64FilenameSafe() {
-    return filenameSafeAlphabetRFC3548(this.base64Key);
+    return toFilenameSafeAlphabet(this.base64Key);
   }
 
   toUri(): string {
@@ -51,7 +51,7 @@ export class BlobId extends Uint8Array {
   }
 
   get base64FilenameSafe() {
-    return filenameSafeAlphabetRFC3548(this.base64Key);
+    return toFilenameSafeAlphabet(this.base64Key);
   }
 
   toUri(): string {
@@ -76,7 +76,7 @@ export class MsgKey extends Uint8Array {
   }
 
   get base64FilenameSafe() {
-    return filenameSafeAlphabetRFC3548(this.base64Key);
+    return toFilenameSafeAlphabet(this.base64Key);
   }
 
   toUri(): string {
@@ -197,9 +197,12 @@ export async function readBytes(reader: Deno.Reader, length: number) {
   }
   return result;
 }
-/** convert base64 from standard to filename-safe alphabet */
-export const filenameSafeAlphabetRFC3548 = (orig: string) =>
+/** convert base64 from standard to filename-safe alphabet as per RFC3548*/
+export const toFilenameSafeAlphabet = (orig: string) =>
   orig.replaceAll("/", "_").replaceAll("+", "-");
+
+export const fromFilenameSafeAlphabet = (orig: string) =>
+  orig.replaceAll("_", "/").replaceAll("-", "+");
 
 export function toBase64(data: Uint8Array) {
   return sodium.to_base64(

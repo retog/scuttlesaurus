@@ -2,7 +2,7 @@ import {
   BlobId,
   exists,
   FeedId,
-  filenameSafeAlphabetRFC3548,
+  toFilenameSafeAlphabet,
   JSONValue,
   path,
   sha256Hash,
@@ -21,7 +21,7 @@ export default class FsStorage implements BlobsStorage, FeedsStorage {
 
   private getFeedDir(feedKey: FeedId) {
     const feedsDir = path.join(this.dataDir, "feeds");
-    return path.join(feedsDir, filenameSafeAlphabetRFC3548(feedKey.base64Key));
+    return path.join(feedsDir, toFilenameSafeAlphabet(feedKey.base64Key));
   }
 
   async storeMessage(feedKey: FeedId, position: number, msg: JSONValue) {
