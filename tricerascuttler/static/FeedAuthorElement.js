@@ -67,6 +67,7 @@ export class FeedAuthorElement extends HTMLElement {
       name: ${name} <br/>
       desc: ${description}<br/>
       image: ${image}</br>
+      ${image? `<img src="${image.replace("ssb:blob/","./blob/")}">`:""}
       </div>
       <slot></slot>
     `;
