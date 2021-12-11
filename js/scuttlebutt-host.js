@@ -19346,7 +19346,7 @@ class FeedId extends Uint8Array {
         return toBase64(this);
     }
     get base64FilenameSafe() {
-        return filenameSafeAlphabetRFC3548(this.base64Key);
+        return toFilenameSafeAlphabet(this.base64Key);
     }
     toUri() {
         return "ssb:feed/ed25519/" + this.base64FilenameSafe;
@@ -19364,7 +19364,7 @@ class BlobId extends Uint8Array {
         return toBase64(this);
     }
     get base64FilenameSafe() {
-        return filenameSafeAlphabetRFC3548(this.base64Key);
+        return toFilenameSafeAlphabet(this.base64Key);
     }
     toUri() {
         return "ssb:blob/sha256/" + this.base64FilenameSafe;
@@ -19436,7 +19436,7 @@ async function readBytes(reader, length) {
     }
     return result;
 }
-const filenameSafeAlphabetRFC3548 = (orig)=>orig.replaceAll("/", "_").replaceAll("+", "-")
+const toFilenameSafeAlphabet = (orig)=>orig.replaceAll("/", "_").replaceAll("+", "-")
 ;
 function toBase64(data) {
     return __default.to_base64(data, base64_variants.ORIGINAL_NO_PADDING);
