@@ -12,9 +12,36 @@ export function sigilToIri(sigil) {
       throw new Error("unrecognized sigil type: " + sigil);
   }
 }
+const sigilPrefix = {
+  feed: "@",
+  blob: "&",
+  message: "%",
+};
+export function iriToSigil(iri) {
+  const postPrefix = iri.substring(4);
+  const [type, cypher, safeHashPart] = postPrefix.split("/");
+  const hashPart = safeHashPart.replaceAll("_", "/").replaceAll("-", "+");
+  return `${sigilPrefix[type]}${hashPart}.${cypher}`;
+}
 
 export async function mainIdentity() {
   const response = await fetch("/whoami");
   const whoami = await response.json();
   return whoami.feedId;
+}
+
+export async function runQuery(query) {
+  const response = await fetch("/query", {
+    "headers": {
+      "Accept": "application/sparql-results+json,*/*;q=0.9",
+      "Content-Type": "application/sparql-query",
+    },
+    "body": query,
+    "method": "POST",
+  });
+  if (response.status >= 300) {
+    throw new Error(response.statusText);
+  }
+
+  return await response.json();
 }

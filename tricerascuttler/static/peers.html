@@ -14,7 +14,22 @@
 
     </ul>
     Add peer: <input id="newPeer" type="text" size="90" />
-    <script>
+    <ul id="potentialPeers">
+
+    </ul>
+    <script type="module">
+        import { runQuery } from "./web-util.js"
+        async function addPeer(peer) {
+            await fetch("./peers", {
+                "headers": {
+                    "Accept": "application/json,*/*;q=0.9",
+                    "Content-Type": "application/json",
+                },
+                "body": JSON.stringify({ "address": peer }),
+                "method": "POST",
+            });
+            populateList();
+        }
         async function populateList() {
             const response = await fetch("./peers");
             const peers = await response.json();
@@ -22,22 +37,43 @@
             peers.forEach(peer => {
                 peerList.insertAdjacentHTML("beforeend", `<li>${peer}</li>`)
             });
+            potentialPeers.replaceChildren();
+            for await (const pub of pubs()) {
+                if (peers.indexOf(pub) === -1) {
+                    const li = document.createElement("li");
+                    li.appendChild(document.createTextNode(pub));
+                    const button = document.createElement("button");
+                    li.appendChild(button);
+                    button.innerHTML = "Add";
+                    potentialPeers.appendChild(li);
+                    button.addEventListener("click", () => {
+                        addPeer(pub);
+                    })
+                }
+            }
+            return peers;
+        }
+        async function* pubs() {
+            const queryResults = await runQuery(`PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+                PREFIX ssb: <ssb:ontology:>
+
+                SELECT DISTINCT ?address WHERE {
+                    ?pub rdf:type ssb:Pub;
+                        ssb:address ?address.
+                }`);
+            for (const binding of queryResults.results.bindings) {
+                yield binding.address.value;
+            }
         }
         newPeer.addEventListener("keypress", async (e) => {
             if (e.key === 'Enter') {
-                await fetch("./peers", {
-                    "headers": {
-                        "Accept": "application/json,*/*;q=0.9",
-                        "Content-Type": "application/json",
-                    },
-                    "body": JSON.stringify({ "address": e.target.value }),
-                    "method": "POST",
-                });
-                populateList();
+                addPeer(e.target.value)
                 e.target.value = "";
             }
         });
-        populateList();
+        const peers = await populateList();
+
+
         console.log("all set")
     </script>
 </body>

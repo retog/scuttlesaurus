@@ -10,14 +10,24 @@
 </head>
 
 <body>
-    Web component showing a feed author:
-    <ssb-feed-author src="ssb:feed/ed25519/-qNos2XP9dfREX8qgNeA7V_KZPEYkRwreIuDqTWIqOI=" ></ssb-feed-author>
-    And another:
-    <ssb-feed-author src="ssb:feed/ed25519/OiW3wL03TKZfZGxh3Oa_IZ2PnlzgnGSukwsJ1E9GJgM=" ></ssb-feed-author>
-    And a full profile:
-    <ssb-profile src="ssb:feed/ed25519/hSBvRMxaMqe5W5RGrxyycPeK0FiO_t9r6nElg5IzBts=" ></ssb-profile>
+    Not seeing mutch? Maybe try <a href="http://localhost:8001/?uri=ssb:feed/ed25519/-qNos2XP9dfREX8qgNeA7V_KZPEYkRwreIuDqTWIqOI=">another profile</a>.
+    
+    <div id="main"></div>
+    
     <script type="module" src="FeedAuthorElement.js"></script>
     <script type="module" src="ProfileElement.js"></script>
+    <script type="module">
+        import { sigilToIri, mainIdentity }  from "./web-util.js";
+        
+        /** either specified as query parameter or the main identity */
+        async function mainResource() {
+            const searchParams = new URLSearchParams(document.location.search);
+            return searchParams.has("uri") ? searchParams.get("uri") : sigilToIri(await mainIdentity());
+        }
+        const uri = await mainResource()
+        main.innerHTML = `<ssb-profile src="${uri}"></ssb-profile>`;
+        //mainProfile.setAttribute("src", await mainResource());
+    </script>
 </body>
 
 </html>
