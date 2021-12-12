@@ -54,6 +54,7 @@ export class ProfileElement extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    
     const feedUri = this.getAttribute("src");
 
     let template = `
@@ -75,7 +76,7 @@ export class ProfileElement extends HTMLElement {
     .contacts{
       display: grid;
       grid-template-columns: 1fr 1fr;
-  }
+    }
   
     </style>
     <h1>profile</h1>
@@ -95,11 +96,13 @@ export class ProfileElement extends HTMLElement {
         }
         if (blocking.size > 0) {
           template += `<h2>Blocking</h2>
+          <div class="contacts">
           ${
             [...blocking].map((f) =>
-              `<ssb-feed-author src="${f}"></ssb-feed-author>`
+              `<ssb-feed-author src="${f}" class="contact"></ssb-feed-author>`
             ).join("<br>")
-          }`;
+          }
+          </div>`;
         }
         console.log(this);
         this.shadowRoot.innerHTML = template;

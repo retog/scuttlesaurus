@@ -8,7 +8,7 @@ async function getDescription(feedUri) {
     OPTIONAL {  ?aboutContent ssb:name ?name }
     OPTIONAL {  ?aboutContent ssb:description ?description }
     OPTIONAL {  ?aboutContent ssb:image ?image }
-  } ORDER BY ASC(?timestamp)`; 
+  } ORDER BY ASC(?timestamp)`;
   const response = await fetch("/query", {
     "headers": {
       "Accept": "application/sparql-results+json,*/*;q=0.9",
@@ -63,11 +63,11 @@ export class FeedAuthorElement extends HTMLElement {
       </style>
     
       <div>
-      id: ${feedUri}<br/>
+      id: <a href="?uri=${feedUri}">${feedUri}</a><br/>
       name: ${name} <br/>
       desc: ${description}<br/>
       image: ${image}</br>
-      ${image? `<img src="${image.replace("ssb:blob/","./blob/")}">`:""}
+      ${image ? `<img src="${image.replace("ssb:blob/", "./blob/")}">` : ""}
       </div>
       <slot></slot>
     `;
