@@ -8,6 +8,7 @@ import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import {
+FeedId,
   fromBase64,
   log,
   parseAddress,
@@ -86,6 +87,11 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     if (config.webControl || (typeof (config.webControl) === "undefined")) {
       this.controlApp = new Application();
       this.controlAppRouter = new Router();
+      this.controlAppRouter.get("/whoami", (ctx: Context) => {
+        ctx.response.body = JSON.stringify({
+          feedId: new FeedId(this.getClientKeyPair().publicKey),
+        });
+      });
       this.controlAppRouter.post("/peers", async (ctx: Context) => {
         const { value } = ctx.request.body({ type: "json" });
         const { address } = await value;
