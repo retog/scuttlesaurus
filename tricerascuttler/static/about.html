@@ -11,18 +11,48 @@
 
 <body>
     <ssb-header></ssb-header>
+    <p id="instance">
+
+    </p>
+    <script type="module">
+        import { runQuery, mainIdentity } from "./web-util.js";
+
+        async function tripleCount() {
+            const result = await runQuery(`SELECT (COUNT(*) as ?count) WHERE { ?s ?p ?o}`)
+            return parseInt(result.results.bindings[0].count.value)
+        }
+
+        async function messagesCount() {
+            const result = await runQuery(`PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+                PREFIX ssb: <ssb:ontology:>
+
+                SELECT (COUNT(DISTINCT ?s) as ?count) WHERE { ?s rdf:type ssb:Message}`)
+            return parseInt(result.results.bindings[0].count.value)
+        }
+        const tripleCountP = tripleCount();
+        const messagesCountP = messagesCount();
+        const mainIdentityP = mainIdentity();
+        document.getElementById("instance").innerHTML = `
+        <h1>This instance</h1>
+        <ul>
+        <li>Messages: ${(await messagesCountP).toLocaleString()}</li>
+        <li>Triples: ${(await tripleCountP).toLocaleString()}</li>
+        <li>Identity: <ssb-feed-author src="${await mainIdentityP}"></ssb-feed-author></li>
+        </ul>
+        `;
+    </script>
+    <h1>Powered by Triceracuttler</h1>
     <p>
         Triceracuttler uses Scuttlesaurus to aggregate Scuttlebutt
         data in an RDF Store.
     </p>
     Developped by:
     <ssb-feed-author src="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c="></ssb-feed-author>
-
     <p>
-    Sourcecode on <a href="https://github.com/retog/scuttlesaurus/tree/master/tricerascuttler">Github</a>.
+        Sourcecode on <a href="https://github.com/retog/scuttlesaurus/tree/master/tricerascuttler">Github</a>.
     </p>
+
     <script type="module" src="FeedAuthorElement.js"></script>
-    <script type="module" src="ProfileElement.js"></script>
     <script type="module" src="HeaderElement.js"></script>
 
 </body>
