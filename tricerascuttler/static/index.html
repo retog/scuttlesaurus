@@ -10,15 +10,19 @@
 </head>
 
 <body>
-    Not seeing mutch? Maybe try <a href="http://localhost:8001/?uri=ssb:feed/ed25519/-qNos2XP9dfREX8qgNeA7V_KZPEYkRwreIuDqTWIqOI=">another profile</a>.
-    
+    <ssb-header></ssb-header>
+    Not seeing mutch? Maybe try <a
+        href="http://localhost:8001/?uri=ssb:feed/ed25519/-qNos2XP9dfREX8qgNeA7V_KZPEYkRwreIuDqTWIqOI=">another
+        profile</a>.
+
     <div id="main"></div>
-    
+
     <script type="module" src="FeedAuthorElement.js"></script>
     <script type="module" src="ProfileElement.js"></script>
+    <script type="module" src="HeaderElement.js"></script>
     <script type="module">
-        import { sigilToIri, mainIdentity }  from "./web-util.js";
-        
+        import { sigilToIri, mainIdentity } from "./web-util.js";
+
         /** either specified as query parameter or the main identity */
         async function mainResource() {
             const searchParams = new URLSearchParams(document.location.search);
