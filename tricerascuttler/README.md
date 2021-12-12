@@ -11,6 +11,16 @@ The recommended way to run Tricerascuttler is with docker-compose
 
     docker-compose up
 
+Afer starting the instance you can access the web interface at
+http://localhost:8000/
+
+If you want to use your existing Scuttlebutt identity with Tricerascuttler you can mount you existing `.ssb` directory to the docker by adding the following to the `tricerascuttler` service in `docker-compose.yml`:
+
+```
+  volumes:
+      - ~/.ssb:/home/deno/.ssb
+```
+
 Alternatively `main.ts` can be run directly with Deno. It accepts the command
 line options and configurations of Scuttlesaurus. Additionally the following
 environment variables must be set:
