@@ -1,0 +1,5 @@
+.vscode
+*/.vscode
+*/fuseki-dataset
+*/ssb-base
+*/.devcontainer/container-data

@@ -1,7 +1,7 @@
-FROM denoland/deno:1.16.2
+FROM denoland/deno:1.16.4
 RUN mkdir /home/deno && chown deno /home/deno
-COPY ./ /home/deno/application
-WORKDIR /home/deno/application
+COPY . /home/deno/application/
+WORKDIR /home/deno/application/tricerascuttler
 RUN chown -R deno:deno /home/deno/application
 USER deno
 ENV DENO_DIR=/home/deno/.cache/deno

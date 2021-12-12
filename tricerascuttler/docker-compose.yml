@@ -2,7 +2,9 @@ version: '3'
 services:
   tricerascuttler:
     image: reto/tricerascuttler
-    build: .
+    build: 
+      context: ..
+      dockerfile: tricerascuttler/Dockerfile
     ports:
       - "18008:8008"
     depends_on:
@@ -15,5 +17,5 @@ services:
     image: "reto/fuseki-minimal"
     ports:
       - "3330:3330" # handy for development, remove in production
-    volumes:
-      - ./fuseki-dataset:/root/.fuseki-minimal
+#    volumes:
+#     - ./fuseki-dataset:/root/.fuseki-minimal
