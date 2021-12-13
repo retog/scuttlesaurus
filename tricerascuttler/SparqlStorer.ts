@@ -4,6 +4,7 @@ import FeedsAgent, {
 import {
   FeedId,
   JSONValue,
+  log,
   parseBlobId,
   parseFeedId,
   parseMsgKey,
@@ -24,10 +25,19 @@ export default class SparqlStorer {
       });
       const graphFeed = msgsToSparql(msgFeed);
       for await (const sparqlStatement of graphFeed) {
-        await this.runSparqlStatement(sparqlStatement);
+        try {
+          await this.runSparqlStatement(sparqlStatement);
+        } catch (error) {
+          log.error(`Failed inserting message with sparql, ignoring: ${error}`);
+        }
+        //await delay(1000);
       }
     };
-    feedsAgent.subscriptions.forEach(processFeed);
+    Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
+      (error) => {
+        console.error(`Procesing feeds: ${error}`);
+      },
+    );
     feedsAgent.subscriptions.addAddListener(processFeed);
   }
   private async runSparqlStatement(sparqlStatement: string) {
@@ -38,10 +48,17 @@ export default class SparqlStorer {
       },
       "body": sparqlStatement,
       "method": "POST",
+      keepalive: false,
     });
-    if (response.status >= 300) {
-      throw new Error(response.statusText);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`${body}\n${sparqlStatement}`);
     }
+    /* this is to avoid:
+error: Uncaught (in promise) TypeError: error sending request for url (http://fuseki:3330/ds/update): connection closed before message completed
+    at async mainFetch (deno:ext/fetch/26_fetch.js:266:14)
+    */
+    //await response.arrayBuffer();
   }
   private async firstUnrecordedMessage(feedId: FeedId): Promise<number> {
     const query = `
@@ -88,7 +105,11 @@ async function* msgsToSparql(feed: AsyncIterable<Message>) {
     try {
       yield msgToSparql(msg as RichMessage);
     } catch (error) {
-      console.error(`Transforming ${JSON.stringify(msg)}: ${error}\nThe message will be ignored`);
+      console.error(
+        `Transforming ${
+          JSON.stringify(msg)
+        }: ${error}\nThe message will be ignored`,
+      );
     }
   }
 }
@@ -147,7 +168,7 @@ type Vote = {
   vote: {
     link: string;
     value: number;
-    expression: string;
+    expression?: string;
   };
 };
 type Contact = {
@@ -161,7 +182,7 @@ type About = {
   type: "about";
   about: string;
   name?: string;
-  image?: string;
+  image?: string | { link: string };
   description?: string;
   title?: string;
 };
@@ -178,7 +199,6 @@ const contentSerializers: Record<string, (content: JSONValue) => string> = {
   "post": ((
     content: Post,
   ) => {
-    //console.log(JSON.stringify(content));
     return `rdf:type ssb:Post;
             ssb:text "${escapeLiteral(content.text)}"
             ${content.root ? `;\nssb:root <${msgKeyToUri(content.root)}>` : ""}
@@ -199,25 +219,38 @@ const contentSerializers: Record<string, (content: JSONValue) => string> = {
             `;
   }) as (content: JSONValue) => string,
   "contact": ((content: Contact) => {
-    console.log(JSON.stringify(content));
     return `
     rdf:type ssb:Contact;
     ssb:contact <${feedIdToUri(content.contact)}>
-    ${content.following ? `;\nssb:following ${content.following}` : ""}
-    ${content.autofollow ? `;\nssb:autofollow ${content.autofollow}` : ""}
-    ${content.blocking ? `;\nssb:blocking ${content.blocking}` : ""}
+    ${
+      typeof (content.following) === "boolean"
+        ? `;\nssb:following ${content.following}`
+        : ""
+    }
+    ${
+      typeof (content.autofollow) === "boolean"
+        ? `;\nssb:autofollow ${content.autofollow}`
+        : ""
+    }
+    ${
+      typeof (content.blocking) === "boolean"
+        ? `;\nssb:blocking ${content.blocking}`
+        : ""
+    }
     `;
   }) as (content: JSONValue) => string,
   "vote": ((content: Vote) => {
-    console.log(JSON.stringify(content));
     return `
       rdf:type ssb:Vote;
       ${content.vote.value ? `rdf:value ${content.vote.value};` : ""}
-      ssb:expression "${escapeLiteral(content.vote.expression)}";
+      ${
+      content.vote.expression
+        ? `ssb:expression "${escapeLiteral(content.vote.expression)}";`
+        : ""
+    }
       ssb:link <${sigilToIri(content.vote.link)}>`;
   }) as (content: JSONValue) => string,
   "about": ((content: About) => {
-    console.log(JSON.stringify(content));
     return `
       rdf:type ssb:About;
       ssb:about <${sigilToIri(content.about)}>${
@@ -227,7 +260,10 @@ const contentSerializers: Record<string, (content: JSONValue) => string> = {
         : ""
     }${
       content.image
-        ? `;
+        ? typeof (content.image) !== "string"
+          ? `;
+        ssb:image <${sigilToIri(content.image.link)}>`
+          : `;
       ssb:image <${sigilToIri(content.image)}>`
         : ""
     }${
@@ -244,7 +280,6 @@ const contentSerializers: Record<string, (content: JSONValue) => string> = {
     `;
   }) as (content: JSONValue) => string,
   "pub": ((content: Pub) => {
-    console.log(JSON.stringify(content));
     const oldSchool2String = (old: OldSchoolAddress) =>
       `net:${old.host}:${old.port}~shs:${parseFeedId(old.key).base64Key}`;
     const address = typeof content.address === "string"
@@ -259,7 +294,9 @@ const contentSerializers: Record<string, (content: JSONValue) => string> = {
 function mentionAsTurtlePredicates(mention: Mention) {
   return `
         a ssb:Link;
-        ssb:target <${sigilToIri(mention.link)}>
+        ssb:target <${
+    sigilToIri(typeof (mention) === "string" ? mention : mention.link)
+  }>
         `;
 }
 
@@ -267,6 +304,12 @@ function msgKeyToUri(key: string) {
   return parseMsgKey(key).toUri();
 }
 function feedIdToUri(feedId: FeedIdStr) {
+  const [key, cypher] = feedId.split(".");
+  if (cypher !== "ed25519") {
+    return `ssb:feed/${cypher}/${
+      key.substring(1).replaceAll("/", "_").replaceAll("+", "-")
+    }`;
+  }
   return parseFeedId(feedId).toUri();
 }
 function sigilToIri(sigil: string) {
