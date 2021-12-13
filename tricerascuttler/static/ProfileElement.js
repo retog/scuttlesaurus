@@ -54,28 +54,20 @@ export class ProfileElement extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    
+
     const feedUri = this.getAttribute("src");
 
     let template = `
     <style>
     .contact {
       display: block;
-      width: 100%;
-      padding: 15px;
-      border: none;
-      margin-bottom: 5px;
-      box-sizing: border-box;
-      font-size: 1rem;
-      text-align: center;
-      text-decoration: none;
-      background: gold;
-      color: #000;
-      background-color: firebrick;
+      flex: 0 1 150px;
+      margin: 5px;
     }
     .contacts{
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
     }
   
     </style>
