@@ -26,7 +26,7 @@
         /** either specified as query parameter or the main identity */
         async function mainResource() {
             const searchParams = new URLSearchParams(document.location.search);
-            return searchParams.has("uri") ? searchParams.get("uri") : sigilToIri(await mainIdentity());
+            return searchParams.has("uri") ? searchParams.get("uri") : await mainIdentity();
         }
         const uri = await mainResource()
         main.innerHTML = `<ssb-profile src="${uri}"></ssb-profile>`;

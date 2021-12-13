@@ -27,7 +27,7 @@ export function iriToSigil(iri) {
 export async function mainIdentity() {
   const response = await fetch("/whoami");
   const whoami = await response.json();
-  return whoami.feedId;
+  return sigilToIri(whoami.feedId);
 }
 
 export async function runQuery(query) {
