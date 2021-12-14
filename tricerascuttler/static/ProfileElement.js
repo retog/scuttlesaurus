@@ -20,7 +20,7 @@ export class ProfileElement extends HTMLElement {
     
     .buttonWrapper {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
     }
     
     button {
@@ -60,18 +60,19 @@ export class ProfileElement extends HTMLElement {
       display: block;
     }
     </style>
-    <h1>profile</h1>
+    <h1>Profile</h1>
     <ssb-feed-author src="${feedUri}"></ssb-feed-author>
     <div class="wrapper">
     <div class="buttonWrapper">
       <button class="tab-button active" style="border-top-left-radius: 10px;" data-id="followees">Following</button>
       <button class="tab-button" data-id="blockees">Blocking</button>
-      <button class="tab-button" style="border-top-right-radius: 10px;" data-id="contact">Details</button>
+      <button class="tab-button" data-id="followers">Followers</button>
+      <button class="tab-button" style="border-top-right-radius: 10px;" data-id="blockers">Blocked by</button>
     </div>
     <div class="contentWrapper">
       <p class="content active" id="followees">
-        <ssb-feed-author-list query="PREFIX rdf: &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX ssb: &lt;ssb:ontology:>
+        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
       
       SELECT ?feed {
         ?msg ssb:author &lt;${feedUri}>;
@@ -91,18 +92,18 @@ export class ProfileElement extends HTMLElement {
         }
       } "></ssb-feed-author-list>
       </p>
-      <p class="content active" id="blockees">
-        <ssb-feed-author-list query="PREFIX rdf: &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX ssb: &lt;ssb:ontology:>
+      <p class="content" id="blockees">
+        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
       
       SELECT ?feed {
-        ?msg ssb:author &lt;${feedUri}>;
+        ?msg ssb:author <${feedUri}>;
               ssb:content ?content;
               ssb:seq ?finalSeq.
           ?content ssb:blocking true.
         {
           SELECT ?feed (MAX(?seq) as ?finalSeq)   {
-            ?msg ssb:author &lt;${feedUri}>;
+            ?msg ssb:author <${feedUri}>;
                 ssb:content ?content;
                 ssb:seq ?seq.
             ?content rdf:type ssb:Contact;
@@ -113,6 +114,49 @@ export class ProfileElement extends HTMLElement {
         }
       } "></ssb-feed-author-list>
       </p>
+      <p class="content" id="followers">
+        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
+          
+          SELECT ?feed {
+            ?msg ssb:author ?feed;
+                   ssb:content ?content;
+                   ssb:seq ?finalSeq.
+              ?content ssb:following true.
+            {
+              SELECT ?feed (MAX(?seq) as ?finalSeq)   {
+                ?msg ssb:author ?feed;
+                     ssb:content ?content;
+                     ssb:seq ?seq.
+                ?content rdf:type ssb:Contact;
+                     ssb:contact <${feedUri}>;
+                     ssb:following ?following.
+              } GROUP BY ?feed
+          }
+        }"></ssb-feed-author-list>
+      </p>
+      <p class="content" id="blockers">
+        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
+          
+          SELECT ?feed {
+            ?msg ssb:author ?feed;
+                   ssb:content ?content;
+                   ssb:seq ?finalSeq.
+              ?content ssb:blocking true.
+            {
+              SELECT ?feed (MAX(?seq) as ?finalSeq)   {
+                ?msg ssb:author ?feed;
+                     ssb:content ?content;
+                     ssb:seq ?seq.
+                ?content rdf:type ssb:Contact;
+                     ssb:contact <${feedUri}>;
+                     ssb:blocking ?blocking.
+              } GROUP BY ?feed
+          }
+        }"></ssb-feed-author-list>
+      </p>
+      
       
     </div>
   </div>
@@ -139,7 +183,6 @@ export class ProfileElement extends HTMLElement {
       }
     };
 
-    I;
   }
 }
 window.customElements.define("ssb-profile", ProfileElement);
