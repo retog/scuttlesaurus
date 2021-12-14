@@ -167,7 +167,7 @@ export class FeedAuthorElement extends HTMLElement {
           if (origin) {
             if (origin.href.startsWith("ssb:")) {
               console.log(`Changing ${origin.href} to local`);
-              origin.href = window.location.origin + "/?uri=" + origin;
+              origin.href = window.location.origin + "/?uri=" + origin.href.replace("ssb://","ssb:");
               window.location = origin.href;
               return false;
             }
