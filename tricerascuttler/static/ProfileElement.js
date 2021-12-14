@@ -33,14 +33,14 @@ async function getFollowees(feedUri) {
     const contact = binding.contact.value;
 
     if (binding.following) {
-      if (binding.following.value) {
+      if (JSON.parse(binding.following.value)) {
         following.add(contact);
       } else {
         following.delete(contact);
       }
     }
     if (binding.blocking) {
-      if (binding.blocking.value) {
+      if (JSON.parse(binding.blocking.value)) {
         blocking.add(contact);
       } else {
         blocking.delete(contact);
@@ -77,7 +77,7 @@ export class ProfileElement extends HTMLElement {
     getFollowees(feedUri).then(
       ({ following, blocking }) => {
         if (following.size > 0) {
-          template += `<h2>Following</h2>
+          template += `<h2>Following (${following.size} feeds)</h2>
           <div class="contacts">
           ${
             [...following].map((f) =>
@@ -87,7 +87,7 @@ export class ProfileElement extends HTMLElement {
           </div>`;
         }
         if (blocking.size > 0) {
-          template += `<h2>Blocking</h2>
+          template += `<h2>Blocking (${blocking.size} feeds)</h2>
           <div class="contacts">
           ${
             [...blocking].map((f) =>
