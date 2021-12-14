@@ -71,12 +71,12 @@ export default class FeedsAgent extends Agent {
   }
 
   /** contains the adress strings of ongoing sync partners */
-  private onGoingSyncPeers = new Set<string>();
+  private onGoingSyncPeers = new Map<string, RpcConnection>();
 
   async incomingConnection(rpcConnection: RpcConnection) {
     const peerStr = rpcConnection.boxConnection.peer.base64Key;
     if (!this.onGoingSyncPeers.has(peerStr)) {
-      this.onGoingSyncPeers.add(peerStr);
+      this.onGoingSyncPeers.set(peerStr,rpcConnection);
       try {
         await this.updateFeeds(rpcConnection);
       } finally {
@@ -109,6 +109,11 @@ export default class FeedsAgent extends Agent {
 
   async run(connector: ConnectionManager): Promise<void> {
     const onGoingVonnectionAttempts = new Set<string>();
+    this.subscriptions.addAddListener(async (feedId) => {
+      for (const connection of this.onGoingSyncPeers.values()) {
+        await this.updateFeed(connection, feedId);
+      }
+    });
     while (true) {
       const pickedPeer = await this.pickPeer();
       const pickedPeerStr = pickedPeer.key.base64Key;
