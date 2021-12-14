@@ -20,7 +20,7 @@ export class ProfileElement extends HTMLElement {
     
     .buttonWrapper {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
     }
     
     button {
@@ -67,7 +67,8 @@ export class ProfileElement extends HTMLElement {
       <button class="tab-button active" style="border-top-left-radius: 10px;" data-id="followees">Following</button>
       <button class="tab-button" data-id="blockees">Blocking</button>
       <button class="tab-button" data-id="followers">Followers</button>
-      <button class="tab-button" style="border-top-right-radius: 10px;" data-id="blockers">Blocked by</button>
+      <button class="tab-button" data-id="blockers">Blocked by</button>
+      <button class="tab-button" style="border-top-right-radius: 10px;" data-id="likers">Top likers</button>
     </div>
     <div class="contentWrapper">
       <p class="content active" id="followees">
@@ -155,6 +156,21 @@ export class ProfileElement extends HTMLElement {
               } GROUP BY ?feed
           }
         }"></ssb-feed-author-list>
+      </p>
+      <p class="content" id="likers">
+        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
+        
+        SELECT ?feed (COUNT(DISTINCT ?msg) AS ?vcount) WHERE {
+          ?msgVote ssb:content [
+              rdf:type ssb:Vote;
+              ssb:link ?msg;
+              ];
+              ssb:author ?feed.
+          ?msg rdf:type ssb:Message;
+          ssb:author <${feedUri}>.
+        
+        } GROUP BY ?feed ORDER BY DESC(?vcount) LIMIT 20"></ssb-feed-author-list>
       </p>
       
       
