@@ -161,6 +161,18 @@ export class FeedAuthorElement extends HTMLElement {
           });
           syncButton.parentNode.removeChild(syncButton);
         });
+        this.shadowRoot.addEventListener(`click`, (e) => {
+          const origin = e.target.closest(`a`);
+
+          if (origin) {
+            if (origin.href.startsWith("ssb:")) {
+              console.log(`Changing ${origin.href} to local`);
+              origin.href = window.location.origin + "/?uri=" + origin;
+              window.location = origin.href;
+              return false;
+            }
+          }
+        });
       },
     );
   }
