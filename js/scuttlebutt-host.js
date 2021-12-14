@@ -20249,11 +20249,11 @@ class FeedsAgent extends Agent {
         };
         return rpcMethods;
     }
-    onGoingSyncPeers = new Set();
+    onGoingSyncPeers = new Map();
     async incomingConnection(rpcConnection) {
         const peerStr = rpcConnection.boxConnection.peer.base64Key;
         if (!this.onGoingSyncPeers.has(peerStr)) {
-            this.onGoingSyncPeers.add(peerStr);
+            this.onGoingSyncPeers.set(peerStr, rpcConnection);
             try {
                 await this.updateFeeds(rpcConnection);
             } finally{
@@ -20283,6 +20283,11 @@ class FeedsAgent extends Agent {
     }
     async run(connector) {
         const onGoingVonnectionAttempts = new Set();
+        this.subscriptions.addAddListener(async (feedId)=>{
+            for (const connection of this.onGoingSyncPeers.values()){
+                await this.updateFeed(connection, feedId);
+            }
+        });
         while(true){
             const pickedPeer = await this.pickPeer();
             const pickedPeerStr = pickedPeer.key.base64Key;
