@@ -9,7 +9,8 @@ export function sigilToIri(sigil) {
     case "%":
       return "ssb:message/sha256/" + safeHashPart;
     default:
-      throw new Error("unrecognized sigil type: " + sigil);
+      //let's hope it's an iri
+      return sigil;
   }
 }
 const sigilPrefix = {

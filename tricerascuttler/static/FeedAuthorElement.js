@@ -1,5 +1,7 @@
-import { iriToSigil } from "./web-util.js";
-
+import { iriToSigil, sigilToIri } from "./web-util.js";
+import * as _mark from "https://unpkg.com/commonmark@0.29.3/dist/commonmark.js";
+const mdReader = new commonmark.Parser();
+const mdWriter = new commonmark.HtmlRenderer();
 const syncIcon = `
   <?xml version="1.0" encoding="iso-8859-1"?>
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
@@ -94,6 +96,19 @@ async function getDescription(feedUri) {
   return { name, description, image };
 }
 
+function replaceSigils(ast) {
+  var walker = ast.walker();
+  var event, node;
+
+  while ((event = walker.next())) {
+    node = event.node;
+    if (event.entering && node.type === "link") {
+      node.destination = sigilToIri(node.destination);
+    }
+  }
+  return ast;
+}
+
 export class FeedAuthorElement extends HTMLElement {
   constructor() {
     super();
@@ -101,6 +116,11 @@ export class FeedAuthorElement extends HTMLElement {
     const feedUri = this.getAttribute("src");
     getDescription(feedUri).then(
       ({ name, description, image }) => {
+        const renderedDescription = description
+          ? mdWriter.render(replaceSigils(mdReader.parse(description))) +
+            "<br/>"
+          : "";
+
         const template = `
       <style>
         :host {
@@ -122,13 +142,12 @@ export class FeedAuthorElement extends HTMLElement {
       id: <a href="?uri=${feedUri}">${feedUri}</a><br/>
       <svg id="sync" width="20pt" height="20pt">${syncIcon}</svg>
       name: ${name} <br/>
-      desc: ${description}<br/>
+      ${renderedDescription}
       image: ${image}</br>
       ${image ? `<img src="${image.replace("ssb:blob/", "./blob/")}">` : ""}
       </div>
       <slot></slot>
     `;
-        console.log(this);
         this.shadowRoot.innerHTML = template;
         const syncButton = this.shadowRoot.getElementById("sync");
         syncButton.addEventListener("click", async () => {
