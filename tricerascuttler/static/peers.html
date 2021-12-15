@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <title>Peers</title>
-    <script type="module" src="./HeaderElement.js"></script>
+    <script type="module" src="js/HeaderElement.js"></script>
 </head>
 
 <body>
@@ -20,7 +20,7 @@
 
     </ul>
     <script type="module">
-        import { runQuery } from "./web-util.js"
+        import { runQuery } from "./js/web-util.js"
         async function addPeer(peer) {
             await fetch("./peers", {
                 "headers": {

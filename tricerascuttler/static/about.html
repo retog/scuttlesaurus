@@ -15,7 +15,7 @@
 
     </p>
     <script type="module">
-        import { runQuery, mainIdentity } from "./web-util.js";
+        import { runQuery, mainIdentity } from "./js/web-util.js";
 
         async function tripleCount() {
             const result = await runQuery(`SELECT (COUNT(*) as ?count) WHERE { ?s ?p ?o}`)
@@ -52,8 +52,8 @@
         Sourcecode on <a href="https://github.com/retog/scuttlesaurus/tree/master/tricerascuttler">Github</a>.
     </p>
 
-    <script type="module" src="FeedAuthorElement.js"></script>
-    <script type="module" src="HeaderElement.js"></script>
+    <script type="module" src="js/FeedAuthorElement.js"></script>
+    <script type="module" src="js/HeaderElement.js"></script>
 
 </body>
 

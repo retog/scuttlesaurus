@@ -98,7 +98,7 @@ async function getDescription(feedUri) {
 
 function replaceSigils(ast) {
   const walker = ast.walker();
-  const event, node;
+  let event, node;
 
   while ((event = walker.next())) {
     node = event.node;
