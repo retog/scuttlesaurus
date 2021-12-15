@@ -1,7 +1,5 @@
-import { iriToSigil, sigilToIri } from "./web-util.js";
-import * as _mark from "./ext/commonmark.js";
-const mdReader = new commonmark.Parser();
-const mdWriter = new commonmark.HtmlRenderer();
+import { handleSsbLinks, iriToSigil, mdToHtml } from "./web-util.js";
+
 const syncIcon = `
   <?xml version="1.0" encoding="iso-8859-1"?>
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
@@ -96,19 +94,6 @@ async function getDescription(feedUri) {
   return { name, description, image };
 }
 
-function replaceSigils(ast) {
-  const walker = ast.walker();
-  let event, node;
-
-  while ((event = walker.next())) {
-    node = event.node;
-    if (event.entering && node.type === "link") {
-      node.destination = sigilToIri(node.destination);
-    }
-  }
-  return ast;
-}
-
 export class FeedAuthorElement extends HTMLElement {
   constructor() {
     super();
@@ -117,7 +102,7 @@ export class FeedAuthorElement extends HTMLElement {
     getDescription(feedUri).then(
       ({ name, description, image }) => {
         const renderedDescription = description
-          ? mdWriter.render(replaceSigils(mdReader.parse(description))) +
+          ? mdToHtml(description) +
             "<br/>"
           : "";
 
@@ -161,19 +146,7 @@ export class FeedAuthorElement extends HTMLElement {
           });
           syncButton.parentNode.removeChild(syncButton);
         });
-        this.shadowRoot.addEventListener(`click`, (e) => {
-          const origin = e.target.closest(`a`);
-
-          if (origin) {
-            if (origin.href.startsWith("ssb:")) {
-              console.log(`Changing ${origin.href} to local`);
-              origin.href = window.location.origin + "/?uri=" +
-                origin.href.replace("ssb://", "ssb:");
-              window.location = origin.href;
-              return false;
-            }
-          }
-        });
+        handleSsbLinks(this.shadowRoot);
       },
     );
   }

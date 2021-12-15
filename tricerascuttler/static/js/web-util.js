@@ -1,3 +1,39 @@
+import * as _mark from "./ext/commonmark.js";
+const mdReader = new commonmark.Parser();
+const mdWriter = new commonmark.HtmlRenderer();
+
+export function mdToHtml(md) {
+  function replaceSigils(ast) {
+    const walker = ast.walker();
+    let event, node;
+
+    while ((event = walker.next())) {
+      node = event.node;
+      if (event.entering && node.type === "link") {
+        node.destination = sigilToIri(node.destination);
+      }
+    }
+    return ast;
+  }
+  return mdWriter.render(replaceSigils(mdReader.parse(md)));
+}
+
+export function handleSsbLinks(element) {
+  element.addEventListener(`click`, (e) => {
+    const origin = e.target.closest(`a`);
+
+    if (origin) {
+      if (origin.href.startsWith("ssb:")) {
+        console.log(`Changing ${origin.href} to local`);
+        origin.href = window.location.origin + "/?uri=" +
+          origin.href.replace("ssb://", "ssb:");
+        window.location = origin.href;
+        return false;
+      }
+    }
+  });
+}
+
 export function sigilToIri(sigil) {
   const hashPart = sigil.substring(1, sigil.lastIndexOf("."));
   const safeHashPart = hashPart.replaceAll("/", "_").replaceAll("+", "-");
