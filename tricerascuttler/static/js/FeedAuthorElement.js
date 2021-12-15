@@ -1,5 +1,5 @@
 import { iriToSigil, sigilToIri } from "./web-util.js";
-import * as _mark from "https://unpkg.com/commonmark@0.29.3/dist/commonmark.js";
+import * as _mark from "./ext/commonmark.js";
 const mdReader = new commonmark.Parser();
 const mdWriter = new commonmark.HtmlRenderer();
 const syncIcon = `
