@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Read</title>
+    <script type="module" src="js/HeaderElement.js"></script>
+</head>
+
+<body>
+    <ssb-header></ssb-header>
+    <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
+        SELECT ?post {
+            ?post ssb:timestamp ?timestamp;
+                 ssb:content ?content.
+            ?content rdf:type ssb:Post.
+        } ORDER BY DESC(?timestamp)"></ssb-post-list>
+    <script type="module" src="js/PostListElement.js"></script>
+</body>
+
+</html>

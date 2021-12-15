@@ -1,9 +1,10 @@
-import { handleSsbLinks, iriToSigil, mdToHtml, runQuery } from "./web-util.js";
+import { handleSsbLinks, mdToHtml, runQuery } from "./web-util.js";
 import * as _feedAuthor from "./FeedAuthorElement.js";
 export class PostElement extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    handleSsbLinks(this.shadowRoot);
     const msgUri = this.getAttribute("src");
     runQuery(`PREFIX ssb: <ssb:ontology:>
         SELECT ?timestamp ?text ?root ?author WHERE {

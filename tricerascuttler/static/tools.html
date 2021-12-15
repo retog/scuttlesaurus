@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools</title>
+    <script type="module" src="js/HeaderElement.js"></script>
+</head>
+
+<body>
+    <ssb-header></ssb-header>
+    <h1>Tools</h1>
+    Tools dealing with URIs.
+    <h2>Sigil to IRI</h2>
+    <input id="sigil" type="text" size="90" /><br>
+    <input id="iriResult" readonly="true" type="text" size="90" />
+    <script type="module">
+        import { sigilToIri } from "./js/web-util.js"
+        sigil.addEventListener("keypress", async (e) => {
+            if (e.key === 'Enter') {
+                iriResult.value = sigilToIri(e.target.value)
+            }
+        });
+    </script>
+
+</body>
+
+</html>

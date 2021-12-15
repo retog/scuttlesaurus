@@ -34,6 +34,7 @@ export class HeaderElement extends HTMLElement {
       </style>
       <ul>
           <li><a href="/">Explore</a></li>
+          <li><a href="/read.html">Read</a></li>
           <li><a href="/followees.html">Following</a></li>
           <li><a href="/peers.html">Peers</a></li>
           <li><a id="query" href="/query.html">SPARQL</a></li>

@@ -103,8 +103,10 @@ export class FeedAuthorElement extends HTMLElement {
     getDescription(feedUri).then(
       ({ name, description, image }) => {
         const renderedDescription = description
-          ? mdToHtml(description) +
-            "<br/>"
+          ? mode === "small"
+            ? description.substring(0, 80)
+            : mdToHtml(description) +
+              "<br/>"
           : "";
 
         const template = `
@@ -122,11 +124,13 @@ export class FeedAuthorElement extends HTMLElement {
           margin: 5pt;
           padding: 5pt;
         }
-        ${mode === "small"? 
-          `img {
+        ${
+          mode === "small"
+            ? `img {
             max-width: 40px;
             max-height: 40px;
-          }`: ""
+          }`
+            : ""
         }
       </style>
     
