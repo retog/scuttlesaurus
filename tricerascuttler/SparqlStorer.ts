@@ -334,22 +334,3 @@ function escapeLiteral(text: string) {
     .replaceAll('"', '\\"')
     .replaceAll("\n", "\\n").replaceAll("\r", "");
 }
-
-console.log(msgToSparql({
-  "key": "%w3vqMK7kwfSZIANkiCbKp1bSEz/lVXap7ZMzVcY3BSE=.sha256",
-  "value": {
-    "previous": "%ddZPPcrgpbAX6wgCxU7SmVzIm6iJhFxpy2+a7+qAk+M=.sha256",
-    "sequence": 656,
-    "author": "@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519",
-    "timestamp": 1639350844416,
-    "hash": "sha256",
-    "content": {
-      "type": "contact",
-      "contact": "@LSMpFF9UPx53u2p4ZEzUjiZL5PWyNzlK/J3apZSam9k=.ed25519",
-      "following": false,
-    },
-    "signature":
-      "/zSOExQT/L4ghKWKhUh1ZbHEaRVaRsdou6H/0UFWP2ZjxMQBffHnzuQUjBoCrnbdrCvh9s9EnXYdAm52JN0WAA==.sig.ed25519",
-  },
-  "timestamp": 1639351522693,
-}));
