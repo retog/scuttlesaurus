@@ -1,5 +1,6 @@
 import * as _FeedAuth from "./FeedAuthorElement.js";
 import * as _FeedAuthList from "./FeedAuthorListElement.js";
+import * as _PostsList from "./PostListElement.js";
 
 export class ProfileElement extends HTMLElement {
   constructor() {
@@ -20,7 +21,7 @@ export class ProfileElement extends HTMLElement {
     
     .buttonWrapper {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
     }
     
     button {
@@ -64,7 +65,8 @@ export class ProfileElement extends HTMLElement {
     <ssb-feed-author src="${feedUri}"></ssb-feed-author>
     <div class="wrapper">
     <div class="buttonWrapper">
-      <button class="tab-button active" style="border-top-left-radius: 10px;" data-id="followees">Following</button>
+      <button class="tab-button active" style="border-top-left-radius: 10px;" data-id="posts">Posts</button>
+      <button class="tab-button" data-id="followees">Following</button>
       <button class="tab-button" data-id="blockees">Blocking</button>
       <button class="tab-button" data-id="followers">Followers</button>
       <button class="tab-button" data-id="blockers">Blocked by</button>
@@ -72,7 +74,17 @@ export class ProfileElement extends HTMLElement {
       <button class="tab-button" style="border-top-right-radius: 10px;" data-id="likers">Top likers</button>
     </div>
     <div class="contentWrapper">
-      <p class="content active" id="followees">
+    <p class="content active" id="posts">
+    <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
+        SELECT ?post {
+            ?post ssb:seq ?seq;
+                 ssb:author <${feedUri}>;
+                 ssb:content ?content.
+            ?content rdf:type ssb:Post.
+        } ORDER BY DESC(?seq)"></ssb-post-list>
+        </p>
+    <p class="content" id="followees">
         <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX ssb: <ssb:ontology:>
       
@@ -214,7 +226,6 @@ export class ProfileElement extends HTMLElement {
         element.classList.add("active");
       }
     };
-
   }
 }
 window.customElements.define("ssb-profile", ProfileElement);
