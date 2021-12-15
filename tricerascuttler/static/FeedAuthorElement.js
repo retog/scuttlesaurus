@@ -97,8 +97,8 @@ async function getDescription(feedUri) {
 }
 
 function replaceSigils(ast) {
-  var walker = ast.walker();
-  var event, node;
+  const walker = ast.walker();
+  const event, node;
 
   while ((event = walker.next())) {
     node = event.node;
@@ -167,7 +167,8 @@ export class FeedAuthorElement extends HTMLElement {
           if (origin) {
             if (origin.href.startsWith("ssb:")) {
               console.log(`Changing ${origin.href} to local`);
-              origin.href = window.location.origin + "/?uri=" + origin.href.replace("ssb://","ssb:");
+              origin.href = window.location.origin + "/?uri=" +
+                origin.href.replace("ssb://", "ssb:");
               window.location = origin.href;
               return false;
             }
