@@ -99,6 +99,7 @@ export class FeedAuthorElement extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     const feedUri = this.getAttribute("src");
+    const mode = this.getAttribute("mode");
     getDescription(feedUri).then(
       ({ name, description, image }) => {
         const renderedDescription = description
@@ -120,6 +121,12 @@ export class FeedAuthorElement extends HTMLElement {
           border-style: solid;
           margin: 5pt;
           padding: 5pt;
+        }
+        ${mode === "small"? 
+          `img {
+            max-width: 40px;
+            max-height: 40px;
+          }`: ""
         }
       </style>
     
