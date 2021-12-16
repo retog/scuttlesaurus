@@ -17,7 +17,6 @@ async function getPosts(query, offset, limit) {
   return resultJson.results.bindings.map((binding) => binding.post.value);
 }
 
-const loadSize = 50;
 
 export class PostListElement extends HTMLElement {
   constructor() {
@@ -25,6 +24,7 @@ export class PostListElement extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     this.query = this.getAttribute("query");
+    this.loadSize = parseInt(this.getAttribute("loadSize") ?? 20);
 
     this.currentOffset = 0;
 
@@ -53,21 +53,21 @@ export class PostListElement extends HTMLElement {
   }
 
   async getPostsAndAppend(targetElement) {
-    await getPosts(this.query, this.currentOffset, loadSize + 1).then(
+    await getPosts(this.query, this.currentOffset, this.loadSize + 1).then(
       (posts) => {
-        this.currentOffset += loadSize;
+        this.currentOffset += this.loadSize;
         if (posts.length > 0) {
           targetElement.insertAdjacentHTML(
             "beforeend",
             `<div class="posts">
           ${
-              [...posts].slice(0, loadSize).map((p) =>
+              [...posts].slice(0, this.loadSize).map((p) =>
                 `<ssb-post src="${p}" class="post"></ssb-post>`
               ).join("")
             }
           </div>`,
           );
-          if (posts.length > loadSize) {
+          if (posts.length > this.loadSize) {
             const showMoreButton = document.createElement("button");
             showMoreButton.innerHTML = "Show more";
             targetElement.appendChild(showMoreButton);
@@ -80,7 +80,7 @@ export class PostListElement extends HTMLElement {
           targetElement.insertAdjacentHTML(
             "beforeend",
             `No posts found with given query: <code><pre>${
-              query.replaceAll("<", "&lt;")
+              this.query.replaceAll("<", "&lt;")
             }</pre></code>`,
           );
         }

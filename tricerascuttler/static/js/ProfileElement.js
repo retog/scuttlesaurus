@@ -75,7 +75,7 @@ export class ProfileElement extends HTMLElement {
     </div>
     <div class="contentWrapper">
     <p class="content active" id="posts">
-    <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    <ssb-post-list loadSize="10" query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX ssb: <ssb:ontology:>
         SELECT ?post {
             ?post ssb:seq ?seq;
