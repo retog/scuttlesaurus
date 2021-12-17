@@ -116,7 +116,7 @@ export class FeedAuthorElement extends HTMLElement {
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          background-color: pink;
+          background-color: lavenderblush;
         }
     
         div {
