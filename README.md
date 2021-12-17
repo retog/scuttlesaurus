@@ -1,7 +1,5 @@
 # Scuttlesaurus Habitat
 
-![](https://tokei.rs/b1/github/retog/scuttlesaurus)
-
 Scuttlesaurus Habitat is the monorepo where Scuttlesaurus lives with a couple of
 friends. Together they aim at providing decentralized social media based on
 [Scuttlebutt](https://scuttlebutt.nz/) technology.
