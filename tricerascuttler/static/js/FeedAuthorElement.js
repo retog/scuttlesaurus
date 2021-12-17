@@ -135,11 +135,9 @@ export class FeedAuthorElement extends HTMLElement {
       </style>
     
       <div>
-      id: <a href="?uri=${feedUri}">${feedUri}</a><br/>
-      <svg id="sync" width="20pt" height="20pt">${syncIcon}</svg>
-      name: ${name} <br/>
+      <a href="?uri=${feedUri}">${name ? name : feedUri.substring(0,23)+"..."}</a>
+      <svg id="sync" width="20pt" height="20pt">${syncIcon}</svg><br/>
       ${renderedDescription}
-      image: ${image}</br>
       ${image ? `<img src="${image.replace("ssb:blob/", "./blob/")}">` : ""}
       </div>
       <slot></slot>

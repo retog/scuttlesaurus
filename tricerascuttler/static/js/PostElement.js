@@ -31,9 +31,9 @@ export class PostElement extends HTMLElement {
           padding: 5pt;
         }
       </style>
-            Text: ${mdToHtml(bindings[0].text?.value)}<br>
-            Timestamp: ${bindings[0].timestamp?.value}<br>
-            Author: <ssb-feed-author src="${
+            ${mdToHtml(bindings[0].text?.value)}<br>
+            ${new Date(parseInt(bindings[0].timestamp?.value)).toLocaleString()}<br>
+            <ssb-feed-author src="${
           bindings[0].author.value
         }" mode="small" ></ssb-feed-author>`;
       }
