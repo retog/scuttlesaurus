@@ -48,10 +48,20 @@ export default class SparqlStorer {
 
   lastRun: Promise<void> = Promise.resolve();
   private async runSparqlStatementSequential(sparqlStatement: string) {
+    //retrying connection because of "connection closed before message completed"-errors
+    const tryRunSparqlStatement = (attemptsLeft = 5) => {
+      this.lastRun = this.runSparqlStatement(sparqlStatement).catch((error) => {
+        if (attemptsLeft === 0) {
+          log.error(`Running SPARQL Update: ${error}`);
+        } else {
+          tryRunSparqlStatement(attemptsLeft - 1);
+        }
+      });
+    }
     await this.lastRun;
-    this.lastRun = this.runSparqlStatement(sparqlStatement);
+    tryRunSparqlStatement();
     //reduce the write load to increase chances that reads still succeed
-    //await delay(1);
+    await delay(5);
     await this.lastRun;
   }
 
