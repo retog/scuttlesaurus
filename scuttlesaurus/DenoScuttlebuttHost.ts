@@ -2,7 +2,7 @@ import {
   Application,
   Context,
   Router,
-} from "https://deno.land/x/oak@v10.0.0/mod.ts";
+} from "https://deno.land/x/oak@v10.1.0/mod.ts";
 import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
