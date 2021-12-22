@@ -12,10 +12,13 @@ import {
 } from "../scuttlesaurus/util.ts";
 
 export default class SparqlStorer {
+  ready: Promise<void>;
   constructor(
     public sparqlEndpointQuery: string,
     public sparqlEndpointUpdate: string,
-  ) {}
+  ) {
+    this.ready = this.primeStore();
+  }
 
   /** stored exsting and new messages in the triple store*/
   connectAgent(feedsAgent: FeedsAgent) {
@@ -35,10 +38,12 @@ export default class SparqlStorer {
         await delay(100);
       }
     };
-    Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
-      (error) => {
-        console.error(`Procesing feeds: ${error}`);
-      },
+    this.ready.then(() =>
+      Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
+        (error) => {
+          console.error(`Procesing feeds: ${error}`);
+        },
+      )
     );
     feedsAgent.subscriptions.addAddListener(processFeed);
   }
@@ -94,7 +99,46 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
     }
   }
 
-  //end clas
+  async primeStore() {
+    const query = `
+    PREFIX ssb: <ssb:ontology:>
+
+    ASK { <ssb:EpochStart> ssb:timestamp 0.}`;
+    const response = await fetch(this.sparqlEndpointQuery, {
+      "headers": {
+        "Accept": "application/sparql-results+json,*/*;q=0.9",
+        "Content-Type": "application/sparql-query",
+      },
+      "body": query,
+      "method": "POST",
+    });
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+
+    const resultJson = await response.json();
+    if (resultJson.boolean === true) {
+      log.info("Store already primed");
+    } else {
+      log.info("Initializing store with base triples");
+      const sparqlStatement = `PREFIX ssb: <ssb:ontology:>
+      INSERT DATA { <ssb:EpochStart> ssb:timestamp 0.
+      <ssb:EpochEnd> ssb:timestamp 9999999999999; ssb:previous <ssb:EpochStart>.}`;
+      const response = await fetch(this.sparqlEndpointUpdate, {
+        "headers": {
+          "Accept": "text/plain,*/*;q=0.9",
+          "Content-Type": "application/sparql-update",
+        },
+        "body": sparqlStatement,
+        "method": "POST",
+        keepalive: false,
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`${body}\n${sparqlStatement}`);
+      }
+    }
+  }
 }
 
 type RichMessage = Message & {
@@ -125,19 +169,29 @@ function msgToSparql(msg: RichMessage) {
     PREFIX ssb: <ssb:ontology:>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-    INSERT DATA
-        {
-            <${msgUri}> rdf:type ssb:Message;
-            ssb:seq ${msg.value.sequence};
-            ssb:timestamp ${timestamp};
-            ssb:author <${feedIdToUri(msg.value.author as FeedIdStr)}>;
-            ${
+    DELETE {
+      ?nextMsg ssb:previous ?msg .
+    } INSERT {
+      <${msgUri}> ssb:previous ?msg  .
+      ?nextMsg ssb:previous <${msgUri}> .
+      <${msgUri}> rdf:type ssb:Message;
+      ssb:seq ${msg.value.sequence};
+      ssb:timestamp ${timestamp};
+      ssb:author <${feedIdToUri(msg.value.author as FeedIdStr)}>;
+      ${
       contentSerializers[content.type]
         ? `ssb:content [${contentSerializers[content.type!](content)}];`
         : `;`
     }
-    ssb:raw "${escapeLiteral(JSON.stringify(content))}".
-          }`;
+      ssb:raw "${escapeLiteral(JSON.stringify(content))}".
+    } WHERE {
+      ?nextMsg ssb:previous ?msg .
+      {
+          SELECT ?msg ?timestamp {
+                ?msg ssb:timestamp ?timestamp.
+              FILTER ( ?timestamp < ${timestamp} )
+        } ORDER BY DESC(?timestamp) LIMIT 1}
+    }`;
   } else {
     return `PREFIX ssb: <ssb:ontology:>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
