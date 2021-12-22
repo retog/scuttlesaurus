@@ -27,12 +27,10 @@ export default class SparqlStorer {
       const graphFeed = msgsToSparql(msgFeed);
       for await (const sparqlStatement of graphFeed) {
         try {
-          await this.runSparqlStatement(sparqlStatement);
+          await this.runSparqlStatementSequential(sparqlStatement);
         } catch (error) {
           log.error(`Failed inserting message with sparql, ignoring: ${error}`);
         }
-        //reduce the write load to increade chances that reads still suceed
-        await delay(100);
       }
     };
     Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
@@ -42,6 +40,16 @@ export default class SparqlStorer {
     );
     feedsAgent.subscriptions.addAddListener(processFeed);
   }
+
+  lastRun: Promise<void> = Promise.resolve();
+  private async runSparqlStatementSequential(sparqlStatement: string) {
+    await this.lastRun;
+    this.lastRun = this.runSparqlStatement(sparqlStatement);
+    //reduce the write load to increase chances that reads still succeed
+    //await delay(1);
+    await this.lastRun;
+  }
+
   private async runSparqlStatement(sparqlStatement: string) {
     const response = await fetch(this.sparqlEndpointUpdate, {
       "headers": {
