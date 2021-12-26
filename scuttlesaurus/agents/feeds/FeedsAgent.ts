@@ -108,7 +108,7 @@ export default class FeedsAgent extends Agent {
   }
 
   async run(connector: ConnectionManager): Promise<void> {
-    const onGoingVonnectionAttempts = new Set<string>();
+    const onGoingConnectionAttempts = new Set<string>();
     this.subscriptions.addAddListener(async (feedId) => {
       for (const connection of this.onGoingSyncPeers.values()) {
         await this.updateFeed(connection, feedId);
@@ -117,8 +117,8 @@ export default class FeedsAgent extends Agent {
     while (true) {
       const pickedPeer = await this.pickPeer();
       const pickedPeerStr = pickedPeer.key.base64Key;
-      if (!onGoingVonnectionAttempts.has(pickedPeerStr)) {
-        onGoingVonnectionAttempts.add(pickedPeerStr);
+      if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
+        onGoingConnectionAttempts.add(pickedPeerStr);
         (async () => {
           try {
             //this will cause `outgoingConnection` to be invoked
@@ -130,7 +130,7 @@ export default class FeedsAgent extends Agent {
             //TODO this shoul cause this peer to be attempted less frequently
           }
         })().finally(() => {
-          onGoingVonnectionAttempts.delete(pickedPeerStr);
+          onGoingConnectionAttempts.delete(pickedPeerStr);
         });
       }
       // wait some time depending on how many syncs are going on
