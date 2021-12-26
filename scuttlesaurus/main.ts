@@ -17,6 +17,15 @@ export async function createScuttlebuttHost() {
     config.acceptIncomingConnections =
       options.incoming.toLowerCase() === "true";
   }
+  if (typeof (options.control?.web) !== "undefined") {
+    config.control ??= {};
+    if (options.control?.web === "false") {
+      config.control.web = false;
+    }
+    if (options.control?.web?.port) {
+      config.control.web.port = options.control?.web?.port
+    }
+  }
 
   return new DenoScuttlebuttHost(config);
 }
@@ -57,7 +66,12 @@ function getDefaultConfig(baseDir: string) {
     },
     networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
     acceptIncomingConnections: true,
-    webControl: true,
+    control: {
+      web: {
+        port: 8000,
+        hostname: "localhost",
+      },
+    },
   };
 }
 

@@ -28,7 +28,7 @@ It makes extenive use of _AsyncIterables_ and attempts to minimize dependencies.
 By itself the code can be used to provide pub like functionality and collect and
 share the contents of feeds and blobs.
 
-## Usage
+## Standalone Usage
 
 The main executables is `main.ts`, executing it with
 
@@ -45,6 +45,37 @@ The following command-line options are supported:
 - baseDir: The base directory (default: `~/.ssb`)
 - logLevel: DEBUG, INFO, WARNING , ERROR or CRITICAL
 - incoming: Accept incoming connections (default: true)
+
+## Configuration
+
+Scuttlesaurus can be configured with a `config.json` file in the base directory. This is the default configuraton:
+
+```
+ {
+    baseDir: "/path/to/base/dir/",
+    dataDir: "/path/to/data/dir,
+    transport: {
+      net: {
+        port: 8008,
+      },
+      ws: {
+        port: 8989,
+      },
+    },
+    networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
+    acceptIncomingConnections: true,
+    control: {
+      web: { 
+        port: 8000,
+        hostname: "localhost"
+      },
+    },
+    agents: {
+      feeds: {},
+      blobs: {}
+    },
+  }
+```
 
 ## Using this project as a dev containers with VSCode:
 

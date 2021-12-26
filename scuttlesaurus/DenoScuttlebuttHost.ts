@@ -36,12 +36,14 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
 
   constructor(
     readonly config: {
-      transport?: { net?: { port: number }; ws?: { port: number } };
+      transport?: { net?: Deno.ListenOptions; ws?: Deno.ListenOptions };
       autoConnectLocalPeers?: boolean;
       acceptIncomingConnections?: boolean;
       baseDir: string;
       dataDir: string;
-      webControl?: boolean;
+      control?: {
+        web?: Deno.ListenOptions
+      };
     } & ParentConfig,
   ) {
     const followeesFile = path.join(config.baseDir, "followees.json");
@@ -84,7 +86,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         new WsTransportServer(config.transport?.ws),
       );
     }
-    if (config.webControl || (typeof (config.webControl) === "undefined")) {
+    if (config.control?.web) {
       this.controlApp = new Application();
       this.controlAppRouter = new Router();
       this.controlAppRouter.get("/whoami", (ctx: Context) => {
@@ -112,7 +114,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       });
       this.controlApp.use(this.controlAppRouter.routes());
       this.controlApp.use(this.controlAppRouter.allowedMethods());
-      this.controlApp.listen({ port: 8000 }).catch((e) =>
+      this.controlApp.listen(config.control!.web!).catch((e) =>
         log.error(`Error with control app ${e}`)
       );
     }
