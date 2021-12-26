@@ -20282,7 +20282,7 @@ class FeedsAgent extends Agent {
         }
     }
     async run(connector) {
-        const onGoingVonnectionAttempts = new Set();
+        const onGoingConnectionAttempts = new Set();
         this.subscriptions.addAddListener(async (feedId)=>{
             for (const connection of this.onGoingSyncPeers.values()){
                 await this.updateFeed(connection, feedId);
@@ -20291,8 +20291,8 @@ class FeedsAgent extends Agent {
         while(true){
             const pickedPeer = await this.pickPeer();
             const pickedPeerStr = pickedPeer.key.base64Key;
-            if (!onGoingVonnectionAttempts.has(pickedPeerStr)) {
-                onGoingVonnectionAttempts.add(pickedPeerStr);
+            if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
+                onGoingConnectionAttempts.add(pickedPeerStr);
                 (async ()=>{
                     try {
                         await connector.getConnectionWith(pickedPeer);
@@ -20300,7 +20300,7 @@ class FeedsAgent extends Agent {
                         mod2.error(`In connection with ${pickedPeer}: ${error12}`);
                     }
                 })().finally(()=>{
-                    onGoingVonnectionAttempts.delete(pickedPeerStr);
+                    onGoingConnectionAttempts.delete(pickedPeerStr);
                 });
             }
             await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000);
