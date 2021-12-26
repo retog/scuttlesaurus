@@ -96,18 +96,28 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       });
       this.controlAppRouter.post("/peers", async (ctx: Context) => {
         const { value } = ctx.request.body({ type: "json" });
-        const { address } = await value;
-        this.peers.add(parseAddress(address));
-        ctx.response.body = "Added peer";
+        const { address, action } = await value;
+        if (action === "remove") {
+          this.peers.delete(parseAddress(address));
+          ctx.response.body = "Removed peer";
+        } else {
+          this.peers.add(parseAddress(address));
+          ctx.response.body = "Added peer";
+        }
       });
       this.controlAppRouter.get("/peers", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.peers]);
       });
       this.controlAppRouter.post("/followees", async (ctx: Context) => {
         const { value } = ctx.request.body({ type: "json" });
-        const { id } = await value;
-        this.followees.add(parseFeedId(id));
-        ctx.response.body = "Added followee";
+        const { id, action } = await value;
+        if (action === "remove") {
+          this.followees.delete(parseFeedId(id));
+          ctx.response.body = "Removed peer";
+        } else {
+          this.followees.add(parseFeedId(id));
+          ctx.response.body = "Added followee";
+        }
       });
       this.controlAppRouter.get("/followees", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.followees]);

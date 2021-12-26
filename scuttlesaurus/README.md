@@ -76,6 +76,26 @@ Scuttlesaurus can be configured with a `config.json` file in the base directory.
     },
   }
 ```
+## Web Control
+
+If control.web is enabled the list of peers and followees can be modified at runtime. Here are some examples using Curl.
+
+Add a peer:
+
+    curl -X POST http://localhost:8000/peers -H 'Content-Type: application/json' -d '{"address":"net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc="}'
+
+Remove peer:
+
+    curl -X POST http://localhost:8000/peers -H 'Content-Type: application/json' -d '{"address":"net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc=", "action":"remove"}'
+
+Follow feed:
+
+    curl -X POST http://localhost:8000/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519"}'
+
+Unfollow feed:
+
+    curl -X POST http://localhost:8000/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519", "action":"remove"}'
+
 
 ## Using this project as a dev containers with VSCode:
 
