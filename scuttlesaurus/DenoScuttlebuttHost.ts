@@ -8,7 +8,7 @@ import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import {
-FeedId,
+  FeedId,
   fromBase64,
   log,
   parseAddress,
@@ -42,7 +42,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       baseDir: string;
       dataDir: string;
       control?: {
-        web?: Deno.ListenOptions
+        web?: Deno.ListenOptions;
       };
     } & ParentConfig,
   ) {
@@ -104,6 +104,10 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
           this.peers.add(parseAddress(address));
           ctx.response.body = "Added peer";
         }
+        Deno.writeTextFileSync(
+          peersFile,
+          JSON.stringify([...this.peers], undefined, 2),
+        );
       });
       this.controlAppRouter.get("/peers", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.peers]);
@@ -118,6 +122,10 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
           this.followees.add(parseFeedId(id));
           ctx.response.body = "Added followee";
         }
+        Deno.writeTextFileSync(
+          followeesFile,
+          JSON.stringify([...this.followees], undefined, 2),
+        );
       });
       this.controlAppRouter.get("/followees", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.followees]);
