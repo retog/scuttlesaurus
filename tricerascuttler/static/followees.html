@@ -17,12 +17,31 @@
     </ul>
     Add followee: <input id="newFollowee" type="text" size="90" />
     <script>
+        async function removeFollowee(id) {
+            await fetch("./followees", {
+                "headers": {
+                    "Accept": "application/json,*/*;q=0.9",
+                    "Content-Type": "application/json",
+                },
+                "body": JSON.stringify({ id, "action": "remove" }),
+                "method": "POST",
+            });
+            populateList();
+        }
         async function populateList() {
             const response = await fetch("./followees");
             const followees = await response.json();
             followeeList.replaceChildren();
             followees.forEach(followee => {
-                followeeList.insertAdjacentHTML("beforeend", `<li>${followee}</li>`)
+                const li = document.createElement("li");
+                li.appendChild(document.createTextNode(followee));
+                const button = document.createElement("button");
+                li.appendChild(button);
+                button.innerHTML = "Remove";
+                followeeList.appendChild(li);
+                button.addEventListener("click", () => {
+                    removeFollowee(followee);
+                })
             });
         }
         newFollowee.addEventListener("keypress", async (e) => {

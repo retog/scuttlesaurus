@@ -32,12 +32,31 @@
             });
             populateList();
         }
+        async function removePeer(peer) {
+            await fetch("./peers", {
+                "headers": {
+                    "Accept": "application/json,*/*;q=0.9",
+                    "Content-Type": "application/json",
+                },
+                "body": JSON.stringify({ "address": peer, "action": "remove" }),
+                "method": "POST",
+            });
+            populateList();
+        }
         async function populateList() {
             const response = await fetch("./peers");
             const peers = await response.json();
             peerList.replaceChildren();
             peers.forEach(peer => {
-                peerList.insertAdjacentHTML("beforeend", `<li>${peer}</li>`)
+                const li = document.createElement("li");
+                li.appendChild(document.createTextNode(peer));
+                const button = document.createElement("button");
+                li.appendChild(button);
+                button.innerHTML = "Remove";
+                peerList.appendChild(li);
+                button.addEventListener("click", () => {
+                    removePeer(peer);
+                })
             });
             potentialPeers.replaceChildren();
             for await (const pub of pubs()) {
