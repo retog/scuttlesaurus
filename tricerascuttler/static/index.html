@@ -29,7 +29,11 @@
             return searchParams.has("uri") ? searchParams.get("uri") : await mainIdentity();
         }
         const uri = await mainResource()
-        main.innerHTML = `<ssb-profile src="${uri}"></ssb-profile>`;
+        if (uri.startsWith("ssb:feed")) {
+            main.innerHTML = `<ssb-profile src="${uri}"></ssb-profile>`;
+        } else {
+            main.innerHTML = `<ssb-post src="${uri}"></ssb-post>`;
+        }
         //mainProfile.setAttribute("src", await mainResource());
     </script>
 </body>

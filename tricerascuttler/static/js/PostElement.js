@@ -15,9 +15,10 @@ export class PostElement extends HTMLElement {
             OPTIONAL {?content ssb:root ?root}
         }`).then((result) => {
       const bindings = result.results.bindings;
-      if (bindings.lengh === 0) {
+      if (!bindings[0]) {
         this.shadowRoot.innerHTML = `Don't know anything about ${msgUri}`;
       } else {
+        const text = bindings[0].text?.value;
         this.shadowRoot.innerHTML = `
         <style>
         :host {
@@ -30,12 +31,18 @@ export class PostElement extends HTMLElement {
           margin: 5pt;
           padding: 5pt;
         }
+        #permalink {
+          text-decoration: none;
+        }
       </style>
-            ${mdToHtml(bindings[0].text?.value)}<br>
-            ${new Date(parseInt(bindings[0].timestamp?.value)).toLocaleString()}<br>
+            ${mdToHtml(text ?? "")}<br>
+            ${
+          new Date(parseInt(bindings[0].timestamp?.value)).toLocaleString()
+        }<br>
             <ssb-feed-author src="${
           bindings[0].author.value
-        }" mode="small" ></ssb-feed-author>`;
+        }" mode="small" ></ssb-feed-author>
+        <a id="permalink" href="/?uri=${msgUri}">🔗</a>`;
       }
     });
   }
