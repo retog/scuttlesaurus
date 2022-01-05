@@ -9,7 +9,7 @@ import {
   fromFilenameSafeAlphabet,
   log,
 } from "../scuttlesaurus/util.ts";
-import { Context } from "https://deno.land/x/oak@v10.0.0/context.ts";
+import { Context } from "https://deno.land/x/oak@v10.1.0/context.ts";
 
 function getRequiredEnvVar(name: string): string {
   const value = Deno.env.get(name);
