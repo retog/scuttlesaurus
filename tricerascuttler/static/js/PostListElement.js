@@ -1,22 +1,5 @@
 import * as _PostElement from "./PostElement.js";
-
-async function getPosts(query, offset, limit) {
-  const response = await fetch("/query", {
-    "headers": {
-      "Accept": "application/sparql-results+json,*/*;q=0.9",
-      "Content-Type": "application/sparql-query",
-    },
-    "body": query + `OFFSET ${offset} LIMIT ${limit}`,
-    "method": "POST",
-  });
-  if (response.status >= 300) {
-    throw new Error(response.statusText);
-  }
-
-  const resultJson = await response.json();
-  return resultJson.results.bindings.map((binding) => binding.post.value);
-}
-
+import { runQuery } from "./web-util.js";
 
 export class PostListElement extends HTMLElement {
   constructor() {
@@ -48,12 +31,22 @@ export class PostListElement extends HTMLElement {
     </div>
 
     `;
+  }
+
+  connectedCallback() {
     const contentDiv = this.shadowRoot.getElementById("content");
     this.getPostsAndAppend(contentDiv);
   }
 
+  async getPosts(offset, limit) {
+    const resultJson = await runQuery(
+      this.query + `OFFSET ${offset} LIMIT ${limit}`,
+    );
+    return resultJson.results.bindings.map((binding) => binding.post.value);
+  }
+
   async getPostsAndAppend(targetElement) {
-    await getPosts(this.query, this.currentOffset, this.loadSize + 1).then(
+    await this.getPosts(this.currentOffset, this.loadSize + 1).then(
       (posts) => {
         this.currentOffset += this.loadSize;
         if (posts.length > 0) {
