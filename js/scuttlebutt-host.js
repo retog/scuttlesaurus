@@ -1,29 +1,21 @@
-const __denoroot = {
-}, __document = {
-};
+const __denoroot = {}, __document = {};
 !function(A1, a1, r1) {
     function t1(A2) {
         "use strict";
         var a2;
-        void 0 === (a2 = A2) && (a2 = {
-        });
+        void 0 === (a2 = A2) && (a2 = {});
         var t2 = a2;
         "object" != typeof t2.sodium && ("object" == typeof global ? t2 = global : "object" == typeof window && (t2 = window)), "object" == typeof t2.sodium && "number" == typeof t2.sodium.totalMemory && (a2.TOTAL_MEMORY = t2.sodium.totalMemory);
         var e1 = a2;
         return a2.ready = new Promise(function(A3, a3) {
-            (n1 = e1).onAbort = a3, n1.print = function(A) {
-            }, n1.printErr = function(A) {
-            }, n1.onRuntimeInitialized = function() {
+            (n1 = e1).onAbort = a3, n1.print = function(A) {}, n1.printErr = function(A) {}, n1.onRuntimeInitialized = function() {
                 try {
                     n1._crypto_secretbox_keybytes(), A3();
                 } catch (A) {
                     a3(A);
                 }
             }, n1.useBackupModule = function() {
-                var A4, a4 = void 0 !== (a4 = {
-                }) ? a4 : {
-                }, t4 = {
-                };
+                var A4, a4 = void 0 !== (a4 = {}) ? a4 : {}, t4 = {};
                 for(A4 in a4)a4.hasOwnProperty(A4) && (t4[A4] = a4[A4]);
                 var n2 = [], g2 = !1, I2 = !1, o2 = !1, c2 = !1;
                 g2 = "object" == typeof window, I2 = "function" == typeof importScripts, o2 = "object" == typeof process && "object" == typeof process.versions && "string" == typeof process.versions.node, c2 = !g2 && !o2 && !I2;
@@ -45,8 +37,7 @@ const __denoroot = {
                 }), B2 = function(A) {
                     var a;
                     return (a = YA2(A)) ? a : "function" == typeof readbuffer ? new Uint8Array(readbuffer(A)) : (m2("object" == typeof (a = read(A, "binary"))), a);
-                }, "undefined" != typeof scriptArgs ? n2 = scriptArgs : void 0 !== arguments && (n2 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {
-                }), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (g2 || I2) && (I2 ? C2 = self.location.href : r1.currentScript && (C2 = r1.currentScript.src), C2 = 0 !== C2.indexOf("blob:") ? C2.substr(0, C2.lastIndexOf("/") + 1) : "", _2 = function(A) {
+                }, "undefined" != typeof scriptArgs ? n2 = scriptArgs : void 0 !== arguments && (n2 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {}), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (g2 || I2) && (I2 ? C2 = self.location.href : r1.currentScript && (C2 = r1.currentScript.src), C2 = 0 !== C2.indexOf("blob:") ? C2.substr(0, C2.lastIndexOf("/") + 1) : "", _2 = function(A) {
                     try {
                         var a = new XMLHttpRequest;
                         return a.open("GET", A, !1), a.send(null), a.responseText;
@@ -84,8 +75,7 @@ const __denoroot = {
                             return a[A];
                         }, a;
                     },
-                    Module: function(A) {
-                    },
+                    Module: function(A) {},
                     Instance: function(A6, a5) {
                         this.exports = (function(A7, a6, r2) {
                             for(var t5 = new Uint8Array(a6.buffer), e2 = new Uint8Array(123), n3 = 25; n3 >= 0; --n3)e2[48 + n3] = 52 + n3, e2[65 + n3] = n3, e2[97 + n3] = 26 + n3;
@@ -2980,8 +2970,7 @@ const __denoroot = {
                                     var I;
                                     return A |= 0, a |= 0, e |= 0, g |= 0, u3 = I = u3 - 80 | 0, (r |= 0) | (t |= 0) && (Ee(I + 12 | 0, n |= 0), WA1(I + 16 | 0, g), ja(I + 16 | 0, e, I + 12 | 0), U3(I + 16 | 0, a, A, r, t), Zr(I + 16 | 0, 64)), u3 = I + 80 | 0, 0;
                                 }, {
-                                    g: function() {
-                                    },
+                                    g: function() {},
                                     h: function(A, a, r, t, e, n, g, I, o, c, _, B) {
                                         return 0 | Ua(A |= 0, a |= 0, r |= 0, t |= 0, e |= 0, n |= 0, g |= 0, I |= 0, o |= 0, _ |= 0, B |= 0);
                                     },
@@ -4271,9 +4260,7 @@ const __denoroot = {
                 function oA2(A, a) {
                     return String.prototype.startsWith ? A.startsWith(a) : 0 === A.indexOf(a);
                 }
-                a4.preloadedImages = {
-                }, a4.preloadedAudios = {
-                };
+                a4.preloadedImages = {}, a4.preloadedAudios = {};
                 var cA2 = "data:application/octet-stream;base64,";
                 function _A2(A) {
                     return oA2(A, cA2);
@@ -4336,8 +4323,7 @@ const __denoroot = {
                                 return p2("wasm streaming compile failed: " + A), p2("falling back to ArrayBuffer instantiation"), e(t47);
                             });
                         });
-                    })(), {
-                    };
+                    })(), {};
                 }
                 _A2(yA2) || (yA2 = y2(yA2));
                 var hA2 = {
@@ -4351,7 +4337,7 @@ const __denoroot = {
                                 return r.getRandomValues(A), A[0] >>> 0;
                             };
                             t(), a4.getRandomValue = t;
-                        } catch (A69) {
+                        } catch (A70) {
                             try {
                                 var e = require("crypto"), n = function() {
                                     var A = e.randomBytes(4);
@@ -4387,8 +4373,7 @@ const __denoroot = {
                 function DA2(A) {
                     try {
                         return E2.grow(A - k2.byteLength + 65535 >>> 16), J2(E2.buffer), 1;
-                    } catch (A70) {
-                    }
+                    } catch (A71) {}
                 }
                 function bA2(A) {
                     A >>>= 0;
@@ -4601,7 +4586,7 @@ const __denoroot = {
                     try {
                         for(var r = xA2(A), t = new Uint8Array(r.length), e = 0; e < r.length; ++e)t[e] = r.charCodeAt(e);
                         return t;
-                    } catch (A71) {
+                    } catch (A72) {
                         throw new Error("Converting base64 string to bytes failed.");
                     }
                 }
@@ -5763,9 +5748,7 @@ const __denoroot = {
                     e1[A] = a4[A];
                 });
             };
-            var t3, n1 = void 0 !== n1 ? n1 : {
-            }, g1 = {
-            };
+            var t3, n1 = void 0 !== n1 ? n1 : {}, g1 = {};
             for(t3 in n1)n1.hasOwnProperty(t3) && (g1[t3] = n1[t3]);
             var I1 = [], o1 = !1, c1 = !1, _1 = !1, B1 = !1;
             o1 = "object" == typeof window, c1 = "function" == typeof importScripts, _1 = "object" == typeof process && "object" == typeof process.versions && "string" == typeof process.versions.node, B1 = !o1 && !_1 && !c1;
@@ -5787,8 +5770,7 @@ const __denoroot = {
             }), s1 = function(A) {
                 var a;
                 return (a = UA1(A)) ? a : "function" == typeof readbuffer ? new Uint8Array(readbuffer(A)) : (D1("object" == typeof (a = read(A, "binary"))), a);
-            }, "undefined" != typeof scriptArgs ? I1 = scriptArgs : void 0 !== arguments && (I1 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {
-            }), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (o1 || c1) && (c1 ? Q1 = self.location.href : r1.currentScript && (Q1 = r1.currentScript.src), Q1 = 0 !== Q1.indexOf("blob:") ? Q1.substr(0, Q1.lastIndexOf("/") + 1) : "", i1 = function(A) {
+            }, "undefined" != typeof scriptArgs ? I1 = scriptArgs : void 0 !== arguments && (I1 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {}), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (o1 || c1) && (c1 ? Q1 = self.location.href : r1.currentScript && (Q1 = r1.currentScript.src), Q1 = 0 !== Q1.indexOf("blob:") ? Q1.substr(0, Q1.lastIndexOf("/") + 1) : "", i1 = function(A) {
                 try {
                     var a = new XMLHttpRequest;
                     return a.open("GET", A, !1), a.send(null), a.responseText;
@@ -5949,9 +5931,7 @@ const __denoroot = {
             function cA1(A, a) {
                 return String.prototype.startsWith ? A.startsWith(a) : 0 === A.indexOf(a);
             }
-            n1.preloadedImages = {
-            }, n1.preloadedAudios = {
-            };
+            n1.preloadedImages = {}, n1.preloadedAudios = {};
             var _A1 = "data:application/octet-stream;base64,";
             function BA1(A) {
                 return cA1(A, _A1);
@@ -5983,7 +5963,7 @@ const __denoroot = {
                 });
             }
             function hA1() {
-                var A72 = {
+                var A73 = {
                     a: MA1
                 };
                 function a68(A, a) {
@@ -5995,27 +5975,26 @@ const __denoroot = {
                 }
                 function t(a69) {
                     return EA1().then(function(a) {
-                        return WebAssembly.instantiate(a, A72);
+                        return WebAssembly.instantiate(a, A73);
                     }).then(a69, function(A) {
                         u1("failed to asynchronously prepare wasm: " + A), oA1(A);
                     });
                 }
                 if (gA1(), n1.instantiateWasm) try {
-                    return n1.instantiateWasm(A72, a68);
-                } catch (A73) {
-                    return u1("Module.instantiateWasm callback failed with error: " + A73), !1;
+                    return n1.instantiateWasm(A73, a68);
+                } catch (A74) {
+                    return u1("Module.instantiateWasm callback failed with error: " + A74), !1;
                 }
                 return (function() {
                     if (E1 || "function" != typeof WebAssembly.instantiateStreaming || BA1(QA1) || sA1(QA1) || "function" != typeof fetch) return t(r48);
                     fetch(QA1, {
                         credentials: "same-origin"
                     }).then(function(a) {
-                        return WebAssembly.instantiateStreaming(a, A72).then(r48, function(A) {
+                        return WebAssembly.instantiateStreaming(a, A73).then(r48, function(A) {
                             return u1("wasm streaming compile failed: " + A), u1("falling back to ArrayBuffer instantiation"), t(r48);
                         });
                     });
-                })(), {
-                };
+                })(), {};
             }
             BA1(QA1) || (QA1 = p1(QA1));
             var uA1 = {
@@ -6024,12 +6003,12 @@ const __denoroot = {
                 },
                 1065: function() {
                     if (void 0 === n1.getRandomValue) try {
-                        var A74 = "object" == typeof window ? window : self, a = void 0 !== A74.crypto ? A74.crypto : A74.msCrypto, r = function() {
+                        var A75 = "object" == typeof window ? window : self, a = void 0 !== A75.crypto ? A75.crypto : A75.msCrypto, r = function() {
                             var A = new Uint32Array(1);
                             return a.getRandomValues(A), A[0] >>> 0;
                         };
                         r(), n1.getRandomValue = r;
-                    } catch (A75) {
+                    } catch (A77) {
                         try {
                             var t = require("crypto"), e = function() {
                                 var A = t.randomBytes(4);
@@ -6065,8 +6044,7 @@ const __denoroot = {
             function bA1(A) {
                 try {
                     return h1.grow(A - v1.byteLength + 65535 >>> 16), M1(h1.buffer), 1;
-                } catch (A76) {
-                }
+                } catch (A78) {}
             }
             function dA1(A) {
                 A >>>= 0;
@@ -6279,7 +6257,7 @@ const __denoroot = {
                 try {
                     for(var r = SA1(A), t = new Uint8Array(r.length), e = 0; e < r.length; ++e)t[e] = r.charCodeAt(e);
                     return t;
-                } catch (A77) {
+                } catch (A79) {
                     throw new Error("Converting base64 string to bytes failed.");
                 }
             }
@@ -7440,10 +7418,9 @@ const __denoroot = {
     }
     "function" == typeof define && define.amd ? define([
         "exports"
-    ], t1) : "object" == typeof exports && "string" != typeof exports.nodeName ? t1(exports) : a1 && (a1.libsodium = t1(a1.libsodium_mod || (a1.commonJsStrict = {
-    })));
-}(0, __denoroot, __document), (function(A78, a70, r49) {
-    a70.sodium = (function(A79, a71) {
+    ], t1) : "object" == typeof exports && "string" != typeof exports.nodeName ? t1(exports) : a1 && (a1.libsodium = t1(a1.libsodium_mod || (a1.commonJsStrict = {})));
+}(0, __denoroot, __document), (function(A80, a70, r49) {
+    a70.sodium = (function(A81, a71) {
         "use strict";
         var r50, t48 = a71.ready.then(function() {
             r50 = a71;
@@ -7724,7 +7701,7 @@ const __denoroot = {
                         Xa,
                         Wa,
                         Va
-                    ], e = 0; e < t.length; e++)"function" == typeof r50["_" + a[e]] && (A79[a[e]] = t[e]);
+                    ], e = 0; e < t.length; e++)"function" == typeof r50["_" + a[e]] && (A81[a[e]] = t[e]);
                     var n = [
                         "SODIUM_LIBRARY_VERSION_MAJOR",
                         "SODIUM_LIBRARY_VERSION_MINOR",
@@ -7957,7 +7934,7 @@ const __denoroot = {
                         "crypto_verify_32_BYTES",
                         "crypto_verify_64_BYTES"
                     ];
-                    for(e = 0; e < n.length; e++)"function" == typeof (I = r50["_" + n[e].toLowerCase()]) && (A79[n[e]] = I());
+                    for(e = 0; e < n.length; e++)"function" == typeof (I = r50["_" + n[e].toLowerCase()]) && (A81[n[e]] = I());
                     var g = [
                         "SODIUM_VERSION_STRING",
                         "crypto_pwhash_STRPREFIX",
@@ -7965,7 +7942,7 @@ const __denoroot = {
                     ];
                     for(e = 0; e < g.length; e++){
                         var I;
-                        "function" == typeof (I = r50["_" + g[e].toLowerCase()]) && (A79[g[e]] = r50.UTF8ToString(I()));
+                        "function" == typeof (I = r50["_" + g[e].toLowerCase()]) && (A81[g[e]] = r50.UTF8ToString(I()));
                     }
                 }();
                 var t49 = new Uint8Array([
@@ -7974,8 +7951,8 @@ const __denoroot = {
                     108,
                     108,
                     115
-                ]), e35 = A79.randombytes_buf(A79.crypto_secretbox_NONCEBYTES), n30 = A79.randombytes_buf(A79.crypto_secretbox_KEYBYTES), g15 = A79.crypto_secretbox_easy(t49, e35, n30), I11 = A79.crypto_secretbox_open_easy(g15, e35, n30);
-                if (A79.memcmp(t49, I11)) return;
+                ]), e35 = A81.randombytes_buf(A81.crypto_secretbox_NONCEBYTES), n30 = A81.randombytes_buf(A81.crypto_secretbox_KEYBYTES), g15 = A81.crypto_secretbox_easy(t49, e35, n30), I11 = A81.crypto_secretbox_open_easy(g15, e35, n30);
+                if (A81.memcmp(t49, I11)) return;
             } catch (A) {
                 if (null == r50.useBackupModule) throw new Error("Both wasm and asm failed to load" + A);
             }
@@ -7993,7 +7970,7 @@ const __denoroot = {
             var a = 8192, r = Math.ceil(A.length / a);
             if (r <= 1) try {
                 return decodeURIComponent(escape(String.fromCharCode.apply(null, A)));
-            } catch (A80) {
+            } catch (A82) {
                 throw new TypeError("The encoded data was not valid.");
             }
             for(var t = "", e = 0, g = 0; g < r; g++){
@@ -8042,8 +8019,7 @@ const __denoroot = {
                 throw new Error('What is output format "' + r + '"?');
             }
             if ("object" == typeof A) {
-                for(var t = Object.keys(A), e = {
-                }, o = 0; o < t.length; o++)e[t[o]] = _7(A[t[o]], r);
+                for(var t = Object.keys(A), e = {}, o = 0; o < t.length; o++)e[t[o]] = _7(A[t[o]], r);
                 return e;
             }
             if ("string" == typeof A) return A;
@@ -9860,90 +9836,81 @@ const __denoroot = {
         return s5.prototype.to_Uint8Array = function() {
             var A = new Uint8Array(this.length);
             return A.set(r50.HEAPU8.subarray(this.address, this.address + this.length)), A;
-        }, A79.add = function(A, a) {
+        }, A81.add = function(A, a) {
             if (!(A instanceof Uint8Array && a instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can added");
             var r = A.length, t = 0, e = 0;
             if (a.length != A.length) throw new TypeError("Arguments must have the same length");
             for(e = 0; e < r; e++)t >>= 8, t += A[e] + a[e], A[e] = 255 & t;
-        }, A79.base64_variants = I10, A79.compare = function(A, a) {
+        }, A81.base64_variants = I10, A81.compare = function(A, a) {
             if (!(A instanceof Uint8Array && a instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be compared");
             if (A.length !== a.length) throw new TypeError("Only instances of identical length can be compared");
             for(var r = 0, t = 1, e = A.length; e-- > 0;)r |= a[e] - A[e] >> 8 & t, t &= (a[e] ^ A[e]) - 1 >> 8;
             return r + r + t - 1;
-        }, A79.from_base64 = function(A, a) {
+        }, A81.from_base64 = function(A, a) {
             a = o5(a);
             var t, e = [], n = new s5(3 * (A = u(e, A, "input")).length / 4), g = C(A), I = y5(4), c = y5(4);
             return e.push(g), e.push(n.address), e.push(n.result_bin_len_p), e.push(n.b64_end_p), 0 !== r50._sodium_base642bin(n.address, n.length, g, A.length, 0, I, c, a) && p5(e, "invalid input"), r50.getValue(c, "i32") - g !== A.length && p5(e, "incomplete input"), n.length = r50.getValue(I, "i32"), t = n.to_Uint8Array(), Q(e), t;
-        }, A79.from_hex = function(A) {
+        }, A81.from_hex = function(A) {
             var a, t = [], e = new s5((A = u(t, A, "input")).length / 2), n = C(A), g = y5(4);
             return t.push(n), t.push(e.address), t.push(e.hex_end_p), 0 !== r50._sodium_hex2bin(e.address, e.length, n, A.length, 0, 0, g) && p5(t, "invalid input"), r50.getValue(g, "i32") - n !== A.length && p5(t, "incomplete input"), a = e.to_Uint8Array(), Q(t), a;
-        }, A79.from_string = e34, A79.increment = function(A) {
+        }, A81.from_string = e34, A81.increment = function(A) {
             if (!(A instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be incremented");
             for(var a = 256, r = 0, t = A.length; r < t; r++)a >>= 8, a += A[r], A[r] = 255 & a;
-        }, A79.is_zero = function(A) {
+        }, A81.is_zero = function(A) {
             if (!(A instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be checked");
             for(var a = 0, r = 0, t = A.length; r < t; r++)a |= A[r];
             return 0 === a;
-        }, A79.libsodium = a71, A79.memcmp = function(A, a) {
+        }, A81.libsodium = a71, A81.memcmp = function(A, a) {
             if (!(A instanceof Uint8Array && a instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be compared");
             if (A.length !== a.length) throw new TypeError("Only instances of identical length can be compared");
             for(var r = 0, t = 0, e = A.length; t < e; t++)r |= A[t] ^ a[t];
             return 0 === r;
-        }, A79.memzero = function(A) {
+        }, A81.memzero = function(A) {
             if (!(A instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be wiped");
             for(var a = 0, r = A.length; a < r; a++)A[a] = 0;
-        }, A79.output_formats = function() {
+        }, A81.output_formats = function() {
             return [
                 "uint8array",
                 "text",
                 "hex",
                 "base64"
             ];
-        }, A79.pad = function(A, a) {
+        }, A81.pad = function(A, a) {
             if (!(A instanceof Uint8Array)) throw new TypeError("buffer must be a Uint8Array");
             if ((a |= 0) <= 0) throw new Error("block size must be > 0");
             var t, e = [], n = y5(4), g = 1, I = 0, o = 0 | A.length, c = new s5(o + a);
             e.push(n), e.push(c.address);
             for(var _ = c.address, B = c.address + o + a; _ < B; _++)r50.HEAPU8[_] = A[I], I += g = 1 & ~((65535 & ((o -= g) >>> 48 | o >>> 32 | o >>> 16 | o)) - 1 >> 16);
             return 0 !== r50._sodium_pad(n, c.address, A.length, a, c.length) && p5(e, "internal error"), c.length = r50.getValue(n, "i32"), t = c.to_Uint8Array(), Q(e), t;
-        }, A79.unpad = function(A, a) {
+        }, A81.unpad = function(A, a) {
             if (!(A instanceof Uint8Array)) throw new TypeError("buffer must be a Uint8Array");
             if ((a |= 0) <= 0) throw new Error("block size must be > 0");
             var t = [], e = C(A), n = y5(4);
             return t.push(e), t.push(n), 0 !== r50._sodium_unpad(n, e, A.length, a) && p5(t, "unsupported/invalid padding"), A = (A = new Uint8Array(A)).subarray(0, r50.getValue(n, "i32")), Q(t), A;
-        }, A79.ready = t48, A79.symbols = function() {
-            return Object.keys(A79).sort();
-        }, A79.to_base64 = c5, A79.to_hex = g14, A79.to_string = n29, A79;
-    })(a70.commonJsStrict = {
-    }, a70.libsodium);
+        }, A81.ready = t48, A81.symbols = function() {
+            return Object.keys(A81).sort();
+        }, A81.to_base64 = c5, A81.to_hex = g14, A81.to_string = n29, A81;
+    })(a70.commonJsStrict = {}, a70.libsodium);
 })(0, __denoroot);
 const __default = __denoroot.sodium;
-const __denoroot1 = {
-}, __document1 = {
-};
+const __denoroot1 = {}, __document1 = {};
 !function(A1, g1, I1) {
     function e1(A2) {
         "use strict";
         var g2;
-        void 0 === (g2 = A2) && (g2 = {
-        });
+        void 0 === (g2 = A2) && (g2 = {});
         var e2 = g2;
         "object" != typeof e2.sodium && ("object" == typeof global ? e2 = global : "object" == typeof window && (e2 = window)), "object" == typeof e2.sodium && "number" == typeof e2.sodium.totalMemory && (g2.TOTAL_MEMORY = e2.sodium.totalMemory);
         var B1 = g2;
         return g2.ready = new Promise(function(A3, g3) {
-            (r1 = B1).onAbort = g3, r1.print = function(A) {
-            }, r1.printErr = function(A) {
-            }, r1.onRuntimeInitialized = function() {
+            (r1 = B1).onAbort = g3, r1.print = function(A) {}, r1.printErr = function(A) {}, r1.onRuntimeInitialized = function() {
                 try {
                     r1._crypto_secretbox_keybytes(), A3();
                 } catch (A) {
                     g3(A);
                 }
             }, r1.useBackupModule = function() {
-                var A4, g4 = void 0 !== (g4 = {
-                }) ? g4 : {
-                }, e4 = {
-                };
+                var A4, g4 = void 0 !== (g4 = {}) ? g4 : {}, e4 = {};
                 for(A4 in g4)g4.hasOwnProperty(A4) && (e4[A4] = g4[A4]);
                 var r2 = [], a2 = !1, t2 = !1, n2 = !1, i2 = !1;
                 a2 = "object" == typeof window, t2 = "function" == typeof importScripts, n2 = "object" == typeof process && "object" == typeof process.versions && "string" == typeof process.versions.node, i2 = !a2 && !n2 && !t2;
@@ -9965,8 +9932,7 @@ const __denoroot1 = {
                 }), Q2 = function(A) {
                     var g;
                     return (g = UA2(A)) ? g : "function" == typeof readbuffer ? new Uint8Array(readbuffer(A)) : (D2("object" == typeof (g = read(A, "binary"))), g);
-                }, "undefined" != typeof scriptArgs ? r2 = scriptArgs : void 0 !== arguments && (r2 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {
-                }), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (a2 || t2) && (t2 ? E2 = self.location.href : I1.currentScript && (E2 = I1.currentScript.src), E2 = 0 !== E2.indexOf("blob:") ? E2.substr(0, E2.lastIndexOf("/") + 1) : "", C2 = function(A) {
+                }, "undefined" != typeof scriptArgs ? r2 = scriptArgs : void 0 !== arguments && (r2 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {}), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (a2 || t2) && (t2 ? E2 = self.location.href : I1.currentScript && (E2 = I1.currentScript.src), E2 = 0 !== E2.indexOf("blob:") ? E2.substr(0, E2.lastIndexOf("/") + 1) : "", C2 = function(A) {
                     try {
                         var g = new XMLHttpRequest;
                         return g.open("GET", A, !1), g.send(null), g.responseText;
@@ -10004,8 +9970,7 @@ const __denoroot1 = {
                             return g[A];
                         }, g;
                     },
-                    Module: function(A) {
-                    },
+                    Module: function(A) {},
                     Instance: function(A6, g5) {
                         this.exports = (function(A7, g6, I2) {
                             for(var e5 = new Uint8Array(g6.buffer), B2 = new Uint8Array(123), r3 = 25; r3 >= 0; --r3)B2[48 + r3] = 52 + r3, B2[65 + r3] = r3, B2[97 + r3] = 26 + r3;
@@ -12008,8 +11973,7 @@ const __denoroot1 = {
                                     var t;
                                     return A |= 0, g |= 0, B |= 0, a |= 0, p3 = t = p3 - 80 | 0, (I |= 0) | (e |= 0) && (II(t + 12 | 0, r |= 0), sA3(t + 16 | 0, a), OA1(t + 16 | 0, B, t + 12 | 0), S3(t + 16 | 0, g, A, I, e), Gg(t + 16 | 0, 64)), p3 = t + 80 | 0, 0;
                                 }, {
-                                    g: function() {
-                                    },
+                                    g: function() {},
                                     h: function(A, g, I, e, B, r, a, t, n, i, C, Q) {
                                         return 0 | JA3(A |= 0, g |= 0, I |= 0, e |= 0, B |= 0, r |= 0, a |= 0, t |= 0, n |= 0, C |= 0, Q |= 0);
                                     },
@@ -12761,9 +12725,7 @@ const __denoroot1 = {
                 function nA2(A, g) {
                     return String.prototype.startsWith ? A.startsWith(g) : 0 === A.indexOf(g);
                 }
-                g4.preloadedImages = {
-                }, g4.preloadedAudios = {
-                };
+                g4.preloadedImages = {}, g4.preloadedAudios = {};
                 var iA2 = "data:application/octet-stream;base64,";
                 function CA2(A) {
                     return nA2(A, iA2);
@@ -12826,8 +12788,7 @@ const __denoroot1 = {
                                 return h2("wasm streaming compile failed: " + A), h2("falling back to ArrayBuffer instantiation"), B(e47);
                             });
                         });
-                    })(), {
-                    };
+                    })(), {};
                 }
                 CA2(sA2) || (sA2 = s2(sA2));
                 var _A2 = {
@@ -12841,7 +12802,7 @@ const __denoroot1 = {
                                 return I.getRandomValues(A), A[0] >>> 0;
                             };
                             e(), g4.getRandomValue = e;
-                        } catch (A66) {
+                        } catch (A67) {
                             try {
                                 var B = require("crypto"), r = function() {
                                     var A = B.randomBytes(4);
@@ -12877,8 +12838,7 @@ const __denoroot1 = {
                 function vA2(A) {
                     try {
                         return f2.grow(A - k2.byteLength + 65535 >>> 16), N2(f2.buffer), 1;
-                    } catch (A67) {
-                    }
+                    } catch (A68) {}
                 }
                 function dA2(A) {
                     A >>>= 0;
@@ -13091,7 +13051,7 @@ const __denoroot1 = {
                     try {
                         for(var I = HA2(A), e = new Uint8Array(I.length), B = 0; B < I.length; ++B)e[B] = I.charCodeAt(B);
                         return e;
-                    } catch (A68) {
+                    } catch (A69) {
                         throw new Error("Converting base64 string to bytes failed.");
                     }
                 }
@@ -13497,9 +13457,7 @@ const __denoroot1 = {
                     B1[A] = g4[A];
                 });
             };
-            var e3, r1 = void 0 !== r1 ? r1 : {
-            }, a1 = {
-            };
+            var e3, r1 = void 0 !== r1 ? r1 : {}, a1 = {};
             for(e3 in r1)r1.hasOwnProperty(e3) && (a1[e3] = r1[e3]);
             var t1 = [], n1 = !1, i1 = !1, C1 = !1, Q1 = !1;
             n1 = "object" == typeof window, i1 = "function" == typeof importScripts, C1 = "object" == typeof process && "object" == typeof process.versions && "string" == typeof process.versions.node, Q1 = !n1 && !C1 && !i1;
@@ -13521,8 +13479,7 @@ const __denoroot1 = {
             }), c1 = function(A) {
                 var g;
                 return (g = MA1(A)) ? g : "function" == typeof readbuffer ? new Uint8Array(readbuffer(A)) : (v1("object" == typeof (g = read(A, "binary"))), g);
-            }, "undefined" != typeof scriptArgs ? t1 = scriptArgs : void 0 !== arguments && (t1 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {
-            }), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (n1 || i1) && (i1 ? y1 = self.location.href : I1.currentScript && (y1 = I1.currentScript.src), y1 = 0 !== y1.indexOf("blob:") ? y1.substr(0, y1.lastIndexOf("/") + 1) : "", o1 = function(A) {
+            }, "undefined" != typeof scriptArgs ? t1 = scriptArgs : void 0 !== arguments && (t1 = arguments), "undefined" != typeof print && ("undefined" == typeof console && (console = {}), console.log = print, console.warn = console.error = "undefined" != typeof printErr ? printErr : print)) : (n1 || i1) && (i1 ? y1 = self.location.href : I1.currentScript && (y1 = I1.currentScript.src), y1 = 0 !== y1.indexOf("blob:") ? y1.substr(0, y1.lastIndexOf("/") + 1) : "", o1 = function(A) {
                 try {
                     var g = new XMLHttpRequest;
                     return g.open("GET", A, !1), g.send(null), g.responseText;
@@ -13683,9 +13640,7 @@ const __denoroot1 = {
             function iA1(A, g) {
                 return String.prototype.startsWith ? A.startsWith(g) : 0 === A.indexOf(g);
             }
-            r1.preloadedImages = {
-            }, r1.preloadedAudios = {
-            };
+            r1.preloadedImages = {}, r1.preloadedAudios = {};
             var CA1 = "data:application/octet-stream;base64,";
             function QA1(A) {
                 return iA1(A, CA1);
@@ -13717,7 +13672,7 @@ const __denoroot1 = {
                 });
             }
             function _A1() {
-                var A69 = {
+                var A70 = {
                     a: PA1
                 };
                 function g66(A, g) {
@@ -13729,27 +13684,26 @@ const __denoroot1 = {
                 }
                 function e(g67) {
                     return fA1().then(function(g) {
-                        return WebAssembly.instantiate(g, A69);
+                        return WebAssembly.instantiate(g, A70);
                     }).then(g67, function(A) {
                         p1("failed to asynchronously prepare wasm: " + A), nA1(A);
                     });
                 }
                 if (aA1(), r1.instantiateWasm) try {
-                    return r1.instantiateWasm(A69, g66);
-                } catch (A70) {
-                    return p1("Module.instantiateWasm callback failed with error: " + A70), !1;
+                    return r1.instantiateWasm(A70, g66);
+                } catch (A71) {
+                    return p1("Module.instantiateWasm callback failed with error: " + A71), !1;
                 }
                 return (function() {
                     if (f1 || "function" != typeof WebAssembly.instantiateStreaming || QA1(yA1) || cA1(yA1) || "function" != typeof fetch) return e(I52);
                     fetch(yA1, {
                         credentials: "same-origin"
                     }).then(function(g) {
-                        return WebAssembly.instantiateStreaming(g, A69).then(I52, function(A) {
+                        return WebAssembly.instantiateStreaming(g, A70).then(I52, function(A) {
                             return p1("wasm streaming compile failed: " + A), p1("falling back to ArrayBuffer instantiation"), e(I52);
                         });
                     });
-                })(), {
-                };
+                })(), {};
             }
             QA1(yA1) || (yA1 = h1(yA1));
             var pA1 = {
@@ -13758,12 +13712,12 @@ const __denoroot1 = {
                 },
                 1062: function() {
                     if (void 0 === r1.getRandomValue) try {
-                        var A71 = "object" == typeof window ? window : self, g = void 0 !== A71.crypto ? A71.crypto : A71.msCrypto, I = function() {
+                        var A72 = "object" == typeof window ? window : self, g = void 0 !== A72.crypto ? A72.crypto : A72.msCrypto, I = function() {
                             var A = new Uint32Array(1);
                             return g.getRandomValues(A), A[0] >>> 0;
                         };
                         I(), r1.getRandomValue = I;
-                    } catch (A72) {
+                    } catch (A74) {
                         try {
                             var e = require("crypto"), B = function() {
                                 var A = e.randomBytes(4);
@@ -13799,8 +13753,7 @@ const __denoroot1 = {
             function dA1(A) {
                 try {
                     return _1.grow(A - F1.byteLength + 65535 >>> 16), P1(_1.buffer), 1;
-                } catch (A73) {
-                }
+                } catch (A75) {}
             }
             function bA1(A) {
                 A >>>= 0;
@@ -14013,7 +13966,7 @@ const __denoroot1 = {
                 try {
                     for(var I = SA1(A), e = new Uint8Array(I.length), B = 0; B < I.length; ++B)e[B] = I.charCodeAt(B);
                     return e;
-                } catch (A74) {
+                } catch (A76) {
                     throw new Error("Converting base64 string to bytes failed.");
                 }
             }
@@ -14418,10 +14371,9 @@ const __denoroot1 = {
     }
     "function" == typeof define && define.amd ? define([
         "exports"
-    ], e1) : "object" == typeof exports && "string" != typeof exports.nodeName ? e1(exports) : g1 && (g1.libsodium = e1(g1.libsodium_mod || (g1.commonJsStrict = {
-    })));
-}(0, __denoroot1, __document1), (function(A75, g68, I53) {
-    g68.sodium = (function(A76, g69) {
+    ], e1) : "object" == typeof exports && "string" != typeof exports.nodeName ? e1(exports) : g1 && (g1.libsodium = e1(g1.libsodium_mod || (g1.commonJsStrict = {})));
+}(0, __denoroot1, __document1), (function(A77, g68, I53) {
+    g68.sodium = (function(A78, g69) {
         "use strict";
         var I54, e48 = g69.ready.then(function() {
             I54 = g69;
@@ -14702,7 +14654,7 @@ const __denoroot1 = {
                         Xg,
                         Vg,
                         Wg
-                    ], B = 0; B < e.length; B++)"function" == typeof I54["_" + g[B]] && (A76[g[B]] = e[B]);
+                    ], B = 0; B < e.length; B++)"function" == typeof I54["_" + g[B]] && (A78[g[B]] = e[B]);
                     var r = [
                         "SODIUM_LIBRARY_VERSION_MAJOR",
                         "SODIUM_LIBRARY_VERSION_MINOR",
@@ -14935,7 +14887,7 @@ const __denoroot1 = {
                         "crypto_verify_32_BYTES",
                         "crypto_verify_64_BYTES"
                     ];
-                    for(B = 0; B < r.length; B++)"function" == typeof (t = I54["_" + r[B].toLowerCase()]) && (A76[r[B]] = t());
+                    for(B = 0; B < r.length; B++)"function" == typeof (t = I54["_" + r[B].toLowerCase()]) && (A78[r[B]] = t());
                     var a = [
                         "SODIUM_VERSION_STRING",
                         "crypto_pwhash_STRPREFIX",
@@ -14943,7 +14895,7 @@ const __denoroot1 = {
                     ];
                     for(B = 0; B < a.length; B++){
                         var t;
-                        "function" == typeof (t = I54["_" + a[B].toLowerCase()]) && (A76[a[B]] = I54.UTF8ToString(t()));
+                        "function" == typeof (t = I54["_" + a[B].toLowerCase()]) && (A78[a[B]] = I54.UTF8ToString(t()));
                     }
                 }();
                 var e49 = new Uint8Array([
@@ -14952,8 +14904,8 @@ const __denoroot1 = {
                     108,
                     108,
                     115
-                ]), B32 = A76.randombytes_buf(A76.crypto_secretbox_NONCEBYTES), r28 = A76.randombytes_buf(A76.crypto_secretbox_KEYBYTES), a17 = A76.crypto_secretbox_easy(e49, B32, r28), t12 = A76.crypto_secretbox_open_easy(a17, B32, r28);
-                if (A76.memcmp(e49, t12)) return;
+                ]), B32 = A78.randombytes_buf(A78.crypto_secretbox_NONCEBYTES), r28 = A78.randombytes_buf(A78.crypto_secretbox_KEYBYTES), a17 = A78.crypto_secretbox_easy(e49, B32, r28), t12 = A78.crypto_secretbox_open_easy(a17, B32, r28);
+                if (A78.memcmp(e49, t12)) return;
             } catch (A) {
                 if (null == I54.useBackupModule) throw new Error("Both wasm and asm failed to load" + A);
             }
@@ -14971,7 +14923,7 @@ const __denoroot1 = {
             var g = 8192, I = Math.ceil(A.length / g);
             if (I <= 1) try {
                 return decodeURIComponent(escape(String.fromCharCode.apply(null, A)));
-            } catch (A77) {
+            } catch (A79) {
                 throw new TypeError("The encoded data was not valid.");
             }
             for(var e = "", B = 0, a = 0; a < I; a++){
@@ -15020,8 +14972,7 @@ const __denoroot1 = {
                 throw new Error('What is output format "' + I + '"?');
             }
             if ("object" == typeof A) {
-                for(var e = Object.keys(A), B = {
-                }, n = 0; n < e.length; n++)B[e[n]] = C8(A[e[n]], I);
+                for(var e = Object.keys(A), B = {}, n = 0; n < e.length; n++)B[e[n]] = C8(A[e[n]], I);
                 return B;
             }
             if ("string" == typeof A) return A;
@@ -16838,62 +16789,61 @@ const __denoroot1 = {
         return c5.prototype.to_Uint8Array = function() {
             var A = new Uint8Array(this.length);
             return A.set(I54.HEAPU8.subarray(this.address, this.address + this.length)), A;
-        }, A76.add = function(A, g) {
+        }, A78.add = function(A, g) {
             if (!(A instanceof Uint8Array && g instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can added");
             var I = A.length, e = 0, B = 0;
             if (g.length != A.length) throw new TypeError("Arguments must have the same length");
             for(B = 0; B < I; B++)e >>= 8, e += A[B] + g[B], A[B] = 255 & e;
-        }, A76.base64_variants = t11, A76.compare = function(A, g) {
+        }, A78.base64_variants = t11, A78.compare = function(A, g) {
             if (!(A instanceof Uint8Array && g instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be compared");
             if (A.length !== g.length) throw new TypeError("Only instances of identical length can be compared");
             for(var I = 0, e = 1, B = A.length; B-- > 0;)I |= g[B] - A[B] >> 8 & e, e &= (g[B] ^ A[B]) - 1 >> 8;
             return I + I + e - 1;
-        }, A76.from_base64 = function(A, g) {
+        }, A78.from_base64 = function(A, g) {
             g = n4(g);
             var e, B = [], r = new c5(3 * (A = p(B, A, "input")).length / 4), a = E(A), t = s5(4), i = s5(4);
             return B.push(a), B.push(r.address), B.push(r.result_bin_len_p), B.push(r.b64_end_p), 0 !== I54._sodium_base642bin(r.address, r.length, a, A.length, 0, t, i, g) && h5(B, "invalid input"), I54.getValue(i, "i32") - a !== A.length && h5(B, "incomplete input"), r.length = I54.getValue(t, "i32"), e = r.to_Uint8Array(), y(B), e;
-        }, A76.from_hex = function(A) {
+        }, A78.from_hex = function(A) {
             var g, e = [], B = new c5((A = p(e, A, "input")).length / 2), r = E(A), a = s5(4);
             return e.push(r), e.push(B.address), e.push(B.hex_end_p), 0 !== I54._sodium_hex2bin(B.address, B.length, r, A.length, 0, 0, a) && h5(e, "invalid input"), I54.getValue(a, "i32") - r !== A.length && h5(e, "incomplete input"), g = B.to_Uint8Array(), y(e), g;
-        }, A76.from_string = B31, A76.increment = function(A) {
+        }, A78.from_string = B31, A78.increment = function(A) {
             if (!(A instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be incremented");
             for(var g = 256, I = 0, e = A.length; I < e; I++)g >>= 8, g += A[I], A[I] = 255 & g;
-        }, A76.is_zero = function(A) {
+        }, A78.is_zero = function(A) {
             if (!(A instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be checked");
             for(var g = 0, I = 0, e = A.length; I < e; I++)g |= A[I];
             return 0 === g;
-        }, A76.libsodium = g69, A76.memcmp = function(A, g) {
+        }, A78.libsodium = g69, A78.memcmp = function(A, g) {
             if (!(A instanceof Uint8Array && g instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be compared");
             if (A.length !== g.length) throw new TypeError("Only instances of identical length can be compared");
             for(var I = 0, e = 0, B = A.length; e < B; e++)I |= A[e] ^ g[e];
             return 0 === I;
-        }, A76.memzero = function(A) {
+        }, A78.memzero = function(A) {
             if (!(A instanceof Uint8Array)) throw new TypeError("Only Uint8Array instances can be wiped");
             for(var g = 0, I = A.length; g < I; g++)A[g] = 0;
-        }, A76.output_formats = function() {
+        }, A78.output_formats = function() {
             return [
                 "uint8array",
                 "text",
                 "hex",
                 "base64"
             ];
-        }, A76.pad = function(A, g) {
+        }, A78.pad = function(A, g) {
             if (!(A instanceof Uint8Array)) throw new TypeError("buffer must be a Uint8Array");
             if ((g |= 0) <= 0) throw new Error("block size must be > 0");
             var e, B = [], r = s5(4), a = 1, t = 0, n = 0 | A.length, i = new c5(n + g);
             B.push(r), B.push(i.address);
             for(var C = i.address, Q = i.address + n + g; C < Q; C++)I54.HEAPU8[C] = A[t], t += a = 1 & ~((65535 & ((n -= a) >>> 48 | n >>> 32 | n >>> 16 | n)) - 1 >> 16);
             return 0 !== I54._sodium_pad(r, i.address, A.length, g, i.length) && h5(B, "internal error"), i.length = I54.getValue(r, "i32"), e = i.to_Uint8Array(), y(B), e;
-        }, A76.unpad = function(A, g) {
+        }, A78.unpad = function(A, g) {
             if (!(A instanceof Uint8Array)) throw new TypeError("buffer must be a Uint8Array");
             if ((g |= 0) <= 0) throw new Error("block size must be > 0");
             var e = [], B = E(A), r = s5(4);
             return e.push(B), e.push(r), 0 !== I54._sodium_unpad(r, B, A.length, g) && h5(e, "unsupported/invalid padding"), A = (A = new Uint8Array(A)).subarray(0, I54.getValue(r, "i32")), y(e), A;
-        }, A76.ready = e48, A76.symbols = function() {
-            return Object.keys(A76).sort();
-        }, A76.to_base64 = i6, A76.to_hex = a16, A76.to_string = r27, A76;
-    })(g68.commonJsStrict = {
-    }, g68.libsodium);
+        }, A78.ready = e48, A78.symbols = function() {
+            return Object.keys(A78).sort();
+        }, A78.to_base64 = i6, A78.to_hex = a16, A78.to_string = r27, A78;
+    })(g68.commonJsStrict = {}, g68.libsodium);
 })(0, __denoroot1);
 __denoroot1.sodium;
 var base64_variants;
@@ -16902,8 +16852,7 @@ var base64_variants;
     base64_variants1[base64_variants1["ORIGINAL_NO_PADDING"] = 1] = "ORIGINAL_NO_PADDING";
     base64_variants1[base64_variants1["URLSAFE"] = 2] = "URLSAFE";
     base64_variants1[base64_variants1["URLSAFE_NO_PADDING"] = 3] = "URLSAFE_NO_PADDING";
-})(base64_variants || (base64_variants = {
-}));
+})(base64_variants || (base64_variants = {}));
 const osType = (()=>{
     const { Deno: Deno1  } = globalThis;
     if (typeof Deno1?.build?.os === "string") {
@@ -16942,8 +16891,7 @@ function normalizeString(path3, allowAboveRoot, separator, isPathSeparator1) {
         else if (isPathSeparator1(code4)) break;
         else code4 = CHAR_FORWARD_SLASH;
         if (isPathSeparator1(code4)) {
-            if (lastSlash === i - 1 || dots === 1) {
-            } else if (lastSlash !== i - 1 && dots === 2) {
+            if (lastSlash === i - 1 || dots === 1) {} else if (lastSlash !== i - 1 && dots === 2) {
                 if (res.length < 2 || lastSegmentLength !== 2 || res.charCodeAt(res.length - 1) !== 46 || res.charCodeAt(res.length - 2) !== 46) {
                     if (res.length > 2) {
                         const lastSlashIndex = res.lastIndexOf(separator);
@@ -17996,8 +17944,7 @@ var LogLevels;
     LogLevels1[LogLevels1["WARNING"] = 30] = "WARNING";
     LogLevels1[LogLevels1["ERROR"] = 40] = "ERROR";
     LogLevels1[LogLevels1["CRITICAL"] = 50] = "CRITICAL";
-})(LogLevels || (LogLevels = {
-}));
+})(LogLevels || (LogLevels = {}));
 Object.keys(LogLevels).filter((key)=>isNaN(Number(key))
 );
 const byLevel = {
@@ -18063,8 +18010,7 @@ class Logger {
     #level;
     #handlers;
     #loggerName;
-    constructor(loggerName, levelName, options = {
-    }){
+    constructor(loggerName, levelName, options = {}){
         this.#loggerName = loggerName;
         this.#level = getLevelByName(levelName);
         this.#handlers = options.handlers || [];
@@ -18214,8 +18160,7 @@ var DiffType;
     DiffType1["removed"] = "removed";
     DiffType1["common"] = "common";
     DiffType1["added"] = "added";
-})(DiffType || (DiffType = {
-}));
+})(DiffType || (DiffType = {}));
 async function writeAll(w, arr) {
     let nwritten = 0;
     while(nwritten < arr.length){
@@ -18594,8 +18539,7 @@ class BaseHandler {
     level;
     levelName;
     formatter;
-    constructor(levelName, options = {
-    }){
+    constructor(levelName, options = {}){
         this.level = getLevelByName(levelName);
         this.levelName = levelName;
         this.formatter = options.formatter || DEFAULT_FORMATTER;
@@ -18617,12 +18561,9 @@ class BaseHandler {
             return String(value);
         });
     }
-    log(_msg) {
-    }
-    async setup() {
-    }
-    async destroy() {
-    }
+    log(_msg) {}
+    async setup() {}
+    async destroy() {}
 }
 class ConsoleHandler extends BaseHandler {
     format(logRecord) {
@@ -18786,7 +18727,7 @@ const state = {
     loggers: new Map(),
     config: DEFAULT_CONFIG
 };
-const handlers1 = {
+const handlers = {
     BaseHandler,
     ConsoleHandler,
     WriterHandler,
@@ -18854,29 +18795,27 @@ async function setup(config) {
         handler.destroy();
     });
     state.handlers.clear();
-    const handlers = state.config.handlers || {
-    };
-    for(const handlerName1 in handlers){
-        const handler = handlers[handlerName1];
+    const handlers1 = state.config.handlers || {};
+    for(const handlerName1 in handlers1){
+        const handler = handlers1[handlerName1];
         await handler.setup();
         state.handlers.set(handlerName1, handler);
     }
     state.loggers.clear();
-    const loggers = state.config.loggers || {
-    };
+    const loggers = state.config.loggers || {};
     for(const loggerName in loggers){
         const loggerConfig = loggers[loggerName];
         const handlerNames = loggerConfig.handlers || [];
-        const handlers = [];
+        const handlers2 = [];
         handlerNames.forEach((handlerName)=>{
             const handler = state.handlers.get(handlerName);
             if (handler) {
-                handlers.push(handler);
+                handlers2.push(handler);
             }
         });
         const levelName = loggerConfig.level || DEFAULT_LEVEL;
         const logger = new Logger(loggerName, levelName, {
-            handlers: handlers
+            handlers: handlers2
         });
         state.loggers.set(loggerName, logger);
     }
@@ -18886,8 +18825,8 @@ const mod2 = await async function() {
     return {
         LogLevels: LogLevels,
         Logger: Logger,
-        handlers: handlers1,
         LoggerConfig: LoggerConfig,
+        handlers: handlers,
         getLogger: getLogger,
         debug: debug,
         info: info,
@@ -19496,8 +19435,7 @@ function isZero(bytes) {
     );
 }
 const never = function() {
-    return new Promise(()=>{
-    });
+    return new Promise(()=>{});
 };
 function getNext(asyncIterator, index) {
     return asyncIterator.next().then((result)=>({
@@ -19864,8 +19802,7 @@ var RpcBodyType;
     RpcBodyType1[RpcBodyType1["binary"] = 0] = "binary";
     RpcBodyType1[RpcBodyType1["utf8"] = 1] = "utf8";
     RpcBodyType1[RpcBodyType1["json"] = 2] = "json";
-})(RpcBodyType || (RpcBodyType = {
-}));
+})(RpcBodyType || (RpcBodyType = {}));
 class EndOfStream extends Error {
     constructor(){
         super("Stream ended");
@@ -19893,8 +19830,7 @@ let lastActivity = Date.now();
 class RpcConnection {
     boxConnection;
     requestHandler;
-    constructor(boxConnection, requestHandler, { answerTimeout =300 , activityTimeout =60  } = {
-    }){
+    constructor(boxConnection, requestHandler, { answerTimeout =300 , activityTimeout =60  } = {}){
         this.boxConnection = boxConnection;
         this.requestHandler = requestHandler;
         this.requestCounter = 0;
@@ -19961,8 +19897,7 @@ class RpcConnection {
                                     }
                                 })();
                             } else {
-                                if (header.endOrError && textDecoder.decode(body) === "true") {
-                                } else {
+                                if (header.endOrError && textDecoder.decode(body) === "true") {} else {
                                     mod2.info(`Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${textDecoder.decode(body)}`);
                                 }
                             }
@@ -20094,8 +20029,7 @@ class RpcConnection {
         });
     };
     requestCounter;
-    sendRpcMessage = async (body, options = {
-    })=>{
+    sendRpcMessage = async (body, options = {})=>{
         function isUint8Array(v) {
             return v.constructor.prototype === Uint8Array.prototype;
         }
@@ -20158,8 +20092,7 @@ class RpcSeverInterface {
     boxServerInterface;
     answerTimeout;
     activityTimeout;
-    constructor(requestHandlerBuilder, boxServerInterface, { answerTimeout =30000 , activityTimeout =6000  } = {
-    }){
+    constructor(requestHandlerBuilder, boxServerInterface, { answerTimeout =30000 , activityTimeout =6000  } = {}){
         this.requestHandlerBuilder = requestHandlerBuilder;
         this.boxServerInterface = boxServerInterface;
         this.answerTimeout = answerTimeout;
@@ -20187,8 +20120,7 @@ class RpcMethodsHandler {
         if (method) {
             return method(args);
         } else {
-            return (async function*() {
-            })();
+            return (async function*() {})();
         }
     }
     handleAsyncRequest(names, args) {
@@ -20196,8 +20128,7 @@ class RpcMethodsHandler {
         if (method) {
             return method(args);
         } else {
-            return new Promise(()=>{
-            });
+            return new Promise(()=>{});
         }
     }
 }
@@ -20307,8 +20238,7 @@ class FeedsAgent extends Agent {
         }
     }
     newMessageListeners = [];
-    async *getFeed(feedId, { fromMessage =-10 , newMessages =true  } = {
-    }) {
+    async *getFeed(feedId, { fromMessage =-10 , newMessages =true  } = {}) {
         if (fromMessage != 0) {
             const lastMessage = await this.feedsStorage.lastMessage(feedId);
             fromMessage = fromMessage > 0 ? fromMessage : lastMessage + fromMessage + 1;
@@ -20408,8 +20338,7 @@ class BlobWant {
         this.level = level;
     }
     get shortWant() {
-        const shortWant = {
-        };
+        const shortWant = {};
         shortWant[this.blobId.toString()] = this.level;
         return shortWant;
     }
@@ -20501,8 +20430,7 @@ class BlobsAgent extends Agent {
                 "blobs",
                 "createWants"
             ],
-            args: {
-            }
+            args: {}
         });
         for await (const hasOrWantMessage of wantsReader){
             for (const entry of Object.entries(hasOrWantMessage)){
@@ -20576,8 +20504,7 @@ class ConnectionManager {
         this.rpcClientInterface = rpcClientInterface;
         this.rpcServerInterface = rpcServerInterface;
     }
-    notifyOutgoingConnection = (_conn)=>{
-    };
+    notifyOutgoingConnection = (_conn)=>{};
     newConnection(conn) {
         this.connections.set(conn.boxConnection.peer.base64Key, new WeakRef(conn));
     }
@@ -20768,8 +20695,7 @@ function makeConnectionLike(socket) {
     return result;
 }
 class WsTransportClient {
-    constructor(){
-    }
+    constructor(){}
     protocols = [
         "ws",
         "wss"
