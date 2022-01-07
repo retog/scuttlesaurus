@@ -12,13 +12,10 @@ import {
 } from "../scuttlesaurus/util.ts";
 
 export default class SparqlStorer {
-  ready: Promise<void>;
   constructor(
     public sparqlEndpointQuery: string,
     public sparqlEndpointUpdate: string,
-  ) {
-    this.ready = this.primeStore();
-  }
+  ) {}
 
   /** stored exsting and new messages in the triple store*/
   connectAgent(feedsAgent: FeedsAgent) {
@@ -30,19 +27,21 @@ export default class SparqlStorer {
       const graphFeed = msgsToSparql(msgFeed);
       for await (const sparqlStatement of graphFeed) {
         try {
-          await this.runSparqlStatementSequential(sparqlStatement);
+          await this.runSparqlStatement(sparqlStatement);
         } catch (error) {
           log.error(`Failed inserting message with sparql, ignoring: ${error}`);
         }
+        //reduce the write load to increade chances that reads still suceed
+        await delay(100);
       }
     };
-    this.ready.then(() =>
-      Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
-        (error) => {
-          console.error(`Procesing feeds: ${error}`);
-        },
-      )
+
+    Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
+      (error) => {
+        console.error(`Procesing feeds: ${error}`);
+      },
     );
+
     feedsAgent.subscriptions.addAddListener(processFeed);
   }
 
@@ -57,7 +56,7 @@ export default class SparqlStorer {
           tryRunSparqlStatement(attemptsLeft - 1);
         }
       });
-    }
+    };
     await this.lastRun;
     tryRunSparqlStatement();
     //reduce the write load to increase chances that reads still succeed
@@ -69,7 +68,7 @@ export default class SparqlStorer {
     const response = await fetch(this.sparqlEndpointUpdate, {
       "headers": {
         "Accept": "text/plain,*/*;q=0.9",
-        "Content-Type": "application/sparql-update",
+        "Content-Type": "application/sparql-update;charset=utf-8",
       },
       "body": sparqlStatement,
       "method": "POST",
@@ -116,47 +115,6 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
       return 1;
     }
   }
-
-  async primeStore() {
-    const query = `
-    PREFIX ssb: <ssb:ontology:>
-
-    ASK { <ssb:EpochStart> ssb:timestamp 0.}`;
-    const response = await fetch(this.sparqlEndpointQuery, {
-      "headers": {
-        "Accept": "application/sparql-results+json,*/*;q=0.9",
-        "Content-Type": "application/sparql-query",
-      },
-      "body": query,
-      "method": "POST",
-    });
-    if (!response.ok) {
-      throw new Error(response.statusText);
-    }
-
-    const resultJson = await response.json();
-    if (resultJson.boolean === true) {
-      log.info("Store already primed");
-    } else {
-      log.info("Initializing store with base triples");
-      const sparqlStatement = `PREFIX ssb: <ssb:ontology:>
-      INSERT DATA { <ssb:EpochStart> ssb:timestamp 0.
-      <ssb:EpochEnd> ssb:timestamp 9999999999999; ssb:previous <ssb:EpochStart>.}`;
-      const response = await fetch(this.sparqlEndpointUpdate, {
-        "headers": {
-          "Accept": "text/plain,*/*;q=0.9",
-          "Content-Type": "application/sparql-update",
-        },
-        "body": sparqlStatement,
-        "method": "POST",
-        keepalive: false,
-      });
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`${body}\n${sparqlStatement}`);
-      }
-    }
-  }
 }
 
 type RichMessage = Message & {
@@ -187,11 +145,8 @@ function msgToSparql(msg: RichMessage) {
     PREFIX ssb: <ssb:ontology:>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-    DELETE {
-      ?nextMsg ssb:previous ?msg .
-    } INSERT {
-      <${msgUri}> ssb:previous ?msg  .
-      ?nextMsg ssb:previous <${msgUri}> .
+    INSERT DATA
+    {
       <${msgUri}> rdf:type ssb:Message;
       ssb:seq ${msg.value.sequence};
       ssb:timestamp ${timestamp};
@@ -202,13 +157,6 @@ function msgToSparql(msg: RichMessage) {
         : `;`
     }
       ssb:raw "${escapeLiteral(JSON.stringify(content))}".
-    } WHERE {
-      ?nextMsg ssb:previous ?msg .
-      {
-          SELECT ?msg ?timestamp {
-                ?msg ssb:timestamp ?timestamp.
-              FILTER ( ?timestamp < ${timestamp} )
-        } ORDER BY DESC(?timestamp) LIMIT 1}
     }`;
   } else {
     return `PREFIX ssb: <ssb:ontology:>
