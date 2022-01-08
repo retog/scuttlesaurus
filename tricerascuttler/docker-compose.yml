@@ -9,7 +9,7 @@ services:
       - "8008:8008"
       - "127.0.0.1:8000:8000"
     depends_on:
-      - "fuseki"
+      - "blazegraph"
     environment:
       - SPARQL_ENDPOINT_QUERY=http://blazegraph:8080/blazegraph/sparql
       - SPARQL_ENDPOINT_UPDATE=http://blazegraph:8080/blazegraph/sparql
