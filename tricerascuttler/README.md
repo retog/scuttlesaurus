@@ -31,7 +31,7 @@ environment variables must be set:
 ## Developing
 
 It i recommended to open this project as a dev container in VSCode. This will
-automatically start a Apache Jena Fuseki Triple store and appropriately set the
+automatically start a Blazegraph Triple store and appropriately set the
 environment variables.
 
 ## Mascot

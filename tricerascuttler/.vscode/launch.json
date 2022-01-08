@@ -9,6 +9,7 @@
       "name": "Launch Program",
       "type": "pwa-node",
       "program": "${workspaceFolder}/main.ts",
+      "args": ["--control.web.hostname", "0.0.0.0"],
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
       "runtimeArgs": [
@@ -16,11 +17,7 @@
         "--inspect",
         "--allow-all"
       ],
-      "attachSimplePort": 9229,
-      "env": {
-        "SPARQL_ENDPOINT_QUERY": "http://fuseki:3330/ds/query",
-        "SPARQL_ENDPOINT_UPDATE": "http://fuseki:3330/ds/update"
-      }
+      "attachSimplePort": 9229
     },
     {
       "request": "launch",

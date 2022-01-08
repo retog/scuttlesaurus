@@ -1,20 +1,9 @@
 import * as _FeedAuth from "./FeedAuthorElement.js";
+import { runQuery } from "./web-util.js";
 
 async function getFeeds(query) {
-  const response = await fetch("/query", {
-    "headers": {
-      "Accept": "application/sparql-results+json,*/*;q=0.9",
-      "Content-Type": "application/sparql-query",
-    },
-    "body": query,
-    "method": "POST",
-  });
-  if (response.status >= 300) {
-    throw new Error(response.statusText);
-  }
-
-  const resultJson = await response.json();
-  return resultJson.results.bindings.map(binding => binding.feed.value)
+  const resultJson = await runQuery(query);
+  return resultJson.results.bindings.map((binding) => binding.feed.value);
 }
 
 export class FeedAuthorListElement extends HTMLElement {
@@ -23,7 +12,6 @@ export class FeedAuthorListElement extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     const query = this.getAttribute("query");
-
 
     let template = `
     <style>
@@ -53,9 +41,11 @@ export class FeedAuthorListElement extends HTMLElement {
           }
           </div>`;
         } else {
-          template += `No feeds found with given query: <code><pre>${query.replaceAll("<","&lt;")}</pre></code>`
+          template += `No feeds found with given query: <code><pre>${
+            query.replaceAll("<", "&lt;")
+          }</pre></code>`;
         }
-        
+
         this.shadowRoot.innerHTML = template;
       },
     );

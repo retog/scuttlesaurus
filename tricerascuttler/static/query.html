@@ -17,7 +17,10 @@
     <div id="yasgui"></div>
     <script>
         const yasgui = new Yasgui(document.getElementById("yasgui"), {
-            requestConfig: { endpoint: "./query" },
+            requestConfig: {
+                endpoint: "./query",
+                method: "GET"
+            },
             copyEndpointOnNewTab: false,
         });
     </script>

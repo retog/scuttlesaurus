@@ -1,4 +1,4 @@
-import { handleSsbLinks, iriToSigil, mdToHtml } from "./web-util.js";
+import { handleSsbLinks, iriToSigil, mdToHtml, runQuery } from "./web-util.js";
 
 const syncIcon = `
   <?xml version="1.0" encoding="iso-8859-1"?>
@@ -65,19 +65,8 @@ async function getDescription(feedUri) {
     OPTIONAL {  ?aboutContent ssb:description ?description }
     OPTIONAL {  ?aboutContent ssb:image ?image }
   } ORDER BY ASC(?timestamp)`;
-  const response = await fetch("/query", {
-    "headers": {
-      "Accept": "application/sparql-results+json,*/*;q=0.9",
-      "Content-Type": "application/sparql-query",
-    },
-    "body": query,
-    "method": "POST",
-  });
-  if (response.status >= 300) {
-    throw new Error(response.statusText);
-  }
 
-  const resultJson = await response.json();
+  const resultJson = await runQuery(query);
   let name = undefined;
   let description, image;
   for (const binding of resultJson.results.bindings) {
@@ -135,7 +124,9 @@ export class FeedAuthorElement extends HTMLElement {
       </style>
     
       <div>
-      <a href="/?uri=${feedUri}">${name ? name : feedUri.substring(0,23)+"..."}</a>
+      <a href="/?uri=${feedUri}">${
+          name ? name : feedUri.substring(0, 23) + "..."
+        }</a>
       <svg id="sync" width="20pt" height="20pt">${syncIcon}</svg><br/>
       ${renderedDescription}
       ${image ? `<img src="${image.replace("ssb:blob/", "./blob/")}">` : ""}

@@ -68,13 +68,11 @@ export async function mainIdentity() {
 }
 
 export async function runQuery(query) {
-  const response = await fetch("/query", {
+  const response = await fetch("/query?" + new URLSearchParams({ query }), {
     "headers": {
       "Accept": "application/sparql-results+json,*/*;q=0.9",
-      "Content-Type": "application/sparql-query",
     },
-    "body": query,
-    "method": "POST",
+    "method": "GET",
   });
   if (response.status >= 300) {
     throw new Error(response.statusText);

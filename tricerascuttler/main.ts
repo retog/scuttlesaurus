@@ -29,7 +29,14 @@ storer.connectAgent(host.feedsAgent!);
 if (!host.controlAppRouter) {
   throw new Error("Tricerascuttler requires the control web app");
 }
-host.controlAppRouter.all("/query", proxy(sparqlEndpointQuery));
+host.controlAppRouter.all(
+  "/query",
+  proxy(sparqlEndpointQuery, {
+    filterReq: (req, _res) => {
+      return req.method !== "GET";
+    },
+  }),
+);
 host.controlAppRouter.get(
   "/blob/sha256/:hash",
   async (ctx: Context) => {
