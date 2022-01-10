@@ -25,6 +25,9 @@ export async function createScuttlebuttHost() {
     if (options.control?.web?.port) {
       config.control.web.port = options.control?.web?.port
     }
+    if (options.control?.web?.hostname) {
+      config.control.web.hostname = options.control?.web?.hostname
+    }
   }
 
   return new DenoScuttlebuttHost(config);

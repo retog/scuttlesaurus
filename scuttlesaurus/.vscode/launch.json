@@ -6,7 +6,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "main.ts"],
+      "runtimeArgs": ["run", "--inspect", "--unstable", "-A", "main.ts", "--control.web.port","8000", "--control.web.hostname","0.0.0.0"],
       "attachSimplePort": 9229
     },
     {

@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 
 services:
   ssb-deno:
@@ -6,6 +6,7 @@ services:
     build: .
     ports:
       - "8008:8008"
+      - "127.0.0.1:8000:8000"
     volumes:
       - /var/ssb-deno:/root/.ssb
     restart: unless-stopped
