@@ -23,10 +23,10 @@ export async function createScuttlebuttHost() {
       config.control.web = false;
     }
     if (options.control?.web?.port) {
-      config.control.web.port = options.control?.web?.port
+      config.control.web.port = options.control?.web?.port;
     }
     if (options.control?.web?.hostname) {
-      config.control.web.hostname = options.control?.web?.hostname
+      config.control.web.hostname = options.control?.web?.hostname;
     }
   }
 

@@ -19,6 +19,7 @@
     <ul id="potentialPeers">
 
     </ul>
+    <button id="addAllButton">Add all</button>
     <script type="module">
         import { runQuery } from "./js/web-util.js"
         async function addPeer(peer) {
@@ -66,6 +67,7 @@
                     const button = document.createElement("button");
                     li.appendChild(button);
                     button.innerHTML = "Add";
+                    button.className = "add";
                     potentialPeers.appendChild(li);
                     button.addEventListener("click", () => {
                         addPeer(pub);
@@ -94,8 +96,10 @@
         });
         const peers = await populateList();
 
+        addAllButton.addEventListener("click", () => {
+            [...document.getElementsByClassName("add")].forEach(b => b.click());
+        });
 
-        console.log("all set")
     </script>
 </body>
 

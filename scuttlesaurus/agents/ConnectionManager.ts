@@ -11,6 +11,7 @@ export default class ConnectionManager
   constructor(
     private rpcClientInterface: CommClientInterface<RpcConnection>,
     private rpcServerInterface: CommServerInterface<RpcConnection>,
+    private failureListener: (addr: Address, failure: boolean) => void,
   ) {
   }
 
@@ -40,7 +41,14 @@ export default class ConnectionManager
   }
 
   async connect(addr: Address): Promise<RpcConnection> {
-    const conn = await this.rpcClientInterface.connect(addr);
+    let conn;
+    try {
+      conn = await this.rpcClientInterface.connect(addr);
+    } catch (error) {
+      this.failureListener(addr, true);
+      throw error;
+    }
+    this.failureListener(addr, false);
     this.newConnection(conn);
     this.notifyOutgoingConnection(conn);
     return conn;

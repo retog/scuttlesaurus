@@ -386,6 +386,56 @@ export function flatten<T>(
     },
   };
 }
+
+export class TSEMap<T extends { toString: () => string }, V>
+  implements Map<T, V> {
+  private map = new Map<string, [T, V]>();
+  clear(): void {
+    this.map.clear();
+  }
+  delete(key: T): boolean {
+    return this.map.delete(key.toString());
+  }
+  forEach(
+    callbackfn: (value: V, key: T, map: Map<T, V>) => void,
+    // deno-lint-ignore no-explicit-any
+    thisArg?: any,
+  ): void {
+    this.map.forEach(
+      (value: [T, V]) => callbackfn.apply(thisArg, [value[1], value[0], this]),
+    );
+  }
+  get(key: T): V | undefined {
+    return this.map.get(key.toString())?.[1];
+  }
+  has(key: T): boolean {
+    return this.map.has(key.toString());
+  }
+  set(key: T, value: V): this {
+    this.map.set(key.toString(), [key, value]);
+    return this;
+  }
+  get size() {
+    return this.map.size;
+  }
+  entries(): IterableIterator<[T, V]> {
+    return this.map.values();
+  }
+  *keys(): IterableIterator<T> {
+    for (const entry of this.map.values()) {
+      yield entry[0];
+    }
+  }
+  *values(): IterableIterator<V> {
+    for (const entry of this.map.values()) {
+      yield entry[1];
+    }
+  }
+  [Symbol.iterator](): IterableIterator<[T, V]> {
+    return this.entries();
+  }
+  [Symbol.toStringTag]: string;
+}
 /** toString-Equality Set */
 export class TSESet<T extends { toString: () => string }> implements Set<T> {
   map = new Map<string, T>();

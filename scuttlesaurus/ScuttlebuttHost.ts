@@ -14,6 +14,7 @@ import {
   ObservableSet,
   parseAddress,
   parseFeedId,
+  TSEMap,
 } from "./util.ts";
 import Agent from "./agents/Agent.ts";
 import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
@@ -40,6 +41,10 @@ export default abstract class ScuttlebuttHost {
   /** Maintained here as they might be used by several agents */
   readonly followees = new ObservableSet<FeedId>();
   readonly peers = new ObservableSet<Address>();
+  private readonly failingAddresses = new TSEMap<Address, {
+    lastFailure: number;
+    failureCount: number;
+  }>();
 
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
@@ -47,6 +52,7 @@ export default abstract class ScuttlebuttHost {
   constructor(
     readonly config: Config,
   ) {
+    this.config.failureRelevanceInterval ??= DURATION.DAY;
     if (this.config.follow) {
       this.config.follow.forEach((feedIdStr) =>
         this.followees.add(parseFeedId(feedIdStr))
@@ -124,6 +130,33 @@ export default abstract class ScuttlebuttHost {
     this.connectionManager = new ConnectionManager(
       rpcClientInterface,
       rpcServerInterface,
+      (address: Address, failure: boolean) => {
+        if (!failure) {
+          this.failingAddresses.delete(address);
+        } else {
+          const failuresReport = this.failingAddresses.get(address);
+          if (failuresReport) {
+            if (
+              failuresReport.lastFailure +
+                  this.config.failureRelevanceInterval! < Date.now()
+            ) {
+              if (failuresReport.failureCount > 4) {
+                this.peers.delete(address);
+              } else {
+                this.failingAddresses.set(address, {
+                  failureCount: failuresReport.failureCount + 1,
+                  lastFailure: Date.now(),
+                });
+              }
+            }
+          } else {
+            this.failingAddresses.set(address, {
+              failureCount: 1,
+              lastFailure: Date.now(),
+            });
+          }
+        }
+      },
     );
     agents.forEach(async (agent) => {
       try {
@@ -173,4 +206,14 @@ export type Config = {
   networkIdentifier?: string;
   follow?: string[];
   peers?: string[];
+  /** minimum interval between two connection failures to count */
+  failureRelevanceInterval?: number;
 };
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const WEEK = 7 * DAY;
+
+const DURATION = { SECOND, MINUTE, HOUR, DAY, WEEK };

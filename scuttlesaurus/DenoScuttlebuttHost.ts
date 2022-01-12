@@ -86,6 +86,14 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         new WsTransportServer(config.transport?.ws),
       );
     }
+    const writePeersFile = () => {
+      Deno.writeTextFileSync(
+        peersFile,
+        JSON.stringify([...this.peers], undefined, 2),
+      );
+    };
+    this.peers.addAddListener(writePeersFile);
+    this.peers.addRemoveListener(writePeersFile);
     if (config.control?.web) {
       this.controlApp = new Application();
       this.controlAppRouter = new Router();
@@ -104,10 +112,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
           this.peers.add(parseAddress(address));
           ctx.response.body = "Added peer";
         }
-        Deno.writeTextFileSync(
-          peersFile,
-          JSON.stringify([...this.peers], undefined, 2),
-        );
       });
       this.controlAppRouter.get("/peers", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.peers]);
