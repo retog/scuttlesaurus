@@ -19471,6 +19471,56 @@ async function* combine(...iterable) {
     }
     return results;
 }
+class TSEMap {
+    map = new Map();
+    clear() {
+        this.map.clear();
+    }
+    delete(key) {
+        return this.map.delete(key.toString());
+    }
+    forEach(callbackfn, thisArg) {
+        this.map.forEach((value)=>callbackfn.apply(thisArg, [
+                value[1],
+                value[0],
+                this
+            ])
+        );
+    }
+    get(key) {
+        return this.map.get(key.toString())?.[1];
+    }
+    has(key) {
+        return this.map.has(key.toString());
+    }
+    set(key, value) {
+        this.map.set(key.toString(), [
+            key,
+            value
+        ]);
+        return this;
+    }
+    get size() {
+        return this.map.size;
+    }
+    entries() {
+        return this.map.values();
+    }
+    *keys() {
+        for (const entry of this.map.values()){
+            yield entry[0];
+        }
+    }
+    *values() {
+        for (const entry of this.map.values()){
+            yield entry[1];
+        }
+    }
+    [Symbol.iterator]() {
+        return this.entries();
+    }
+    [Symbol.toStringTag];
+}
 class TSESet {
     map = new Map();
     add(value) {
@@ -20499,10 +20549,12 @@ class BlobsAgent extends Agent {
 class ConnectionManager {
     rpcClientInterface;
     rpcServerInterface;
+    failureListener;
     connections = new Map();
-    constructor(rpcClientInterface, rpcServerInterface){
+    constructor(rpcClientInterface, rpcServerInterface, failureListener){
         this.rpcClientInterface = rpcClientInterface;
         this.rpcServerInterface = rpcServerInterface;
+        this.failureListener = failureListener;
     }
     notifyOutgoingConnection = (_conn)=>{};
     newConnection(conn) {
@@ -20522,7 +20574,14 @@ class ConnectionManager {
         }
     }
     async connect(addr) {
-        const conn = await this.rpcClientInterface.connect(addr);
+        let conn;
+        try {
+            conn = await this.rpcClientInterface.connect(addr);
+        } catch (error15) {
+            this.failureListener(addr, true);
+            throw error15;
+        }
+        this.failureListener(addr, false);
         this.newConnection(conn);
         this.notifyOutgoingConnection(conn);
         return conn;
@@ -20551,10 +20610,12 @@ class ScuttlebuttHost {
     agents = new Set();
     followees = new ObservableSet();
     peers = new ObservableSet();
+    failingAddresses = new TSEMap();
     feedsAgent;
     blobsAgent;
     constructor(config){
         this.config = config;
+        this.config.failureRelevanceInterval ??= DURATION.DAY;
         if (this.config.follow) {
             this.config.follow.forEach((feedIdStr)=>this.followees.add(parseFeedId(feedIdStr))
             );
@@ -20597,12 +20658,35 @@ class ScuttlebuttHost {
         const rpcServerInterface = new RpcSeverInterface((feedId)=>new RpcMethodsHandler(agents.map((agent)=>agent.createRpcContext(feedId)
             ))
         , boxServerInterface);
-        this.connectionManager = new ConnectionManager(rpcClientInterface, rpcServerInterface);
+        this.connectionManager = new ConnectionManager(rpcClientInterface, rpcServerInterface, (address, failure)=>{
+            if (!failure) {
+                this.failingAddresses.delete(address);
+            } else {
+                const failuresReport = this.failingAddresses.get(address);
+                if (failuresReport) {
+                    if (failuresReport.lastFailure + this.config.failureRelevanceInterval < Date.now()) {
+                        if (failuresReport.failureCount > 4) {
+                            this.peers.delete(address);
+                        } else {
+                            this.failingAddresses.set(address, {
+                                failureCount: failuresReport.failureCount + 1,
+                                lastFailure: Date.now()
+                            });
+                        }
+                    }
+                } else {
+                    this.failingAddresses.set(address, {
+                        failureCount: 1,
+                        lastFailure: Date.now()
+                    });
+                }
+            }
+        });
         agents.forEach(async (agent)=>{
             try {
                 await agent.start(this.connectionManager);
-            } catch (error15) {
-                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error15}`);
+            } catch (error16) {
+                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error16}`);
             }
         });
         (async ()=>{
@@ -20610,8 +20694,8 @@ class ScuttlebuttHost {
                 Promise.all(agents.map(async (agent)=>{
                     try {
                         await agent.outgoingConnection(rpcConnection);
-                    } catch (error16) {
-                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error16}`);
+                    } catch (error17) {
+                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
                     }
                 }));
             }
@@ -20620,13 +20704,24 @@ class ScuttlebuttHost {
             Promise.all(agents.map(async (agent)=>{
                 try {
                     await agent.incomingConnection(rpcConnection1);
-                } catch (error17) {
-                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
+                } catch (error18) {
+                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error18}`);
                 }
             }));
         }
     }
 }
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const WEEK = 7 * DAY;
+const DURATION = {
+    SECOND: 1000,
+    MINUTE,
+    HOUR,
+    DAY,
+    WEEK
+};
 function makeConnectionLike(socket) {
     mod2.debug(`making connection like`);
     const open = new Promise((resolve9, _reject)=>{
