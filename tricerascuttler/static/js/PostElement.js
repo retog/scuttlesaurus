@@ -1,5 +1,7 @@
 import { handleSsbLinks, mdToHtml, runQuery } from "./web-util.js";
 import * as _feedAuthor from "./FeedAuthorElement.js";
+import * as _postLink from "./PostLinkElement.js";
+
 export class PostElement extends HTMLElement {
   constructor() {
     super();
@@ -42,6 +44,13 @@ export class PostElement extends HTMLElement {
             <ssb-feed-author src="${
           bindings[0].author.value
         }" mode="small" ></ssb-feed-author>
+        ${
+          bindings[0].root
+            ? `In reply to <ssb-post-link href="${
+              bindings[0].root.value
+            }"></ssb-post-link><br>`
+            : ""
+        }
         <a id="permalink" href="/?uri=${msgUri}">🔗</a>`;
       }
     });
