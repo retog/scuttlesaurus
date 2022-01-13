@@ -24,7 +24,7 @@ export class PostLinkElement extends HTMLElement {
         const endHeading = firstBreak > 5 && firstBreak < 100
           ? firstBreak
           : text.indexOf(" ", 50);
-        link.innerHTML = text.substring(0, endHeading);
+        link.innerHTML = text.substring(0, endHeading > 5 ? endHeading : undefined);
       }
     });
   }
