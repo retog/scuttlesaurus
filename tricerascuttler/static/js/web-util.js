@@ -9,8 +9,13 @@ export function mdToHtml(md) {
 
     while ((event = walker.next())) {
       node = event.node;
-      if (event.entering && node.type === "link") {
-        node.destination = sigilToIri(node.destination);
+      if (event.entering) {
+        if (node.type === "link") {
+          node.destination = sigilToIri(node.destination);
+        }
+        if (node.type === "image") {
+          node.destination = sigilToIri(node.destination).replace("ssb:blob/", "./blob/");
+        }
       }
     }
     return ast;
