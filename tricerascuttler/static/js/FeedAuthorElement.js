@@ -119,7 +119,9 @@ export class FeedAuthorElement extends HTMLElement {
             max-width: 40px;
             max-height: 40px;
           }`
-            : ""
+            : `img {
+              max-width: 100%;
+            }`
         }
       </style>
     

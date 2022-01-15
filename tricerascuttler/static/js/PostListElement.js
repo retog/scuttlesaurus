@@ -15,14 +15,9 @@ export class PostListElement extends HTMLElement {
     <style>
     .post {
       display: block;
-      flex: 0 1 150px;
       margin: 5px;
     }
-    .posts{
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
+
   
     </style>
 

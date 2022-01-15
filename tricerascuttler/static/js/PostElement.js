@@ -27,11 +27,14 @@ export class PostElement extends HTMLElement {
         const text = bindings[0].text?.value;
         this.shadowRoot.innerHTML = `
         <style>
+        img {
+          max-width: 100%;
+        }
         :host {
           display: flex;
           flex-direction: column;
-          justify-content: center;
-          align-items: center;
+          justify-content: left;
+          align-items: left;
           background-color: lightgrey;
           border-style: solid;
           margin: 5pt;
