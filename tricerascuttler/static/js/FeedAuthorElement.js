@@ -101,10 +101,6 @@ export class FeedAuthorElement extends HTMLElement {
         const template = `
       <style>
         :host {
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
           background-color: lavenderblush;
         }
     
