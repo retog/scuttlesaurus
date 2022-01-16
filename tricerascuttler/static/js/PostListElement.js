@@ -41,6 +41,17 @@ export class PostListElement extends HTMLElement {
   }
 
   async getPostsAndAppend(targetElement) {
+    const observerOptions = {
+      root: null,
+      rootMargin: "0px",
+      threshold: 0,
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.filter((entry) => entry.isIntersecting).forEach((entry) => {
+        this.getPostsAndAppend(targetElement);
+      });
+    }, observerOptions);
     await this.getPosts(this.currentOffset, this.loadSize + 1).then(
       (posts) => {
         this.currentOffset += this.loadSize;
@@ -55,14 +66,11 @@ export class PostListElement extends HTMLElement {
             }
           </div>`,
           );
+          observer.disconnect();
           if (posts.length > this.loadSize) {
-            const showMoreButton = document.createElement("button");
-            showMoreButton.innerHTML = "Show more";
-            targetElement.appendChild(showMoreButton);
-            showMoreButton.addEventListener("click", () => {
-              targetElement.removeChild(showMoreButton);
-              this.getPostsAndAppend(targetElement);
-            });
+            const postsElts = this.shadowRoot.querySelectorAll(".post");
+            const lastPost = postsElts[postsElts.length - 1];
+            observer.observe(lastPost);
           }
         } else {
           targetElement.insertAdjacentHTML(
