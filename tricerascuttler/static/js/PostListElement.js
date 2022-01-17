@@ -34,6 +34,7 @@ export class PostListElement extends HTMLElement {
   }
 
   async getPosts(offset, limit) {
+    console.log(`Getting post from ${offset} with limit ${limit}`);
     const resultJson = await runQuery(
       this.query + `OFFSET ${offset} LIMIT ${limit}`,
     );
@@ -47,15 +48,23 @@ export class PostListElement extends HTMLElement {
       threshold: 0,
     };
 
+    let expanding = false;
     const observer = new IntersectionObserver((entries) => {
-      entries.filter((entry) => entry.isIntersecting).forEach((entry) => {
-        this.getPostsAndAppend(targetElement);
+      entries.filter((entry) => entry.isIntersecting).some((_entry) => {
+        if (!expanding) {
+          expanding = true;
+          this.getPostsAndAppend(targetElement);
+        }
+        return true;
       });
     }, observerOptions);
+
+    observer.disconnect();
+
     await this.getPosts(this.currentOffset, this.loadSize + 1).then(
       (posts) => {
-        this.currentOffset += this.loadSize;
         if (posts.length > 0) {
+          this.currentOffset += this.loadSize;
           targetElement.insertAdjacentHTML(
             "beforeend",
             `<div class="posts">
@@ -66,19 +75,26 @@ export class PostListElement extends HTMLElement {
             }
           </div>`,
           );
-          observer.disconnect();
           if (posts.length > this.loadSize) {
             const postsElts = this.shadowRoot.querySelectorAll(".post");
             const lastPost = postsElts[postsElts.length - 1];
             observer.observe(lastPost);
           }
         } else {
-          targetElement.insertAdjacentHTML(
-            "beforeend",
-            `No posts found with given query: <code><pre>${
-              this.query.replaceAll("<", "&lt;")
-            }</pre></code>`,
-          );
+          if (this.currentOffset === 0) {
+            targetElement.insertAdjacentHTML(
+              "beforeend",
+              `No posts found with given query: <code><pre>${
+                this.query.replaceAll("<", "&lt;")
+              }</pre></code>`,
+            );
+          } else {
+            //This shouldn't happen as we don't search if there isn't one more post
+            targetElement.insertAdjacentHTML(
+              "beforeend",
+              `No more posts.`,
+            );
+          }
         }
       },
     );
