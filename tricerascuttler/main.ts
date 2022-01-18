@@ -35,6 +35,8 @@ host.controlAppRouter.all(
     filterReq: (req, _res) => {
       return req.method !== "GET";
     },
+    srcResHeaderDecorator: () =>
+      new Headers({ "Cache-Control": "max-age=30, public" }),
   }),
 );
 host.controlAppRouter.get(
@@ -50,7 +52,13 @@ host.controlAppRouter.get(
     }
     host.blobsAgent.want(blobId);
     const data = await host.blobsAgent.fsStorage.getBlob(blobId);
-    ctx.response.body = data;
+    if (data) {
+      ctx.response.body = data;
+      ctx.response.headers.append(
+        "Cache-Control",
+        "Immutable, max-age=604800, public",
+      );
+    }
   },
 );
 host.controlApp!.use(staticFiles("static"));
