@@ -1,5 +1,5 @@
 import { handleSsbLinks, mdToHtml, runQuery } from "./web-util.js";
-import * as _feedAuthor from "./FeedAuthorElement.js";
+import * as _feedAuthor from "./FeedAuthorLinkElement.js";
 import * as _postLink from "./PostLinkElement.js";
 
 export class PostElement extends HTMLElement {
@@ -31,11 +31,7 @@ export class PostElement extends HTMLElement {
           max-width: 100%;
         }
         :host {
-          display: flex;
-          flex-direction: column;
-          justify-content: left;
-          align-items: left;
-          background-color: lightgrey;
+          display: block;
           border-style: solid;
           margin: 5pt;
           padding: 5pt;
@@ -43,14 +39,23 @@ export class PostElement extends HTMLElement {
         #permalink {
           text-decoration: none;
         }
+
+        ssb-feed-author-link {
+          float: right;
+          background-color: white;
+          border-bottom-left-radius: 10px;
+          padding: 5px;
+          box-shadow: -9px 7px 8px rgba(139, 138, 138, 0.1);
+        }
       </style>
+      <ssb-feed-author-link feed="${
+        bindings[0].author.value
+      }" image ></ssb-feed-author-link>
             ${mdToHtml(text ?? "")}<br>
             ${
           new Date(parseInt(bindings[0].timestamp?.value)).toLocaleString()
         }<br>
-            <ssb-feed-author src="${
-          bindings[0].author.value
-        }" mode="small" ></ssb-feed-author>
+            
         ${
           bindings[0].root
             ? `In reply to <ssb-post-link href="${

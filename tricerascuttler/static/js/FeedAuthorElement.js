@@ -54,7 +54,7 @@ const syncIcon = `
 </g>
 </svg>`;
 
-async function getDescription(feedUri) {
+export async function getDescription(feedUri) {
   const query = `PREFIX ssb: <ssb:ontology:>
 
   SELECT ?name ?description ?image {
