@@ -62,7 +62,20 @@ export class ProfileElement extends HTMLElement {
             } GROUP BY ?feed
           
           }
-        } "></ssb-feed-author-list>
+          OPTIONAL {
+            SELECT ?feed (MAX(?seq) AS ?latestLike) WHERE {
+                 ?msgVote ssb:content [
+                     rdf:type ssb:Vote;
+                     ssb:link ?msg;
+                     ];
+                     ssb:author &lt;${feedUri}>;
+                     ssb:seq ?seq.
+                 ?msg rdf:type ssb:Message;
+                 ssb:author ?feed.
+               
+               } GROUP BY ?feed
+         }
+       } ORDER BY DESC(?latestLike) "></ssb-feed-author-list>
       </template>
     </ssb-tab>
     <ssb-tab label="Blocking">
