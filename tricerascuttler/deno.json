@@ -1,0 +1,12 @@
+{
+  "lint": {
+    "files": {
+      "exclude": ["ssb-base", "static/js/ext"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "exclude": ["ssb-base", "static/js/ext"]
+    }
+  }
+}
