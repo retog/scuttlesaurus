@@ -146,7 +146,7 @@ export class TabsElement extends HTMLElement {
         [...menuArea.querySelectorAll("button")].reduce(
               (total, button) => total + button.offsetWidth,
               0,
-            ) + 2 * extraButton.offsetWidth > menuArea.offsetWidth
+            ) + 0.3 * extraButton.offsetWidth > menuArea.offsetWidth
       ) {
         const menuButtons = [...menuArea.querySelectorAll("button")];
         if (menuButtons.length < 2) break;
