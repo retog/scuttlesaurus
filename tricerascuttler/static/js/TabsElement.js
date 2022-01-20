@@ -76,12 +76,15 @@ export class TabsElement extends HTMLElement {
       const button = document.createElement("button");
       button.innerHTML = tab.getAttribute("label");
       const templateId = tab.getAttribute("template");
+      const href = tab.getAttribute("href");
       const isExtra = tab.hasAttribute("extra");
       const children = [...tab.childNodes].map((child) =>
         child.cloneNode(true)
       );
       button.onclick = () => {
-        if (templateId) {
+        if (href) {
+          window.location.assign(href);
+        } else if (templateId) {
           const template = document.getElementById(templateId);
           contentArea.replaceChildren(template.content.cloneNode(true));
         } else {
