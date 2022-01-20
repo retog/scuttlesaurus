@@ -15,7 +15,8 @@ export class FeedAuthorLinkElement extends HTMLElement {
         }
     
         a {
-          text-decorations: none;
+          text-decoration: none;
+          color: inherit;
         }
 
         img {

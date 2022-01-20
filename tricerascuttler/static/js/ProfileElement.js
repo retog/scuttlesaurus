@@ -1,5 +1,6 @@
 import * as _FeedAuth from "./FeedAuthorElement.js";
 import * as _FeedAuthList from "./FeedAuthorListElement.js";
+import * as _feedAuthorLink from "./FeedAuthorLinkElement.js";
 import * as _PostsList from "./PostListElement.js";
 import * as _Tabs from "./TabsElement.js";
 
@@ -26,7 +27,7 @@ export class ProfileElement extends HTMLElement {
       display: block;
     }
     </style>
-    <h1>Profile</h1>
+    <h1><ssb-feed-author-link feed="${feedUri}"></ssb-feed-author-link></h1>
     <ssb-feed-author src="${feedUri}"></ssb-feed-author>
     <ssb-tabs>
     <ssb-tab label="Posts" active>
