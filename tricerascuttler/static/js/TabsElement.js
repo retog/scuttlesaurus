@@ -6,15 +6,16 @@ export class TabsElement extends HTMLElement {
     const contentArea = document.createElement("div");
     const menuArea = document.createElement("div");
     menuArea.className = "menu";
+    const extraArea = document.createElement("div");
+    extraArea.className = "extra";
     const wrapperArea = document.createElement("div");
     wrapperArea.className = "wrapper"; // :host
     const styleElement = document.createElement("style");
     styleElement.textContent = `
-
-    
     .menu {
-      display: grid;
-      grid-template-columns: ${tabs.map(() => "1fr").join(" ")};
+      background-color: #bccbe9;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
     }
 
     .wrapper {
@@ -34,8 +35,30 @@ export class TabsElement extends HTMLElement {
       font-size: 18px;
       cursor: pointer;
       transition: 0.5s;
+      box-shadow: 0px 5px 15px rgba(0, 0, 0, .2);
+    }
+
+    button.extra {
+      float: right;
+      border-top-right-radius: 10px;
+    }
+
+    .showextra div.extra {
+      float: right;
+      display:grid;
+    }
+
+    div.main:not(.showextra) div.extra {
+      display: none;
     }
     
+    div.main {
+      width:100%;
+      height: auto;
+      overflow: hidden;
+      padding-bottom:5px;
+    }
+
     button:hover {
       background-color: #d5e3ff;
     }
@@ -49,10 +72,11 @@ export class TabsElement extends HTMLElement {
     }
 
     `;
-    const menuButtons = tabs.map((tab) => {
+    const menuButtonHolders = tabs.map((tab) => {
       const button = document.createElement("button");
       button.innerHTML = tab.getAttribute("label");
       const templateId = tab.getAttribute("template");
+      const isExtra = tab.hasAttribute("extra");
       const children = [...tab.childNodes].map((child) =>
         child.cloneNode(true)
       );
@@ -61,7 +85,9 @@ export class TabsElement extends HTMLElement {
           const template = document.getElementById(templateId);
           contentArea.replaceChildren(template.content.cloneNode(true));
         } else {
-          if (tab.children[0].tagName === "TEMPLATE") {
+          if (
+            tab.children.length > 0 && tab.children[0].tagName === "TEMPLATE"
+          ) {
             contentArea.replaceChildren(
               tab.children[0].content.cloneNode(true),
             );
@@ -77,16 +103,57 @@ export class TabsElement extends HTMLElement {
       if (tab.hasAttribute("active")) {
         button.click();
       }
-      return button;
+      return { button, isExtra };
     });
-    menuButtons.forEach((button) => menuArea.append(button));
-    menuButtons[0].style = "border-top-left-radius: 10px;";
-    menuButtons[menuButtons.length - 1].style =
-      "border-top-right-radius: 10px;";
+    const extraButton = document.createElement("button");
+    extraButton.innerHTML = ">>";
+    extraButton.className = "extra";
+    extraButton.onclick = () => {
+      mainArea.classList.toggle("showextra");
+    };
+    const fillMenus = () => {
+      menuButtonHolders.forEach((holder) => {
+        (holder.isExtra ? extraArea : menuArea).append(holder.button);
+      });
+      menuArea.append(extraButton);
+    };
+    fillMenus();
+    const extraButtonVisibility = () => {
+      if (extraArea.querySelectorAll("button").length === 0) {
+        extraButton.style = `display: none`;
+      } else {
+        extraButton.style = `display: block`;
+      }
+    };
+    extraButtonVisibility();
+    menuButtonHolders[0].button.style = "border-top-left-radius: 10px;";
     this.shadowRoot.append(styleElement);
     wrapperArea.append(menuArea);
-    wrapperArea.append(contentArea);
+    const mainArea = document.createElement("div");
+    mainArea.className = "main";
+    mainArea.append(extraArea);
+    mainArea.append(contentArea);
+    wrapperArea.append(mainArea);
     this.shadowRoot.append(wrapperArea);
+    const observer = new ResizeObserver(() => {
+      menuArea.replaceChildren();
+      extraArea.replaceChildren();
+      fillMenus();
+      while (
+        [...menuArea.querySelectorAll("button")].reduce(
+              (total, button) => total + button.offsetWidth,
+              0,
+            ) + 2 * extraButton.offsetWidth > menuArea.offsetWidth
+      ) {
+        const menuButtons = [...menuArea.querySelectorAll("button")];
+        if (menuButtons.length < 2) break;
+        const lastButton = menuButtons[menuButtons.length - 2];
+        menuArea.removeChild(lastButton);
+        extraArea.insertBefore(lastButton, extraArea.firstChild);
+      }
+      extraButtonVisibility();
+    });
+    observer.observe(menuArea);
   }
 }
 window.customElements.define("ssb-tabs", TabsElement);
