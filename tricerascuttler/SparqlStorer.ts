@@ -118,8 +118,10 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
 }
 
 type RichMessage = Message & {
-  value: { content: { type?: string } };
-  timestamp: number;
+  value: {
+    content: { type?: string };
+    timestamp: number;
+  };
 };
 
 async function* msgsToSparql(feed: AsyncIterable<Message>) {
@@ -138,7 +140,7 @@ async function* msgsToSparql(feed: AsyncIterable<Message>) {
 
 function msgToSparql(msg: RichMessage) {
   const msgUri = parseMsgKey(msg.key).toUri();
-  const timestamp = msg.timestamp;
+  const timestamp = msg.value.timestamp;
   const content = (msg.value).content;
   if (content.type) {
     return `
