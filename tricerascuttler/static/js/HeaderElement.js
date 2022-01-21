@@ -1,49 +1,20 @@
+import * as _Tabs from "./TabsElement.js";
 export class HeaderElement extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
 
     const template = `
-      <style>
-      ul {
-        list-style-type: none;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background-color: #333;
-      }
-
-      li {
-          float: left;
-      }
-
-      li a {
-          display: block;
-          color: white;
-          text-align: center;
-          padding: 14px 16px;
-          text-decoration: none;
-      }
-
-      li a:hover {
-          background-color: #111;
-      }
-      .active {
-        background-color: #04AA6D;
-      }
-      </style>
-      <ul>
-          <li><a href="/">Explore</a></li>
-          <li><a href="/read.html">Read</a></li>
-          <li><a href="/followees.html">Following</a></li>
-          <li><a href="/peers.html">Peers</a></li>
-          <li><a id="query" href="/query.html">SPARQL</a></li>
-          <li><a id="query" href="/about.html">About</a></li>
-      </ul>
+      <ssb-tabs plainmenu>
+          <ssb-tab href="/" label="Explore"></ssb-tab>
+          <ssb-tab href="/read.html" label="Read"></ssb-tab>
+          <ssb-tab href="/followees.html" label="Following"></ssb-tab>
+          <ssb-tab href="/peers.html" label="Peers"></ssb-tab>
+          <ssb-tab id="query" href="/query.html" label="SPARQL"></ssb-tab>
+          <ssb-tab id="query" href="/about.html" label="About"></ssb-tab>
+      </ssb-tabs>
     `;
     this.shadowRoot.innerHTML = template;
-    this.shadowRoot.querySelector(`a[href='${document.location.pathname}']`)
-      .setAttribute("class", "active");
   }
 }
 window.customElements.define("ssb-header", HeaderElement);

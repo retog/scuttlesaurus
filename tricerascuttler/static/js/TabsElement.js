@@ -2,6 +2,7 @@ export class TabsElement extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    const plainmenu = this.hasAttribute("plainmenu");
     const tabs = [...this.querySelectorAll("ssb-tab")];
     const contentArea = document.createElement("div");
     const menuArea = document.createElement("div");
@@ -14,16 +15,21 @@ export class TabsElement extends HTMLElement {
     styleElement.textContent = `
     .menu {
       background-color: #bccbe9;
+      ${
+      plainmenu ? "" : `
       border-top-left-radius: 10px;
       border-top-right-radius: 10px;
+      `
+    }
     }
 
     .wrapper {
       width: 100%;
       margin: auto;
-      background-color: white;
+      ${plainmenu ? "" : `background-color: white;
       border-radius: 10px;
       box-shadow: 0px 5px 15px rgba(0, 0, 0, .1);
+      `}
     }
     
     button {
@@ -56,7 +62,7 @@ export class TabsElement extends HTMLElement {
       width:100%;
       height: auto;
       overflow: hidden;
-      padding-bottom:5px;
+      ${plainmenu ? "" : `padding-bottom:5px;`}
     }
 
     button:hover {
@@ -104,7 +110,14 @@ export class TabsElement extends HTMLElement {
         button.classList.add("active");
       };
       if (tab.hasAttribute("active")) {
-        button.click();
+        if (!href) {
+          button.click();
+        } else {
+          button.classList.add("active");
+        }
+      }
+      if (href === document.location.pathname) {
+        button.classList.add("active");
       }
       return { button, isExtra };
     });
@@ -129,7 +142,9 @@ export class TabsElement extends HTMLElement {
       }
     };
     extraButtonVisibility();
-    menuButtonHolders[0].button.style = "border-top-left-radius: 10px;";
+    if (!plainmenu) {
+      menuButtonHolders[0].button.style = "border-top-left-radius: 10px;";
+    }
     this.shadowRoot.append(styleElement);
     wrapperArea.append(menuArea);
     const mainArea = document.createElement("div");
