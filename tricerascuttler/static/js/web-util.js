@@ -88,3 +88,29 @@ export async function runQuery(query) {
 
   return await response.json();
 }
+
+export const ReadStateManager = {
+  getReadMessages() {
+    return localStorage.readMessages
+      ? JSON.parse(localStorage.readMessages)
+      : [];
+  },
+
+  setReadMessages(messages) {
+    localStorage.readMessages = JSON.stringify(messages);
+  },
+
+  markAsRead(msgUri) {
+    const messages = this.getReadMessages();
+    messages.push(msgUri);
+    this.setReadMessages(messages);
+  },
+  markAsUnread(msgUri) {
+    const messages = this.getReadMessages();
+    messages.splice(messages.indexOf(msgUri), 1);
+    this.setReadMessages(messages);
+  },
+  isRead(msgUri) {
+    return this.getReadMessages().indexOf(msgUri) > -1;
+  },
+};

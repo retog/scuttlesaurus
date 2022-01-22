@@ -1,4 +1,10 @@
-import { handleSsbLinks, mdToHtml, runQuery } from "./web-util.js";
+import {
+  handleSsbLinks,
+  iriToSigil,
+  mdToHtml,
+  ReadStateManager,
+  runQuery,
+} from "./web-util.js";
 import * as _feedAuthor from "./FeedAuthorLinkElement.js";
 import * as _postLink from "./PostLinkElement.js";
 
@@ -25,6 +31,7 @@ export class PostElement extends HTMLElement {
         this.shadowRoot.innerHTML = `Don't know anything about ${msgUri}`;
       } else {
         const text = bindings[0].text?.value;
+        const timestamp = new Date(parseInt(bindings[0].timestamp?.value));
         this.shadowRoot.innerHTML = `
         <style>
         img {
@@ -38,6 +45,12 @@ export class PostElement extends HTMLElement {
         }
         #permalink {
           text-decoration: none;
+          float: right;
+          height: 100%;
+          margin-top: 5px;
+          margin-right: 5px;
+          color: #232c3d;
+          font-size: 14px;
         }
 
         ssb-feed-author-link {
@@ -47,14 +60,30 @@ export class PostElement extends HTMLElement {
           padding: 5px;
           box-shadow: -9px 7px 8px rgba(139, 138, 138, 0.1);
         }
+
+        #actions {
+          width: 100%;
+          margin-top: 8px;
+          background-color: #bccbe9;
+        }
+
+        #actions button {
+          letter-spacing: 3px;
+          border: none;
+          padding: 5px;
+          background-color: #bccbe9;
+          color: #232c3d;
+          font-size: 14px;
+          cursor: pointer;
+          transition: 0.5s;
+          box-shadow: 0px 5px 15px rgba(0, 0, 0, .2);
+        }
       </style>
       <ssb-feed-author-link feed="${
-        bindings[0].author.value
-      }" image ></ssb-feed-author-link>
+          bindings[0].author.value
+        }" image ></ssb-feed-author-link>
             ${mdToHtml(text ?? "")}<br>
-            ${
-          new Date(parseInt(bindings[0].timestamp?.value)).toLocaleString()
-        }<br>
+            <time datetime="${timestamp.toString()}">${timestamp.toLocaleString()}</time><br>
             
         ${
           bindings[0].root
@@ -69,7 +98,44 @@ export class PostElement extends HTMLElement {
               `Reply: <ssb-post-link href="${reply}"></ssb-post-link><br>`,
           ).join("")
         }
-        <a id="permalink" href="/?uri=${msgUri}">🔗</a>`;
+        <div id="actions">
+          <a id="permalink" href="/?uri=${msgUri}">🔗</a>
+        </div>`;
+        const actionsArea = this.shadowRoot.getElementById("actions");
+        const markAsReadButton = document.createElement("button");
+        const setMarkAsReadButtonLabel = () => {
+          if (ReadStateManager.isRead(msgUri)) {
+            markAsReadButton.innerHTML = "Mark as unread";
+          } else {
+            markAsReadButton.innerHTML = "Mark as read";
+          }
+        };
+        setMarkAsReadButtonLabel();
+        markAsReadButton.onclick = () => {
+          if (ReadStateManager.isRead(msgUri)) {
+            ReadStateManager.markAsUnread(msgUri);
+            this.classList.remove("read");
+          } else {
+            ReadStateManager.markAsRead(msgUri);
+            this.classList.add("read");
+          }
+          setMarkAsReadButtonLabel();
+        };
+        actionsArea.append(markAsReadButton);
+        const copyUriButton = document.createElement("button");
+        copyUriButton.innerHTML = "Copy URI";
+        copyUriButton.onclick = async () => {
+          await navigator.clipboard.writeText(msgUri);
+          alert("Message URI copied to clipboard");
+        };
+        actionsArea.append(copyUriButton);
+        const copySigilButton = document.createElement("button");
+        copySigilButton.innerHTML = "Copy Sigil";
+        copySigilButton.onclick = async () => {
+          await navigator.clipboard.writeText(iriToSigil(msgUri));
+          alert("Message Sigil copied to clipboard");
+        };
+        actionsArea.append(copySigilButton);
       }
     });
   }

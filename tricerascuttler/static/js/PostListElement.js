@@ -1,5 +1,5 @@
 import * as _PostElement from "./PostElement.js";
-import { runQuery } from "./web-util.js";
+import { ReadStateManager, runQuery } from "./web-util.js";
 
 export class PostListElement extends HTMLElement {
   constructor() {
@@ -8,18 +8,25 @@ export class PostListElement extends HTMLElement {
 
     this.query = this.getAttribute("query");
     this.loadSize = parseInt(this.getAttribute("loadSize") ?? 20);
-
-    this.currentOffset = 0;
-
-    this.shadowRoot.innerHTML = `
-    <style>
+    this.styleElem = document.createElement("style");
+    this.styleElem.innerHTML = `
     .post {
       display: block;
       margin: 5px;
     }
-
-  
-    </style>
+    .hideRead .read {
+      display: none;
+    }
+    `;
+    this.shadowRoot.appendChild(this.styleElem);
+    this.shadowRoot.innerHTML += `
+    <div id="filter">
+      <select id="showRead">
+        <option value="hideRead">Hide read messages</option>
+        <option value="showAll">Show all messages</option>
+        <option value="hideUnread">Hide unread messages</option>
+      </select>
+    </div>
 
     <div id="content">
 
@@ -30,7 +37,20 @@ export class PostListElement extends HTMLElement {
 
   connectedCallback() {
     const contentDiv = this.shadowRoot.getElementById("content");
-    this.getPostsAndAppend(contentDiv);
+    const showReadSelect = this.shadowRoot.getElementById("showRead");
+    const handleSelect = () => {
+      this.hideRead = showReadSelect.value === "hideRead";
+      this.hideUnread = showReadSelect.value === "hideUnread";
+      if (this.hideRead) {
+        contentDiv.classList.add("hideRead")
+      } else  {
+        contentDiv.classList.remove("hideRead")
+      }
+      contentDiv.replaceChildren();
+      this.getPostsAndAppend(0, contentDiv);
+    };
+    showReadSelect.addEventListener("change", handleSelect);
+    handleSelect();
   }
 
   async getPosts(offset, limit) {
@@ -41,7 +61,7 @@ export class PostListElement extends HTMLElement {
     return resultJson.results.bindings.map((binding) => binding.post.value);
   }
 
-  async getPostsAndAppend(targetElement) {
+  async getPostsAndAppend(offset, targetElement) {
     const observerOptions = {
       root: null,
       rootMargin: "0px",
@@ -49,39 +69,46 @@ export class PostListElement extends HTMLElement {
     };
 
     let expanding = false;
+    const expand = () => {
+      if (!expanding) {
+        expanding = true;
+        this.getPostsAndAppend(offset + this.loadSize, targetElement);
+      }
+    };
     const observer = new IntersectionObserver((entries) => {
       entries.filter((entry) => entry.isIntersecting).some((_entry) => {
-        if (!expanding) {
-          expanding = true;
-          this.getPostsAndAppend(targetElement);
-        }
+        expand();
         return true;
       });
     }, observerOptions);
 
     observer.disconnect();
 
-    await this.getPosts(this.currentOffset, this.loadSize + 1).then(
+    await this.getPosts(offset, this.loadSize + 1).then(
       (posts) => {
         if (posts.length > 0) {
-          this.currentOffset += this.loadSize;
+          const filteredPosts = [...posts].slice(0, this.loadSize).filter((p) =>
+            !(this.hideRead && ReadStateManager.isRead(p))
+          ).filter((p) => !(this.hideUnread && !ReadStateManager.isRead(p)));
           targetElement.insertAdjacentHTML(
             "beforeend",
             `<div class="posts">
-          ${
-              [...posts].slice(0, this.loadSize).map((p) =>
-                `<ssb-post src="${p}" class="post"></ssb-post>`
-              ).join("")
+            ${
+              filteredPosts
+                .map((p) => `<ssb-post src="${p}" class="post"></ssb-post>`)
+                .join("")
             }
           </div>`,
           );
-          if (posts.length > this.loadSize) {
+          if (filteredPosts.length === 0) {
+            expand();
+          } else if (posts.length > this.loadSize) {
             const postsElts = this.shadowRoot.querySelectorAll(".post");
             const lastPost = postsElts[postsElts.length - 1];
             observer.observe(lastPost);
           }
         } else {
-          if (this.currentOffset === 0) {
+          if (offset === 0) {
             targetElement.insertAdjacentHTML(
               "beforeend",
               `No posts found with given query: <code><pre>${
