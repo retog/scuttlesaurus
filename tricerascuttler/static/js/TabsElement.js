@@ -107,6 +107,7 @@ export class TabsElement extends HTMLElement {
           } else {
             contentArea.replaceChildren(...children);
           }
+          mainArea.classList.remove("showextra");
           /* a better solution might to first make the old content invisible and remove
           only when new content had some time to expand */
           //70ms is enough sometimes
