@@ -26,10 +26,12 @@ export class TabsElement extends HTMLElement {
     .wrapper {
       width: 100%;
       margin: auto;
-      ${plainmenu ? "" : `background-color: white;
+      ${
+      plainmenu ? "" : `background-color: white;
       border-radius: 10px;
       box-shadow: 0px 5px 15px rgba(0, 0, 0, .1);
-      `}
+      `
+    }
     }
     
     button {
@@ -90,11 +92,13 @@ export class TabsElement extends HTMLElement {
       button.onclick = () => {
         if (href) {
           window.location.assign(href);
-        } else if (templateId) {
-          const template = document.getElementById(templateId);
-          contentArea.replaceChildren(template.content.cloneNode(true));
         } else {
-          if (
+          const scrollPosition = [window.scrollX, window.scrollY];
+          console.log(scrollPosition);
+          if (templateId) {
+            const template = document.getElementById(templateId);
+            contentArea.replaceChildren(template.content.cloneNode(true));
+          } else if (
             tab.children.length > 0 && tab.children[0].tagName === "TEMPLATE"
           ) {
             contentArea.replaceChildren(
@@ -103,6 +107,11 @@ export class TabsElement extends HTMLElement {
           } else {
             contentArea.replaceChildren(...children);
           }
+          /* a better solution might to first make the old content invisible and remove
+          only when new content had some time to expand */
+          //70ms is enough sometimes
+          setTimeout(() => window.scrollTo(...scrollPosition), 70);
+          setTimeout(() => window.scrollTo(...scrollPosition), 400);
         }
         this.shadowRoot.querySelectorAll("button").forEach((btn) => {
           btn.classList.remove("active");
