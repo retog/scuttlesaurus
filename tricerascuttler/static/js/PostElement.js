@@ -125,15 +125,23 @@ export class PostElement extends HTMLElement {
         const copyUriButton = document.createElement("button");
         copyUriButton.innerHTML = "Copy URI";
         copyUriButton.onclick = async () => {
-          await navigator.clipboard.writeText(msgUri);
-          alert("Message URI copied to clipboard");
+          try {
+            await navigator.clipboard.writeText(msgUri);
+            alert("Message URI copied to clipboard");
+          } catch (_error) {
+            console.log(`Failed writing to clipboard: ${msgUri}`);
+          }
         };
         actionsArea.append(copyUriButton);
         const copySigilButton = document.createElement("button");
         copySigilButton.innerHTML = "Copy Sigil";
         copySigilButton.onclick = async () => {
-          await navigator.clipboard.writeText(iriToSigil(msgUri));
-          alert("Message Sigil copied to clipboard");
+          try {
+            await navigator.clipboard.writeText(iriToSigil(msgUri));
+            alert("Message Sigil copied to clipboard");
+          } catch (_error) {
+            console.log(`Failed writing to clipboard: ${iriToSigil(msgUri)}`);
+          }
         };
         actionsArea.append(copySigilButton);
       }
