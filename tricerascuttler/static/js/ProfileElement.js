@@ -42,6 +42,22 @@ export class ProfileElement extends HTMLElement {
             } ORDER BY DESC(?seq)"></ssb-post-list>
       </template>
     </ssb-tab>
+    <ssb-tab label="Liked Posts">
+      <template>
+        <ssb-post-list loadSize="10" query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX ssb: <ssb:ontology:>
+            SELECT ?post { 
+              ?msgVote ssb:content [
+                  rdf:type ssb:Vote;
+                  ssb:link ?post;
+              ];
+              ssb:author <${feedUri}>;
+              ssb:seq ?seq.
+              ?post ssb:content ?content. 
+              ?content rdf:type ssb:Post. 
+           } ORDER BY DESC(?seq)"></ssb-post-list>
+      </template>
+    </ssb-tab>
     <ssb-tab label="Following">
       <template>
         <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -79,7 +95,47 @@ export class ProfileElement extends HTMLElement {
        } ORDER BY DESC(?latestLike) "></ssb-feed-author-list>
       </template>
     </ssb-tab>
-    <ssb-tab label="Blocking">
+    <ssb-tab label="Likes most" extra>
+      <template>
+        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX ssb: <ssb:ontology:>
+        
+        SELECT ?feed (COUNT(DISTINCT ?msg) AS ?vcount) WHERE {
+          ?msgVote ssb:content [
+              rdf:type ssb:Vote;
+              ssb:link ?msg;
+              ];
+              ssb:author <${feedUri}>.
+          ?msg rdf:type ssb:Message;
+          ssb:author ?feed.
+        
+        } GROUP BY ?feed ORDER BY DESC(?vcount) LIMIT 20"></ssb-feed-author-list>
+      </template>
+    </ssb-tab>
+    <ssb-tab label="Followers" extra>
+    <template>
+      <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      PREFIX ssb: <ssb:ontology:>
+        
+        SELECT ?feed {
+          ?msg ssb:author ?feed;
+                 ssb:content ?content;
+                 ssb:seq ?finalSeq.
+            ?content ssb:following true.
+          {
+            SELECT ?feed (MAX(?seq) as ?finalSeq)   {
+              ?msg ssb:author ?feed;
+                   ssb:content ?content;
+                   ssb:seq ?seq.
+              ?content rdf:type ssb:Contact;
+                   ssb:contact <${feedUri}>;
+                   ssb:following ?following.
+            } GROUP BY ?feed
+        }
+      }"></ssb-feed-author-list>
+    </template>
+  </ssb-tab>
+    <ssb-tab label="Blocking" extra>
       <template>
         <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX ssb: <ssb:ontology:>
@@ -103,30 +159,7 @@ export class ProfileElement extends HTMLElement {
         } "></ssb-feed-author-list>
       </template>
     </ssb-tab>
-    <ssb-tab label="Followers">
-      <template>
-        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX ssb: <ssb:ontology:>
-          
-          SELECT ?feed {
-            ?msg ssb:author ?feed;
-                   ssb:content ?content;
-                   ssb:seq ?finalSeq.
-              ?content ssb:following true.
-            {
-              SELECT ?feed (MAX(?seq) as ?finalSeq)   {
-                ?msg ssb:author ?feed;
-                     ssb:content ?content;
-                     ssb:seq ?seq.
-                ?content rdf:type ssb:Contact;
-                     ssb:contact <${feedUri}>;
-                     ssb:following ?following.
-              } GROUP BY ?feed
-          }
-        }"></ssb-feed-author-list>
-      </template>
-    </ssb-tab>
-    <ssb-tab label="Blockers">
+    <ssb-tab label="Blockers" extra>
       <template>
         <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
           PREFIX ssb: <ssb:ontology:>
@@ -148,40 +181,6 @@ export class ProfileElement extends HTMLElement {
             }
           }"></ssb-feed-author-list>
           </template>
-    </ssb-tab>
-    <ssb-tab label="Likes most">
-      <template>
-        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX ssb: <ssb:ontology:>
-        
-        SELECT ?feed (COUNT(DISTINCT ?msg) AS ?vcount) WHERE {
-          ?msgVote ssb:content [
-              rdf:type ssb:Vote;
-              ssb:link ?msg;
-              ];
-              ssb:author <${feedUri}>.
-          ?msg rdf:type ssb:Message;
-          ssb:author ?feed.
-        
-        } GROUP BY ?feed ORDER BY DESC(?vcount) LIMIT 20"></ssb-feed-author-list>
-      </template>
-    </ssb-tab>
-    <ssb-tab label="Top likers">
-      <template>
-        <ssb-feed-author-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-          PREFIX ssb: <ssb:ontology:>
-          
-          SELECT ?feed (COUNT(DISTINCT ?msg) AS ?vcount) WHERE {
-            ?msgVote ssb:content [
-                rdf:type ssb:Vote;
-                ssb:link ?msg;
-                ];
-                ssb:author ?feed.
-            ?msg rdf:type ssb:Message;
-            ssb:author <${feedUri}>.
-          
-          } GROUP BY ?feed ORDER BY DESC(?vcount) LIMIT 20"></ssb-feed-author-list>
-      </template>
     </ssb-tab>
   `;
   }
