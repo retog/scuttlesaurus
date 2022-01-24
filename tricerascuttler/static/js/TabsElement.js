@@ -26,6 +26,7 @@ export class TabsElement extends HTMLElement {
     .wrapper {
       width: 100%;
       margin: auto;
+      position:relative;
       ${
       plainmenu ? "" : `background-color: white;
       border-radius: 10px;
@@ -52,8 +53,9 @@ export class TabsElement extends HTMLElement {
     }
 
     .showextra div.extra {
-      float: right;
       display:grid;
+      position: absolute;
+      right: 0;
     }
 
     div.main:not(.showextra) div.extra {
@@ -80,6 +82,8 @@ export class TabsElement extends HTMLElement {
     }
 
     `;
+    const mainArea = document.createElement("div");
+    mainArea.className = "main";
     const menuButtonHolders = tabs.map((tab) => {
       const button = document.createElement("button");
       button.innerHTML = tab.getAttribute("label");
@@ -157,8 +161,6 @@ export class TabsElement extends HTMLElement {
     }
     this.shadowRoot.append(styleElement);
     wrapperArea.append(menuArea);
-    const mainArea = document.createElement("div");
-    mainArea.className = "main";
     mainArea.append(extraArea);
     mainArea.append(contentArea);
     wrapperArea.append(mainArea);
