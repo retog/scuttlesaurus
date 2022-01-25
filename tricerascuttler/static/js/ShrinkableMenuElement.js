@@ -46,7 +46,6 @@ export class ShrinkableMenuElement extends HTMLElement {
 
     button.extra {
       float: right;
-      border-top-right-radius: 10px;
     }
 
     .showextra div.extra {
