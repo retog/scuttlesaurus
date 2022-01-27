@@ -19317,6 +19317,24 @@ class BlobId extends Uint8Array {
     }
     toJSON = this.toString;
 }
+function parseKeyPair(secretText) {
+    const secretTextNoComments = secretText.split("\n").filter((line)=>line.charAt(0) !== "#"
+    ).join("\n");
+    const secret = JSON.parse(secretTextNoComments);
+    return {
+        keyType: secret.curve,
+        publicKey: fromBase64(secret.public.substring(0, secret.public.length - ".ed25519".length)),
+        privateKey: fromBase64(secret.private.substring(0, secret.private.length - ".ed25519".length))
+    };
+}
+function serializeKeyPair(keyPair) {
+    const secret = {
+        public: toBase64(keyPair.publicKey) + ".ed25519",
+        "private": toBase64(keyPair.privateKey) + ".ed25519",
+        curve: keyPair.keyType
+    };
+    return JSON.stringify(secret, undefined, 2);
+}
 function parseAddress(addr) {
     try {
         const [netAddr, keyString] = addr.split("~shs:");
@@ -20855,7 +20873,7 @@ class LocalStorageBlobsStorage {
         return await fromBase64(encodedData);
     }
 }
-export { parseAddress as parseAddress, parseFeedId as parseFeedId };
+export { FeedId as FeedId, parseAddress as parseAddress, parseFeedId as parseFeedId, toBase64 as toBase64 };
 class BrowserScuttlebuttHost extends ScuttlebuttHost {
     constructor(config){
         super(config);
@@ -20869,8 +20887,14 @@ class BrowserScuttlebuttHost extends ScuttlebuttHost {
         return new LocalStorageBlobsStorage();
     }
     getClientKeyPair() {
-        const newKey = __default.crypto_sign_keypair("uint8array");
-        return newKey;
+        const secret = localStorage.getItem("ssb-identity");
+        if (secret) {
+            return parseKeyPair(secret);
+        } else {
+            const newKey = __default.crypto_sign_keypair("uint8array");
+            localStorage.setItem("ssb-identity", serializeKeyPair(newKey));
+            return newKey;
+        }
     }
 }
 export { BrowserScuttlebuttHost as default };
