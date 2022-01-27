@@ -9,13 +9,13 @@ import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import {
   FeedId,
-  fromBase64,
   log,
   parseAddress,
   parseFeedId,
+  parseKeyPair,
   path,
+  serializeKeyPair,
   sodium,
-  toBase64,
 } from "./util.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
@@ -171,31 +171,14 @@ function getClientKeyPair(baseDir: string) {
   const secretFilePath = path.join(baseDir, "secret");
   try {
     const secretText = Deno.readTextFileSync(secretFilePath);
-    const secretTextNoComments = secretText.split("\n").filter((line) =>
-      line.charAt(0) !== "#"
-    ).join("\n");
-    const secret = JSON.parse(secretTextNoComments);
-    return {
-      keyType: secret.curve,
-      publicKey: fromBase64(
-        secret.public.substring(0, secret.public.length - ".ed25519".length),
-      ),
-      privateKey: fromBase64(
-        secret.private.substring(0, secret.private.length - ".ed25519".length),
-      ),
-    };
+    return parseKeyPair(secretText);
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       const newKey = sodium.crypto_sign_keypair("uint8array");
-      const secret = {
-        public: toBase64(newKey.publicKey) + ".ed25519",
-        "private": toBase64(newKey.privateKey) + ".ed25519",
-        curve: newKey.keyType,
-      };
       Deno.mkdirSync(baseDir, { recursive: true });
       Deno.writeTextFileSync(
         secretFilePath,
-        JSON.stringify(secret, undefined, 2),
+        serializeKeyPair(newKey),
       );
       return newKey;
     } else {

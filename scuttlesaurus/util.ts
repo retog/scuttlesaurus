@@ -107,6 +107,32 @@ export type JSONValue =
   | { [x: string]: JSONValue }
   | Array<JSONValue>;
 
+/** reads classic .ssb/secret with comments */
+export function parseKeyPair(secretText: string) {
+  const secretTextNoComments = secretText.split("\n").filter((line) =>
+    line.charAt(0) !== "#"
+  ).join("\n");
+  const secret = JSON.parse(secretTextNoComments);
+  return {
+    keyType: secret.curve,
+    publicKey: fromBase64(
+      secret.public.substring(0, secret.public.length - ".ed25519".length),
+    ),
+    privateKey: fromBase64(
+      secret.private.substring(0, secret.private.length - ".ed25519".length),
+    ),
+  };
+}
+
+export function serializeKeyPair(keyPair: KeyPair) {
+  const secret = {
+    public: toBase64(keyPair.publicKey) + ".ed25519",
+    "private": toBase64(keyPair.privateKey) + ".ed25519",
+    curve: keyPair.keyType,
+  };
+  return JSON.stringify(secret, undefined, 2);
+}
+
 export function parseAddress(addr: string): Address {
   try {
     const [netAddr, keyString] = addr.split("~shs:");

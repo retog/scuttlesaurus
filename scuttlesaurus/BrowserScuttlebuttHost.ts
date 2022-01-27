@@ -1,11 +1,11 @@
 import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
-import { log, sodium } from "./util.ts";
+import { log, parseKeyPair, serializeKeyPair, sodium } from "./util.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import { LocalStorageFeedsStorage } from "./storage/local-storage/LocalStorageFeedsStorage.ts";
 import { LocalStorageBlobsStorage } from "./storage/local-storage/LocalStorageBlobsStorage.ts";
 
-export { parseAddress, parseFeedId } from "./util.ts";
+export { FeedId, parseAddress, parseFeedId, toBase64 } from "./util.ts";
 
 export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
   constructor(config: ParentConfig) {
@@ -22,9 +22,14 @@ export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
   }
 
   protected getClientKeyPair() {
-    //TODO store
-    const newKey = sodium.crypto_sign_keypair("uint8array");
-    return newKey;
+    const secret = localStorage.getItem("ssb-identity");
+    if (secret) {
+      return parseKeyPair(secret);
+    } else {
+      const newKey = sodium.crypto_sign_keypair("uint8array");
+      localStorage.setItem("ssb-identity", serializeKeyPair(newKey));
+      return newKey;
+    }
   }
 }
 

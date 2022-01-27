@@ -26,7 +26,8 @@ import ConnectionManager from "./agents/ConnectionManager.ts";
 /** A host communicating to peers using the Secure Scuttlebutt protocol.
  *
  * By concrete implementations of this class provide Agents for the `feeds` and the `blobs`
- * sub-protocols by impelemnting createFeedsAgent and createBlobsAgent.
+ * sub-protocols by implementing createFeedsAgent and createBlobsAgent. They also provide the
+ * identity key-pair by implementing getClientKeyPair()
  *
  * Consumers can interact with the default agents via the fields `feedsAgent` and `blobsAgent`.
  *
