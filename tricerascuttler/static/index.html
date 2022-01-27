@@ -7,16 +7,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <title>Tricerascuttler</title>
+    <script type="module">
+        import ClientHostProvider from "./js/ClientHostProvider.js"
+        window.scuttlebuttHost = new ClientHostProvider().getScuttlebuttHost();
+    </script>
 </head>
 
 <body>
-    <ssb-header></ssb-header>
+    <ssb-tabs plainmenu>
+        <ssb-tab label="Explore" active>
+            <template id="main"></template>
+        </ssb-tab>
+        <ssb-tab label="Read">
+            <template>
+                <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+                    PREFIX ssb: <ssb:ontology:>
+                    SELECT ?post {
+                        ?post ssb:timestamp ?timestamp;
+                             ssb:content ?content.
+                        ?content rdf:type ssb:Post.
+                    } ORDER BY DESC(?timestamp)"></ssb-post-list>
+                <script type="module" src="js/PostListElement.js"></script>
+            </template>
+        </ssb-tab>
+        <ssb-tab label="Following">
+            <template>
+                <ssb-host-followees></ssb-host-followees>
+            </template>
+        </ssb-tab>
+        <ssb-tab label="Peers">
+            <template>
+                <ssb-host-peers></ssb-host-peers>
+            </template>
+        </ssb-tab>
+        <ssb-tab id="query" label="SPARQL">
+            <template>
+                <script type="module" src="js/QueryElement.js"></script>
+                <ssb-query></ssb-query>
+            </template>
+        </ssb-tab>
+        <ssb-tab id="query" label="About">
+            <template>
 
-    <div id="main"></div>
+                <ssb-instance-info></ssb-instance-info>
+                <h1>Powered by Tricerascuttler</h1>
+                <p>
+                    Tricerascuttler uses Scuttlesaurus to aggregate Scuttlebutt
+                    data in an RDF Store.
+                </p>
+                Developped by:
+                <ssb-feed-author src="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c="></ssb-feed-author>
+                <p>
+                    Sourcecode on <a
+                        href="https://github.com/retog/scuttlesaurus/tree/master/tricerascuttler">Github</a>.
+                </p>
+
+                <p>
+                    First mention of Tricerascuttler in the known Scuttleverse:
+                    <ssb-post src="ssb:message/sha256/ddZPPcrgpbAX6wgCxU7SmVzIm6iJhFxpy2-a7-qAk-M="></ssb-post>
+                </p>
+            </template>
+        </ssb-tab>
+        <ssb-tab label="👤" right-fixed>
+            <template>
+               <ssb-local-identity></ssb-local-identity>
+            </template>
+        </ssb-tab>
+    </ssb-tabs>
 
     <script type="module" src="js/FeedAuthorElement.js"></script>
     <script type="module" src="js/ProfileElement.js"></script>
-    <script type="module" src="js/HeaderElement.js"></script>
+    <script type="module" src="js/HostFolloweesElement.js"></script>
+    <script type="module" src="js/HostPeersElement.js"></script>
+    <script type="module" src="js/InstanceInfoElement.js"></script>
+    <script type="module" src="js/LocalIdentityElement.js"></script>
+
     <script type="module">
         import { sigilToIri, mainIdentity } from "./js/web-util.js";
 

@@ -10,6 +10,7 @@ export class TabsElement extends HTMLElement {
     const rightFixedButtons = [];
     tabs.map((tab) => {
       const button = document.createElement("button");
+      button.classList.add("tabButton");
       button.innerHTML = tab.getAttribute("label");
       const templateId = tab.getAttribute("template");
       const href = tab.getAttribute("href");
@@ -45,7 +46,7 @@ export class TabsElement extends HTMLElement {
       });
       if (tab.hasAttribute("active")) {
         if (!href) {
-          button.click();
+          setTimeout(() => button.click(), 200);
         } else {
           button.classList.add("active");
         }
@@ -97,7 +98,7 @@ export class TabsElement extends HTMLElement {
       position:relative;
     }
 
-    button {
+    .tabButton {
       letter-spacing: 3px;
       border: none;
       padding: 10px;
@@ -113,7 +114,7 @@ export class TabsElement extends HTMLElement {
       background-color: #d5e3ff;
     }
     
-    button.active {
+    .tabButton.active {
       background-color: white;
     }
 

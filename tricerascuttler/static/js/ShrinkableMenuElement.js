@@ -72,10 +72,6 @@ export class ShrinkableMenuElement extends HTMLElement {
     button.active {
       background-color: white;
     }
-    
-    .active {
-      background-color: white;
-    }
 
     `;
     const mainArea = document.createElement("div");
