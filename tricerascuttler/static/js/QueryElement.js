@@ -9,11 +9,11 @@ export class QueryElement extends HTMLElement {
     <div id="yasgui"></div>`;
     const yasgui = new Yasgui(this.shadowRoot.getElementById("yasgui"), {
       requestConfig: {
-          endpoint: "./query",
-          method: "GET"
+        endpoint: "./query",
+        method: "GET",
       },
       copyEndpointOnNewTab: false,
-  });
+    });
   }
 }
 window.customElements.define("ssb-query", QueryElement);

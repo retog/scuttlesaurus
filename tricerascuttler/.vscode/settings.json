@@ -8,5 +8,8 @@
     "**/.git/subtree-cache/**": true,
     "**/ssb-base/*/**": true,
     "**/fuseki-dataset/**": true
+  },
+  "deno.suggest.imports.hosts": {
+    "https://deno.land": true
   }
 }

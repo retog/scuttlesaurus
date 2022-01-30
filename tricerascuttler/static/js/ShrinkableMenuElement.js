@@ -114,9 +114,9 @@ export class ShrinkableMenuElement extends HTMLElement {
       fillMenus();
       while (
         [...menuArea.querySelectorAll("button")].reduce(
-              (total, button) => total + button.offsetWidth,
+              (total, button) => total + button.getBoundingClientRect().width,
               0,
-            ) + 0.3 * extraButton.offsetWidth > menuArea.offsetWidth
+            ) + 8 > menuArea.getBoundingClientRect().width
       ) {
         const menuButtons = [...menuArea.querySelectorAll("button")];
         if (menuButtons.length < 2) break;

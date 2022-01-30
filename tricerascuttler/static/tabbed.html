@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <title>Tabs</title>
+</head>
+
+<body>
+    <ssb-tabs>
+        <template id="following">
+            <ssb-feed-author src="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c="></ssb-feed-author>
+        </template>
+        <ssb-tab label="Simple 1"><template>some enh content<script>alert("1 in template")</script></template></ssb-tab>
+        <ssb-tab label="complex  2"><p id="instance">
+
+        </p>
+        <script type="module">
+            import { runQuery, mainIdentity } from "./js/web-util.js";
+    
+            async function tripleCount() {
+                const result = await runQuery(`SELECT (COUNT(*) as ?count) WHERE { ?s ?p ?o}`)
+                return parseInt(result.results.bindings[0].count.value)
+            }
+    
+            async function messagesCount() {
+                const result = await runQuery(`PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+                    PREFIX ssb: <ssb:ontology:>
+    
+                    SELECT (COUNT(DISTINCT ?s) as ?count) WHERE { ?s rdf:type ssb:Message}`)
+                return parseInt(result.results.bindings[0].count.value)
+            }
+            const tripleCountP = tripleCount();
+            const messagesCountP = messagesCount();
+            const mainIdentityP = mainIdentity();
+            document.getElementById("instance").innerHTML = `
+            <h1>This instance</h1>
+            <ul>
+            <li>Messages: ${(await messagesCountP).toLocaleString()}</li>
+            <li>Triples: ${(await tripleCountP).toLocaleString()}</li>
+            <li>Identity: <ssb-feed-author src="${await mainIdentityP}"></ssb-feed-author></li>
+            </ul>
+            `;
+        </script>
+        <h1>Powered by Tricerascuttler</h1>
+        <p>
+            Tricerascuttler uses Scuttlesaurus to aggregate Scuttlebutt
+            data in an RDF Store.
+        </p>
+        Developped by:
+        <ssb-feed-author src="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c="></ssb-feed-author>
+        <p>
+            Sourcecode on <a href="https://github.com/retog/scuttlesaurus/tree/master/tricerascuttler">Github</a>.
+        </p>
+    
+        <p>
+            First mention of Tricerascuttler in the known Scuttleverse:
+            <ssb-post src="ssb:message/sha256/ddZPPcrgpbAX6wgCxU7SmVzIm6iJhFxpy2-a7-qAk-M="></ssb-post>
+        </p>
+        <script type="module" src="js/FeedAuthorElement.js"></script>
+        <script type="module" src="js/HeaderElement.js"></script>
+        <script type="module" src="js/PostElement.js"></script></ssb-tab>
+        <ssb-tab label="Simple 3">some content</ssb-tab>
+        <ssb-tab label="Simple 4">some content</ssb-tab>
+        <ssb-tab label="Simple 5">some content</ssb-tab>
+        <ssb-tab label="Simple 6">some content</ssb-tab>
+        <ssb-tab label="Simple 7 ">some content</ssb-tab>
+        <ssb-tab label="relative href examle" href="read.html"></ssb-tab>
+        <ssb-tab label="absolute href examle" href="https://scuttlebutt.nz/"></ssb-tab>
+        <ssb-tab label="Following" template="following">
+
+        </ssb-tab>
+        <ssb-tab label="Rasiest" extra>
+            <template>
+                foo <ssb-post src="ssb:message/sha256/ddZPPcrgpbAX6wgCxU7SmVzIm6iJhFxpy2-a7-qAk-M="></ssb-post>
+                <h1>bar</h1>
+            </template>
+        </ssb-tab>
+        <ssb-tab label="Profile Link">
+            <template>
+                <ssb-feed-author-link feed="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=">
+                    </ssb-feed-author>
+            </template>
+        </ssb-tab>
+        <ssb-tab label="Profile Link with image" right-fixed>
+            <template>
+                <ssb-feed-author-link feed="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=" image>
+                    </ssb-feed-author>
+            </template>
+        </ssb-tab>
+        <ssb-tab label="Lesser stuff" extra>
+            <template>
+                <ssb-feed-author-link feed="ssb:feed/ed25519/IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=" image>
+                    </ssb-feed-author>
+            </template>
+        </ssb-tab>
+    </ssb-tabs>
+    <hr>
+    <ssb-shrinkable-menu>
+        <button id="plainButton">A plain button</button>
+        <button id="plainButton2">A 2 plain button</button>
+        <button id="plainButton3">A 3 plain button</button>
+        <button id="plainButton4">A 4 plain button</button>
+        <button id="plainButton5">A 5 plain button</button>
+        <button id="plainButton6" extra>A 6 plain button</button>
+    </ssb-shrinkable-menu>
+    <script>
+        plainButton.addEventListener("click", () => alert("HI"))
+        plainButton5.addEventListener("click", () => alert("HI5"))
+    </script>
+    <script type="module" src="js/TabsElement.js"></script>
+    <script type="module" src="js/ShrinkableMenuElement.js"></script>
+    <script type="module" src="js/FeedAuthorElement.js"></script>
+    <script type="module" src="js/FeedAuthorLinkElement.js"></script>
+    <script type="module" src="js/PostElement.js"></script>
+</body>
+
+</html>

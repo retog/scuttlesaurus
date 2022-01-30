@@ -46,39 +46,50 @@ The following command-line options are supported:
 - logLevel: DEBUG, INFO, WARNING , ERROR or CRITICAL
 - incoming: Accept incoming connections (default: true)
 
+Additional the properties of the web endpoints can be configured with in the
+form `--web.control.hostname 0.0.0.0`, an endpoint can be disabled with
+`--web.control.hostname false`.
+
 ## Configuration
 
-Scuttlesaurus can be configured with a `config.json` file in the base directory. This is the default configuraton:
+Scuttlesaurus can be configured with a `config.json` file in the base directory.
+This is the default configuraton:
 
 ```
- {
-    baseDir: "/path/to/base/dir/",
-    dataDir: "/path/to/data/dir,
-    transport: {
-      net: {
-        port: 8008,
-      },
-      ws: {
-        port: 8989,
-      },
-    },
-    networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
-    acceptIncomingConnections: true,
-    control: {
-      web: { 
-        port: 8000,
-        hostname: "localhost"
-      },
-    },
-    agents: {
-      feeds: {},
-      blobs: {}
-    },
-  }
+{
+   baseDir: "/path/to/base/dir/",
+   dataDir: "/path/to/data/dir,
+   transport: {
+     net: {
+       port: 8008,
+     },
+     ws: {
+       web: ["access"],
+     },
+   },
+   networkIdentifier: "1KHLiKZvAvjbY1ziZEHMXawbCEIM6qwjCDm3VYRan/s=",
+   acceptIncomingConnections: true,
+   web: {
+     control: {
+       port: 8000,
+       hostname: "localhost",
+     },
+     access: {
+       port: 8989,
+       hostname: "0.0.0.0",
+     },
+   },
+   agents: {
+     feeds: {},
+     blobs: {}
+   },
+ }
 ```
+
 ## Web Control
 
-If control.web is enabled the list of peers and followees can be modified at runtime. Here are some examples using Curl.
+If control.web is enabled the list of peers and followees can be modified at
+runtime. Here are some examples using Curl.
 
 Add a peer:
 
@@ -95,7 +106,6 @@ Follow feed:
 Unfollow feed:
 
     curl -X POST http://localhost:8000/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519", "action":"remove"}'
-
 
 ## Using this project as a dev containers with VSCode:
 

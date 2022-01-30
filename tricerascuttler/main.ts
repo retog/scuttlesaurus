@@ -26,10 +26,10 @@ const sparqlEndpointUpdate = getRequiredEnvVar("SPARQL_ENDPOINT_UPDATE");
 const host = await createScuttlebuttHost();
 const storer = new SparqlStorer(sparqlEndpointQuery, sparqlEndpointUpdate);
 storer.connectAgent(host.feedsAgent!);
-if (!host.controlAppRouter) {
+if (!host.webEndpoints.control) {
   throw new Error("Tricerascuttler requires the control web app");
 }
-host.controlAppRouter.all(
+host.webEndpoints.control.router.all(
   "/query",
   proxy(sparqlEndpointQuery, {
     filterReq: (req, _res) => {
@@ -39,7 +39,7 @@ host.controlAppRouter.all(
       new Headers({ "Cache-Control": "max-age=30, public" }),
   }),
 );
-host.controlAppRouter.get(
+host.webEndpoints.control.router.get(
   "/blob/sha256/:hash",
   async (ctx: Context) => {
     const base64hash = fromFilenameSafeAlphabet(
@@ -61,5 +61,5 @@ host.controlAppRouter.get(
     }
   },
 );
-host.controlApp!.use(staticFiles("static"));
+host.webEndpoints.control.application.use(staticFiles("static"));
 host.start();

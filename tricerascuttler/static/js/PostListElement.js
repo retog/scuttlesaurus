@@ -42,9 +42,9 @@ export class PostListElement extends HTMLElement {
       this.hideRead = showReadSelect.value === "hideRead";
       this.hideUnread = showReadSelect.value === "hideUnread";
       if (this.hideRead) {
-        contentDiv.classList.add("hideRead")
-      } else  {
-        contentDiv.classList.remove("hideRead")
+        contentDiv.classList.add("hideRead");
+      } else {
+        contentDiv.classList.remove("hideRead");
       }
       contentDiv.replaceChildren();
       this.getPostsAndAppend(0, contentDiv);

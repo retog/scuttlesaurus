@@ -9,7 +9,7 @@ export { exists } from "https://deno.land/std@0.103.0/fs/exists.ts";
 export { writeAll } from "https://deno.land/std@0.116.0/streams/conversion.ts";
 export const sodium = importedSodium;
 export type KeyPair = importKeypair;
-//line Denno.error.NofFound, but available in browser
+//like Deno.error.NofFound, but available in browser
 export class NotFoundError extends Error {}
 
 await sodium.ready;

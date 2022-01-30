@@ -31,18 +31,21 @@ import FsStorage from "./storage/fs/FsStorage.ts";
 export default class DenoScuttlebuttHost extends ScuttlebuttHost {
   readonly transportClients = new Set<TransportClient>();
   readonly transportServers = new Set<TransportServer>();
-  readonly controlApp?: Application;
-  readonly controlAppRouter?: Router<Record<string, unknown>>;
+  readonly webEndpoints: Record<
+    string,
+    { application: Application; router: Router }
+  > = {};
 
   constructor(
     readonly config: {
-      transport?: { net?: Deno.ListenOptions; ws?: Deno.ListenOptions };
+      transport?: { net?: Deno.ListenOptions; ws?: { web: Array<string> } };
       autoConnectLocalPeers?: boolean;
       acceptIncomingConnections?: boolean;
       baseDir: string;
       dataDir: string;
-      control?: {
-        web?: Deno.ListenOptions;
+      web?: {
+        control?: Deno.ListenOptions;
+        access?: Deno.ListenOptions;
       };
     } & ParentConfig,
   ) {
@@ -69,7 +72,76 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       log.debug(`Error reading ${peersFile}: ${error}`);
     }
     super(config);
+    const writePeersFile = () => {
+      Deno.writeTextFileSync(
+        peersFile,
+        JSON.stringify([...this.peers], undefined, 2),
+      );
+    };
+    this.peers.addAddListener(writePeersFile);
+    this.peers.addRemoveListener(writePeersFile);
 
+    const initializeWebEndpoints = (
+      endpointConfigs: Record<string, Deno.ListenOptions>,
+    ) => {
+      for (const endpointName in endpointConfigs) {
+        const endpoint = {
+          application: new Application(),
+          router: new Router(),
+        };
+        endpoint.application.use(endpoint.router.routes());
+        endpoint.application.use(endpoint.router.allowedMethods());
+        endpoint.application.listen(endpointConfigs[endpointName]).catch((e) =>
+          log.error(`Error with control app ${e}`)
+        );
+        this.webEndpoints[endpointName] = endpoint;
+      }
+    };
+    if (config.web) {
+      initializeWebEndpoints(config.web);
+    }
+    const initializeControlRoutes = (router: Router) => {
+      router.get("/whoami", (ctx: Context) => {
+        ctx.response.body = JSON.stringify({
+          feedId: new FeedId(this.getClientKeyPair().publicKey),
+        });
+      });
+      router.post("/peers", async (ctx: Context) => {
+        const { value } = ctx.request.body({ type: "json" });
+        const { address, action } = await value;
+        if (action === "remove") {
+          this.peers.delete(parseAddress(address));
+          ctx.response.body = "Removed peer";
+        } else {
+          this.peers.add(parseAddress(address));
+          ctx.response.body = "Added peer";
+        }
+      });
+      router.get("/peers", (ctx: Context) => {
+        ctx.response.body = JSON.stringify([...this.peers]);
+      });
+      router.post("/followees", async (ctx: Context) => {
+        const { value } = ctx.request.body({ type: "json" });
+        const { id, action } = await value;
+        if (action === "remove") {
+          this.followees.delete(parseFeedId(id));
+          ctx.response.body = "Removed followee";
+        } else {
+          this.followees.add(parseFeedId(id));
+          ctx.response.body = "Added followee";
+        }
+        Deno.writeTextFileSync(
+          followeesFile,
+          JSON.stringify([...this.followees], undefined, 2),
+        );
+      });
+      router.get("/followees", (ctx: Context) => {
+        ctx.response.body = JSON.stringify([...this.followees]);
+      });
+    };
+    if (this.webEndpoints.control) {
+      initializeControlRoutes(this.webEndpoints.control.router);
+    }
     if (config.transport?.net) {
       this.transportClients.add(
         new NetTransport(config.transport?.net),
@@ -82,63 +154,12 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       this.transportClients.add(
         new WsTransportClient(),
       );
-      this.transportServers.add(
-        new WsTransportServer(config.transport?.ws),
-      );
-    }
-    const writePeersFile = () => {
-      Deno.writeTextFileSync(
-        peersFile,
-        JSON.stringify([...this.peers], undefined, 2),
-      );
-    };
-    this.peers.addAddListener(writePeersFile);
-    this.peers.addRemoveListener(writePeersFile);
-    if (config.control?.web) {
-      this.controlApp = new Application();
-      this.controlAppRouter = new Router();
-      this.controlAppRouter.get("/whoami", (ctx: Context) => {
-        ctx.response.body = JSON.stringify({
-          feedId: new FeedId(this.getClientKeyPair().publicKey),
-        });
-      });
-      this.controlAppRouter.post("/peers", async (ctx: Context) => {
-        const { value } = ctx.request.body({ type: "json" });
-        const { address, action } = await value;
-        if (action === "remove") {
-          this.peers.delete(parseAddress(address));
-          ctx.response.body = "Removed peer";
-        } else {
-          this.peers.add(parseAddress(address));
-          ctx.response.body = "Added peer";
-        }
-      });
-      this.controlAppRouter.get("/peers", (ctx: Context) => {
-        ctx.response.body = JSON.stringify([...this.peers]);
-      });
-      this.controlAppRouter.post("/followees", async (ctx: Context) => {
-        const { value } = ctx.request.body({ type: "json" });
-        const { id, action } = await value;
-        if (action === "remove") {
-          this.followees.delete(parseFeedId(id));
-          ctx.response.body = "Removed peer";
-        } else {
-          this.followees.add(parseFeedId(id));
-          ctx.response.body = "Added followee";
-        }
-        Deno.writeTextFileSync(
-          followeesFile,
-          JSON.stringify([...this.followees], undefined, 2),
+      config.transport.ws.web ??= [];
+      config.transport.ws.web.forEach((endpointName) => {
+        this.transportServers.add(
+          new WsTransportServer(this.webEndpoints[endpointName].application),
         );
       });
-      this.controlAppRouter.get("/followees", (ctx: Context) => {
-        ctx.response.body = JSON.stringify([...this.followees]);
-      });
-      this.controlApp.use(this.controlAppRouter.routes());
-      this.controlApp.use(this.controlAppRouter.allowedMethods());
-      this.controlApp.listen(config.control!.web!).catch((e) =>
-        log.error(`Error with control app ${e}`)
-      );
     }
     if (config.autoConnectLocalPeers) {
       /*  for await (const peer of udpPeerDiscoverer) {
@@ -154,6 +175,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       */
     }
   }
+
   protected createFeedsStorage() {
     return new FsStorage(this.config.dataDir);
   }
