@@ -13,8 +13,6 @@
         "--unstable",
         "-A",
         "main.ts",
-        "--web.control.port",
-        "8000",
         "--web.control.hostname",
         "0.0.0.0"
       ],
@@ -34,8 +32,6 @@
         "main.ts",
         "--logLevel",
         "INFO",
-        "--web.control.port",
-        "8000",
         "--web.control.hostname",
         "0.0.0.0"
       ],

@@ -71,7 +71,7 @@ This is the default configuraton:
    acceptIncomingConnections: true,
    web: {
      control: {
-       port: 8000,
+       port: 8990,
        hostname: "localhost",
      },
      access: {
@@ -93,19 +93,19 @@ runtime. Here are some examples using Curl.
 
 Add a peer:
 
-    curl -X POST http://localhost:8000/peers -H 'Content-Type: application/json' -d '{"address":"net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc="}'
+    curl -X POST http://localhost:8990/peers -H 'Content-Type: application/json' -d '{"address":"net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc="}'
 
 Remove peer:
 
-    curl -X POST http://localhost:8000/peers -H 'Content-Type: application/json' -d '{"address":"net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc=", "action":"remove"}'
+    curl -X POST http://localhost:8990/peers -H 'Content-Type: application/json' -d '{"address":"net:eu-west.ssbpeer.net:8008~shs:4TG/WLESyhThgTvmi5W3baX//tbF0HyskFprREqHbyc=", "action":"remove"}'
 
 Follow feed:
 
-    curl -X POST http://localhost:8000/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519"}'
+    curl -X POST http://localhost:8990/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519"}'
 
 Unfollow feed:
 
-    curl -X POST http://localhost:8000/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519", "action":"remove"}'
+    curl -X POST http://localhost:8990/followees -H 'Content-Type: application/json' -d '{"id":"@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519", "action":"remove"}'
 
 ## Using this project as a dev containers with VSCode:
 

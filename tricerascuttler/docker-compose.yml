@@ -7,7 +7,8 @@ services:
       dockerfile: tricerascuttler/Dockerfile
     ports:
       - "8008:8008"
-      - "127.0.0.1:8000:8000"
+      - "8989:8989"
+      - "127.0.0.1:8990:8990"
     depends_on:
       - "blazegraph"
     environment:
