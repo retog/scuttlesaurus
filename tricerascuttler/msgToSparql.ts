@@ -147,6 +147,32 @@ export default function msgToSparql(msg: RichMessage) {
         }
     `;
       }
+      generate(): string {
+        const content = msg.value.content as Contact;
+        if (typeof (content.following) !== "boolean") {
+          return super.generate();
+        }
+        const shortcutTriple = `<${
+          feedIdToUri(msg.value.author as FeedIdStr)
+        }> ssbx:follows <${feedIdToUri(content.contact)}> .`;
+        if (content.following) {
+          return `
+          ${super.generate()};
+          PREFIX ssbx: <ssb:ontology:derivatives:>
+          INSERT DATA {
+            ${shortcutTriple}
+          }
+          `;
+        } else {
+          return `
+          ${super.generate()};
+          PREFIX ssbx: <ssb:ontology:derivatives:>
+          DELETE DATA {
+            ${shortcutTriple}
+          }
+          `;
+        }
+      }
     }(),
     "vote": new class extends BasicMessage {
       get content() {
