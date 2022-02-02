@@ -69,7 +69,7 @@ function getDefaultConfig(baseDir: string) {
     acceptIncomingConnections: true,
     web: {
       control: {
-        port: 8000,
+        port: 8990,
         hostname: "localhost",
       },
       access: {
