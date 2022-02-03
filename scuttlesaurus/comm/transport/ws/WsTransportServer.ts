@@ -1,7 +1,7 @@
 import TransportServer from "../TransportServer.ts";
 import { log } from "../../../util.ts";
 import makeConnectionLike from "./makeConnectionLike.ts";
-import { Application, Context } from "https://deno.land/x/oak@v10.1.0/mod.ts";
+import { Application, Context } from "https://deno.land/x/oak@v10.2.0/mod.ts";
 
 export default class WsTransportServer implements TransportServer {
   constructor(

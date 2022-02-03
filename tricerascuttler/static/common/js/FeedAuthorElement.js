@@ -145,6 +145,28 @@ export class FeedAuthorElement extends HTMLElement {
           syncButton.parentNode.removeChild(syncButton);
         });
         handleSsbLinks(this.shadowRoot);
+        const copyUriButton = document.createElement("button");
+        copyUriButton.innerHTML = "Copy URI";
+        copyUriButton.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(feedUri);
+            alert("Message URI copied to clipboard");
+          } catch (_error) {
+            console.log(`Failed writing to clipboard: ${feedUri}`);
+          }
+        };
+        this.shadowRoot.append(copyUriButton);
+        const copySigilButton = document.createElement("button");
+        copySigilButton.innerHTML = "Copy Sigil";
+        copySigilButton.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(iriToSigil(feedUri));
+            alert("Message Sigil copied to clipboard");
+          } catch (_error) {
+            console.log(`Failed writing to clipboard: ${iriToSigil(feedUri)}`);
+          }
+        };
+        this.shadowRoot.append(copySigilButton);
       },
     );
   }

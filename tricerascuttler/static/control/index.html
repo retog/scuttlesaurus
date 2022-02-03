@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tricerascuttler Control</title>
+    <script type="module" src="js/HeaderElement.js"></script>
+    <script type="module" src="js/InstanceInfoElement.js"></script>
+    <script type="module" src="js/InstanceNameElement.js"></script>
+
+</head>
+
+<body>
+    <ssb-header></ssb-header>
+    <main>
+        <h1>control interface of <ssb-instance-name></ssb-instance-name></h1>
+        <div id="accessInfo"></div>
+        <script type="module">
+            const config = await(await fetch("/config")).json();
+            if (config.web.access) {
+                accessInfo.textContent = `An access web endpoint is set up on ${config.web.access.port} of interface ${config.web.access.hostname}.`;
+            }
+        </script>
+        <ssb-instance-info></ssb-instance-info>
+    </main>
+</body>
+
+</html>

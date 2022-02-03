@@ -1,6 +1,12 @@
 //https://deno.land/x/scuttlesaurus@0.1.0/
-import staticFiles from "https://x.nest.land/static_files@1.1.3/mod.ts";
 import { proxy } from "https://deno.land/x/oak_http_proxy@2.0.0/mod.ts";
+import {
+  Application,
+  Context,
+  Middleware,
+  Router,
+  send,
+} from "https://deno.land/x/oak@v10.2.0/mod.ts";
 import { createScuttlebuttHost } from "../scuttlesaurus/main.ts";
 import SparqlStorer from "./SparqlStorer.ts";
 import {
@@ -8,8 +14,8 @@ import {
   fromBase64,
   fromFilenameSafeAlphabet,
   log,
+  path,
 } from "../scuttlesaurus/util.ts";
-import { Context } from "https://deno.land/x/oak@v10.1.0/context.ts";
 
 function getRequiredEnvVar(name: string): string {
   const value = Deno.env.get(name);
@@ -26,40 +32,76 @@ const sparqlEndpointUpdate = getRequiredEnvVar("SPARQL_ENDPOINT_UPDATE");
 const host = await createScuttlebuttHost();
 const storer = new SparqlStorer(sparqlEndpointQuery, sparqlEndpointUpdate);
 storer.connectAgent(host.feedsAgent!);
-if (!host.webEndpoints.control) {
-  throw new Error("Tricerascuttler requires the control web app");
-}
-host.webEndpoints.control.router.all(
-  "/query",
-  proxy(sparqlEndpointQuery, {
-    filterReq: (req, _res) => {
-      return req.method !== "GET";
-    },
-    srcResHeaderDecorator: () =>
-      new Headers({ "Cache-Control": "max-age=30, public" }),
-  }),
-);
-host.webEndpoints.control.router.get(
-  "/blob/sha256/:hash",
-  async (ctx: Context) => {
-    const base64hash = fromFilenameSafeAlphabet(
-      (ctx as unknown as { params: Record<string, string> }).params.hash,
-    );
-    const hash = fromBase64(base64hash);
-    const blobId = new BlobId(hash);
-    if (!host.blobsAgent) {
-      throw new Error("No BlobsAgent");
-    }
-    host.blobsAgent.want(blobId);
-    const data = await host.blobsAgent.fsStorage.getBlob(blobId);
-    if (data) {
-      ctx.response.body = data;
-      ctx.response.headers.append(
-        "Cache-Control",
-        "Immutable, max-age=604800, public",
-      );
-    }
+function addCommonEndpoints(
+  { application, router }: {
+    application: Application<
+      // deno-lint-ignore no-explicit-any
+      Record<string, any>
+    >;
+    router: Router<
+      // deno-lint-ignore no-explicit-any
+      Record<string, any>
+    >;
   },
-);
-host.webEndpoints.control.application.use(staticFiles("static"));
+) {
+  router.all(
+    "/query",
+    proxy(sparqlEndpointQuery, {
+      filterReq: (req, _res) => {
+        return req.method !== "GET";
+      },
+      srcResHeaderDecorator: () =>
+        new Headers({ "Cache-Control": "max-age=30, public" }),
+    }),
+  );
+  router.get(
+    "/blob/sha256/:hash",
+    async (ctx: Context) => {
+      const base64hash = fromFilenameSafeAlphabet(
+        (ctx as unknown as { params: Record<string, string> }).params.hash,
+      );
+      const hash = fromBase64(base64hash);
+      const blobId = new BlobId(hash);
+      if (!host.blobsAgent) {
+        throw new Error("No BlobsAgent");
+      }
+      host.blobsAgent.want(blobId);
+      const data = await host.blobsAgent.fsStorage.getBlob(blobId);
+      if (data) {
+        ctx.response.body = data;
+        ctx.response.headers.append(
+          "Cache-Control",
+          "Immutable, max-age=604800, public",
+        );
+      }
+    },
+  );
+  application.use(staticFiles("static/common"));
+}
+addCommonEndpoints(host.webEndpoints.access);
+addCommonEndpoints(host.webEndpoints.control);
+
+host.webEndpoints.access.application.use(staticFiles("static/access"));
+host.webEndpoints.control.application.use(staticFiles("static/control"));
+
 host.start();
+
+function staticFiles(
+  baseDir: string,
+) {
+  const middleware: Middleware = async function (ctx, next) {
+    const fsPath = path.join(baseDir, ctx.request.url.pathname);
+    try {
+      await Deno.stat(fsPath);
+      //file or diretory exists
+      await send(ctx, fsPath, {
+        root: Deno.cwd(),
+        index: "index.html",
+      });
+    } catch (_error) {
+      await next();
+    }
+    await console.log("Function not implemented.", ctx.request, baseDir);
+  };
+  return middleware;
+}

@@ -2,7 +2,7 @@ import {
   Application,
   Context,
   Router,
-} from "https://deno.land/x/oak@v10.1.0/mod.ts";
+} from "https://deno.land/x/oak@v10.2.0/mod.ts";
 import ScuttlebuttHost, { Config as ParentConfig } from "./ScuttlebuttHost.ts";
 import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
@@ -80,7 +80,13 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     };
     this.peers.addAddListener(writePeersFile);
     this.peers.addRemoveListener(writePeersFile);
-
+    const initializeCommonRoutes = (router: Router) => {
+      router.get("/whoami", (ctx: Context) => {
+        ctx.response.body = JSON.stringify({
+          feedId: new FeedId(this.getClientKeyPair().publicKey),
+        });
+      });
+    };
     const initializeWebEndpoints = (
       endpointConfigs: Record<string, Deno.ListenOptions>,
     ) => {
@@ -92,8 +98,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         endpoint.application.use(endpoint.router.routes());
         endpoint.application.use(endpoint.router.allowedMethods());
         endpoint.application.listen(endpointConfigs[endpointName]).catch((e) =>
-          log.error(`Error with control app ${e}`)
+          log.error(`Error with web endpoint ${endpointName}: ${e}`)
         );
+        initializeCommonRoutes(endpoint.router);
         this.webEndpoints[endpointName] = endpoint;
       }
     };
@@ -101,10 +108,8 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       initializeWebEndpoints(config.web);
     }
     const initializeControlRoutes = (router: Router) => {
-      router.get("/whoami", (ctx: Context) => {
-        ctx.response.body = JSON.stringify({
-          feedId: new FeedId(this.getClientKeyPair().publicKey),
-        });
+      router.get("/config", (ctx: Context) => {
+        ctx.response.body = JSON.stringify(this.config);
       });
       router.post("/peers", async (ctx: Context) => {
         const { value } = ctx.request.body({ type: "json" });
