@@ -1,5 +1,6 @@
 import {
   FeedId,
+  parseAddress,
   parseKeyPair,
   serializeKeyPair,
 } from "./ext/scuttlebutt-host.js";
@@ -81,7 +82,15 @@ export class LocalIdentityElement extends HTMLElement {
           You don't currently seem to have a feed. A feed is created as soon as you generate data, for example 
           by liking a post.
         </div>
+        <h2>Peers</h2>
+        Your browser client attempts to synchronize your feed with the following peers:
+        <ul id="peerList">
         
+        </ul>
+        Synchronization depends on the peer's willingness to syndicate your feed.
+        If synchronization doesn't work, you might need to add an additional peer.<br>
+        <label for="additionalPeer">Add peer</label>: 
+        <input id="additionalPeer" type="text" size="80"></input>
         </main>
     `;
 
@@ -124,6 +133,26 @@ export class LocalIdentityElement extends HTMLElement {
       const feedURL = URL.createObjectURL(feedBlob);
       feedDownload.href = feedURL;
     };
+
+    const peerList = this.shadowRoot.getElementById("peerList");
+    const updatePeerList = () => {
+      peerList.replaceChildren();
+      scuttlebuttHost.peers.forEach((peer) => {
+        const li = document.createElement("li");
+        li.appendChild(document.createTextNode(peer));
+        peerList.appendChild(li);
+      });
+    };
+    updatePeerList();
+
+    const additionalPeer = this.shadowRoot.getElementById("additionalPeer");
+    additionalPeer.addEventListener("keypress", async (e) => {
+      if (e.key === "Enter") {
+        await scuttlebuttHost.peers.add(parseAddress(e.target.value));
+        e.target.value = "";
+        updatePeerList();
+      }
+    });
 
     const feedArea = this.shadowRoot.getElementById("feed");
     const nofeedArea = this.shadowRoot.getElementById("nofeed");
