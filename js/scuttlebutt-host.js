@@ -20873,7 +20873,7 @@ class LocalStorageBlobsStorage {
         return await fromBase64(encodedData);
     }
 }
-export { FeedId as FeedId, parseAddress as parseAddress, parseFeedId as parseFeedId, toBase64 as toBase64 };
+export { FeedId as FeedId, parseAddress as parseAddress, parseFeedId as parseFeedId, parseKeyPair as parseKeyPair, serializeKeyPair as serializeKeyPair, toBase64 as toBase64 };
 class BrowserScuttlebuttHost extends ScuttlebuttHost {
     constructor(config){
         super(config);
