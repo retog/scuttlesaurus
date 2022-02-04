@@ -90,18 +90,21 @@ function staticFiles(
   baseDir: string,
 ) {
   const middleware: Middleware = async function (ctx, next) {
-    const fsPath = path.join(baseDir, ctx.request.url.pathname);
-    try {
-      await Deno.stat(fsPath);
-      //file or diretory exists
-      await send(ctx, fsPath, {
-        root: Deno.cwd(),
-        index: "index.html",
-      });
-    } catch (_error) {
+    if (ctx.isUpgradable) {
       await next();
+    } else {
+      const fsPath = path.join(baseDir, ctx.request.url.pathname);
+      try {
+        await Deno.stat(fsPath);
+        //file or diretory exists
+        await send(ctx, fsPath, {
+          root: Deno.cwd(),
+          index: "index.html",
+        });
+      } catch (_error) {
+        await next();
+      }
     }
-    await console.log("Function not implemented.", ctx.request, baseDir);
   };
   return middleware;
 }
