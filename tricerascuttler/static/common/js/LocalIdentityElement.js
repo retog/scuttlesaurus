@@ -2,8 +2,8 @@ import {
   FeedId,
   parseKeyPair,
   serializeKeyPair,
-  toBase64,
 } from "./ext/scuttlebutt-host.js";
+import * as _instanceName from "./InstanceNameElement.js";
 export class LocalIdentityElement extends HTMLElement {
   constructor() {
     super();
@@ -11,9 +11,11 @@ export class LocalIdentityElement extends HTMLElement {
   }
 
   async connectedCallback() {
+    const scuttlebuttHost = await window.scuttlebuttHost;
+    const localId = new FeedId(scuttlebuttHost.getClientKeyPair().publicKey);
     const certBlob = new Blob([
       serializeKeyPair(
-        (await window.scuttlebuttHost).getClientKeyPair(),
+        scuttlebuttHost.getClientKeyPair(),
       ),
     ], { type: "application/json" });
     const certURL = URL.createObjectURL(certBlob);
@@ -51,10 +53,8 @@ export class LocalIdentityElement extends HTMLElement {
     <main id="main">
     <h1>Your identity</h1>
     <p>This is your Scuttlebutt identity. It is stored in this browser.</p>
-    ${
-      new FeedId((await window.scuttlebuttHost).getClientKeyPair().publicKey)
-        .toString()
-    }
+    ${localId.toString()}
+    <p>You are accessing a Pub run by <ssb-instance-name></ssb-instance-name>
     <p>
         You can download your identity secret an use it with another Scuttlebutt client or upload an identity
         created
@@ -69,9 +69,21 @@ export class LocalIdentityElement extends HTMLElement {
           <input type="file" id="upload" class="visually-hidden">
           <label for="upload" class="action" >Upload Identity Secret</label>
         </div>
+        <h2>Feed</h2>
+        <div id="feed">
+        Your feed contains all the data you generate. 
+        The latest message found in your feed has sequence <span id="latestSeq"></span> and ID <span id="latestId"></span>.<br>
+        As the feed is replicated by pubs and followers it is most likely backed up on the Scuttlebutt network. 
+        But to be extra safe you may download it.
+        <a download="feed.json" id="feedDownload" class="action">Download feed</a>
+        </div>
+        <div id="nofeed">
+          You don't currently seem to have a feed. A feed is created as soon as you generate data, for example 
+          by liking a post.
+        </div>
+        
         </main>
     `;
-
 
     const uploadElement = this.shadowRoot.getElementById("upload");
     uploadElement.addEventListener("change", handleFiles, false);
@@ -92,6 +104,41 @@ export class LocalIdentityElement extends HTMLElement {
         localStorage.setItem("ssb-identity", serializeKeyPair(newKey));
         window.location.reload();
       }
+    }
+
+    const feedDownload = this.shadowRoot.getElementById("feedDownload");
+    feedDownload.onclick = async () => {
+      const msgs = [];
+      for await (
+        const msg of scuttlebuttHost.feedsAgent.getFeed(localId, {
+          fromMessage: 1,
+          newMessages: false,
+        })
+      ) {
+        msgs.push(msg);
+      }
+
+      const feedBlob = new Blob([
+        JSON.stringify(msgs, undefined, 2),
+      ], { type: "application/json" });
+      const feedURL = URL.createObjectURL(feedBlob);
+      feedDownload.href = feedURL;
+    };
+
+    const feedArea = this.shadowRoot.getElementById("feed");
+    const nofeedArea = this.shadowRoot.getElementById("nofeed");
+    const latestId = this.shadowRoot.getElementById("latestId");
+    const latestSeq = this.shadowRoot.getElementById("latestSeq");
+    feedArea.style = "display: none";
+    for await (
+      const msg of scuttlebuttHost.feedsAgent.getFeed(localId, {
+        fromMessage: -1,
+      })
+    ) {
+      feedArea.style = "display: block";
+      nofeedArea.style = "display: none";
+      latestId.textContent = msg.key;
+      latestSeq.textContent = msg.value.sequence;
     }
   }
 }
