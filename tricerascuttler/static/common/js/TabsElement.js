@@ -56,7 +56,7 @@ export class TabsElement extends HTMLElement {
         }
       }
       if (tab.hasAttribute("active")) {
-        activeTab |= tab;
+        activeTab ||= tab;
       }
 
       if (href === document.location.pathname) {
