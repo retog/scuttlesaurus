@@ -22,7 +22,11 @@ export class TabsElement extends HTMLElement {
       const children = [...tab.childNodes].map((child) =>
         child.cloneNode(true)
       );
+      const hash = tab.getAttribute("hash");
       button.addEventListener("click", () => {
+        if (hash) {
+          window.location.hash = hash;
+        }
         if (href) {
           window.location.assign(href);
         } else {
@@ -46,7 +50,6 @@ export class TabsElement extends HTMLElement {
           setTimeout(() => window.scrollTo(...scrollPosition), 400);
         }
       });
-      const hash = tab.getAttribute("hash");
       if (hash) {
         if (hash === document.location.hash.substring(1)) {
           activeTab = tab;
@@ -55,7 +58,7 @@ export class TabsElement extends HTMLElement {
       if (tab.hasAttribute("active")) {
         activeTab |= tab;
       }
-      
+
       if (href === document.location.pathname) {
         button.classList.add("active");
       }
