@@ -1,5 +1,5 @@
 data
 container-data
 /compsoscuttly/js/scuttlebutt-host.js*
-tricerascuttler/static/js/ext/scuttlebutt-host.js
-tricerascuttler/static/js/ext/scuttlebutt-host.js.map
+tricerascuttler/static/common/js/ext/scuttlebutt-host.js
+tricerascuttler/static/common/js/ext/scuttlebutt-host.js.map

@@ -7,7 +7,7 @@ const { files } = await Deno.emit(
     bundle: "module",
   },
 );
-const outDir = "static/js/ext";
+const outDir = "static/common/js/ext";
 Deno.mkdirSync(outDir, { recursive: true });
 for (const [fileName, text] of Object.entries(files)) {
   const outFileName = fileName.substring("deno://".length).replace(
