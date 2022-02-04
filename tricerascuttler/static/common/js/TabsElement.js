@@ -8,8 +8,10 @@ export class TabsElement extends HTMLElement {
     const contentArea = document.createElement("div");
     const shrinkMenuButtons = [];
     const rightFixedButtons = [];
+    let activeTab;
     tabs.map((tab) => {
       const button = document.createElement("button");
+      tab.button = button;
       button.classList.add("tabButton");
       button.innerHTML = tab.getAttribute("label");
       const templateId = tab.getAttribute("template");
@@ -44,13 +46,16 @@ export class TabsElement extends HTMLElement {
           setTimeout(() => window.scrollTo(...scrollPosition), 400);
         }
       });
-      if (tab.hasAttribute("active")) {
-        if (!href) {
-          setTimeout(() => button.click(), 200);
-        } else {
-          button.classList.add("active");
+      const hash = tab.getAttribute("hash");
+      if (hash) {
+        if (hash === document.location.hash.substring(1)) {
+          activeTab = tab;
         }
       }
+      if (tab.hasAttribute("active")) {
+        activeTab |= tab;
+      }
+      
       if (href === document.location.pathname) {
         button.classList.add("active");
       }
@@ -60,6 +65,14 @@ export class TabsElement extends HTMLElement {
         shrinkMenuButtons.push(button);
       }
     });
+    if (activeTab) {
+      const href = activeTab.getAttribute("href");
+      if (!href) {
+        setTimeout(() => activeTab.button.click(), 200);
+      } else {
+        activeTab.button.classList.add("active");
+      }
+    }
     const menuBar = document.createElement("div");
     menuBar.className = "menu";
     const shrinkMenu = document.createElement("ssb-shrinkable-menu");
