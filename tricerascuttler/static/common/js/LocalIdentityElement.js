@@ -51,6 +51,7 @@ export class LocalIdentityElement extends HTMLElement {
       cursor: pointer;
       transition: 0.5s;
       box-shadow: 0px 5px 15px rgba(0, 0, 0, .2);
+      text-decoration: none;
     }
     </style>    
     <main id="main">
