@@ -4,7 +4,9 @@ import {
   parseKeyPair,
   serializeKeyPair,
 } from "./ext/scuttlebutt-host.js";
+import { sigilToIri } from "./web-util.js";
 import * as _instanceName from "./InstanceNameElement.js";
+import * as _feedAuthor from "./FeedAuthorLinkElement.js";
 export class LocalIdentityElement extends HTMLElement {
   constructor() {
     super();
@@ -53,9 +55,13 @@ export class LocalIdentityElement extends HTMLElement {
     </style>    
     <main id="main">
     <h1>Your identity</h1>
-    <p>This is your Scuttlebutt identity. It is stored in this browser.</p>
     ${localId.toString()}
-    <p>You are accessing a Pub run by <ssb-instance-name></ssb-instance-name>
+    <p>This is your Scuttlebutt identity. It is stored in this browser alongside your private key.</p>
+    
+    <p>On the scuttleverse portal run by <ssb-instance-name></ssb-instance-name> your profile is
+    <ssb-feed-author-link feed="${
+      sigilToIri(localId.toString())
+    }" image ></ssb-feed-author-link>
     <p>
         You can download your identity secret an use it with another Scuttlebutt client or upload an identity
         created
