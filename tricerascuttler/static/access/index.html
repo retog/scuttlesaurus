@@ -11,6 +11,11 @@
         import ClientHostProvider from "./js/ClientHostProvider.js"
         window.scuttlebuttHost = new ClientHostProvider().getScuttlebuttHost();
     </script>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
 </head>
 
 <body>
@@ -18,7 +23,7 @@
         <ssb-tab label="Explore" active>
             <template id="main"></template>
         </ssb-tab>
-        <ssb-tab label="Read"  hash="read">
+        <ssb-tab label="Read" hash="read">
             <template>
                 <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
                     PREFIX ssb: <ssb:ontology:>
@@ -30,7 +35,7 @@
                 <script type="module" src="js/PostListElement.js"></script>
             </template>
         </ssb-tab>
-        <ssb-tab id="query"  hash="query" label="SPARQL">
+        <ssb-tab id="query" hash="query" label="SPARQL">
             <template>
                 <script type="module" src="js/QueryElement.js"></script>
                 <ssb-query></ssb-query>
@@ -60,7 +65,7 @@
         </ssb-tab>
         <ssb-tab label="👤" hash="identity" right-fixed>
             <template>
-               <ssb-local-identity></ssb-local-identity>
+                <ssb-local-identity></ssb-local-identity>
             </template>
         </ssb-tab>
     </ssb-tabs>

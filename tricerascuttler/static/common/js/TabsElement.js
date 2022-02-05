@@ -6,6 +6,7 @@ export class TabsElement extends HTMLElement {
     this.attachShadow({ mode: "open" });
     const tabs = [...this.querySelectorAll("ssb-tab")];
     const contentArea = document.createElement("div");
+    contentArea.id = "contentArea";
     const shrinkMenuButtons = [];
     const rightFixedButtons = [];
     let activeTab;
@@ -132,6 +133,10 @@ export class TabsElement extends HTMLElement {
     
     .tabButton.active {
       background-color: white;
+    }
+
+    #contentArea {
+      margin-inline: 8px;
     }
 
     `;
