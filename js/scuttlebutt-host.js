@@ -20430,10 +20430,10 @@ class PendingWant {
     }
 }
 class BlobsAgent extends Agent {
-    fsStorage;
-    constructor(fsStorage){
+    storage;
+    constructor(storage){
         super();
-        this.fsStorage = fsStorage;
+        this.storage = storage;
     }
     want(blobId) {
         this.processWant(new BlobWant(blobId));
@@ -20459,7 +20459,7 @@ class BlobsAgent extends Agent {
     createRpcContext(feedId) {
         const wantFeeds = this.wantFeeds;
         const pendingWants = this.pendingWants;
-        const fsStorage = this.fsStorage;
+        const storage = this.storage;
         const rpcMethods = {
             blobs: {
                 async *get (args) {
@@ -20471,7 +20471,7 @@ class BlobsAgent extends Agent {
                         blobIdString = args[0].key;
                     }
                     const blobId = parseBlobId(blobIdString);
-                    yield await fsStorage.getBlob(blobId);
+                    yield await storage.getBlob(blobId);
                 },
                 async *createWants (args) {
                     mod2.info(`${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`);
@@ -20517,15 +20517,15 @@ class BlobsAgent extends Agent {
                         ].map(async (feedKey)=>{
                             const wantFeed = this.wantFeeds.get(feedKey);
                             if (wantFeed) {
-                                wantFeed(new BlobWant(hasOrWant.blobId, (await this.fsStorage.getBlob(hasOrWant.blobId)).length));
+                                wantFeed(new BlobWant(hasOrWant.blobId, (await this.storage.getBlob(hasOrWant.blobId)).length));
                             }
                         }));
                     }
                 } else {
-                    if (await this.fsStorage.hasBlob(hasOrWant.blobId)) {
+                    if (await this.storage.hasBlob(hasOrWant.blobId)) {
                         const wantFeed = this.wantFeeds.get(rpcConnection.boxConnection.peer.base64Key);
                         if (wantFeed) {
-                            const blob = await this.fsStorage.getBlob(hasOrWant.blobId);
+                            const blob = await this.storage.getBlob(hasOrWant.blobId);
                             wantFeed(new BlobWant(hasOrWant.blobId, blob.length));
                         } else {
                             mod2.warning(`${rpcConnection.boxConnection.peer} asked for a blob we have, but we can't tell them`);
@@ -20562,7 +20562,7 @@ class BlobsAgent extends Agent {
             chunks.push(chunk);
         }
         const content = concat(...chunks);
-        const storedBlobId = await this.fsStorage.storeBlob(content);
+        const storedBlobId = await this.storage.storeBlob(content);
         if (storedBlobId.base64Key !== blobId.base64Key) {
             throw new Error(`Got ${storedBlobId} but expected ${blobId}`);
         }
