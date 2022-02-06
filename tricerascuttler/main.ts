@@ -66,7 +66,7 @@ function addCommonEndpoints(
         throw new Error("No BlobsAgent");
       }
       host.blobsAgent.want(blobId);
-      const data = await host.blobsAgent.fsStorage.getBlob(blobId);
+      const data = await host.blobsAgent.storage.getBlob(blobId);
       if (data) {
         ctx.response.body = data;
         ctx.response.headers.append(

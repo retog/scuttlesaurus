@@ -58,7 +58,7 @@ class BlobHas {
 */
 
 export default class BlobsAgent extends Agent {
-  constructor(public fsStorage: BlobsStorage) {
+  constructor(public storage: BlobsStorage) {
     super();
   }
   want(blobId: BlobId) {
@@ -100,7 +100,7 @@ export default class BlobsAgent extends Agent {
   createRpcContext(feedId: FeedId): RpcContext {
     const wantFeeds = this.wantFeeds;
     const pendingWants = this.pendingWants;
-    const fsStorage = this.fsStorage;
+    const storage = this.storage;
     const rpcMethods = {
       blobs: {
         /*has(args: Record<string, string>[]): Promise<boolean> {
@@ -119,7 +119,7 @@ export default class BlobsAgent extends Agent {
             //TODO consider max and size
           }
           const blobId = parseBlobId(blobIdString);
-          yield await fsStorage.getBlob(blobId);
+          yield await storage.getBlob(blobId);
         },
         async *createWants(
           args: Record<string, string>[],
@@ -191,7 +191,7 @@ export default class BlobsAgent extends Agent {
                   wantFeed(
                     new BlobWant(
                       hasOrWant.blobId,
-                      (await this.fsStorage.getBlob(hasOrWant.blobId)).length,
+                      (await this.storage.getBlob(hasOrWant.blobId)).length,
                     ),
                   );
                 }
@@ -200,12 +200,12 @@ export default class BlobsAgent extends Agent {
           }
         } else {
           //a want
-          if (await this.fsStorage.hasBlob(hasOrWant.blobId)) {
+          if (await this.storage.hasBlob(hasOrWant.blobId)) {
             const wantFeed = this.wantFeeds.get(
               rpcConnection.boxConnection.peer.base64Key,
             );
             if (wantFeed) {
-              const blob = await this.fsStorage.getBlob(hasOrWant.blobId);
+              const blob = await this.storage.getBlob(hasOrWant.blobId);
               wantFeed(new BlobWant(hasOrWant.blobId, blob.length));
             } else {
               //TODO tell them if and when they invoke createWants, add to a broadened pendingWants set
@@ -249,7 +249,7 @@ export default class BlobsAgent extends Agent {
       chunks.push(chunk as Uint8Array);
     }
     const content = concat(...chunks);
-    const storedBlobId = await this.fsStorage.storeBlob(content);
+    const storedBlobId = await this.storage.storeBlob(content);
     if (storedBlobId.base64Key !== blobId.base64Key) {
       throw new Error(`Got ${storedBlobId} but expected ${blobId}`);
     }
