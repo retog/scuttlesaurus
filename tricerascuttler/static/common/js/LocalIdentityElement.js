@@ -7,6 +7,7 @@ import {
 import { sigilToIri } from "./web-util.js";
 import * as _instanceName from "./InstanceNameElement.js";
 import * as _feedAuthor from "./FeedAuthorLinkElement.js";
+import * as _feedAuthorEditor from "./FeedAuthorEditorElement.js";
 export class LocalIdentityElement extends HTMLElement {
   constructor() {
     super();
@@ -63,6 +64,10 @@ export class LocalIdentityElement extends HTMLElement {
     <ssb-feed-author-link feed="${
       sigilToIri(localId.toString())
     }" image ></ssb-feed-author-link>
+    Edit your description:
+    <ssb-feed-author-editor feed="${
+      sigilToIri(localId.toString())
+    }"></ssb-feed-author-editor>
     <p>
         You can download your identity secret an use it with another Scuttlebutt client or upload an identity
         created

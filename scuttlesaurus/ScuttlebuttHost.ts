@@ -7,13 +7,17 @@ import RpcServerInterface from "./comm/rpc/RpcServerInterface.ts";
 import RpcMethodsHandler from "./comm/rpc/RpcMethodsHandler.ts";
 import {
   Address,
+  computeMsgHash,
   FeedId,
   fromBase64,
+  JSONValue,
   KeyPair,
   log,
   ObservableSet,
   parseAddress,
   parseFeedId,
+  sodium,
+  toBase64,
   TSEMap,
 } from "./util.ts";
 import Agent from "./agents/Agent.ts";
@@ -23,10 +27,12 @@ import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
 import ConnectionManager from "./agents/ConnectionManager.ts";
 
+const textEncoder = new TextEncoder();
+
 /** A host communicating to peers using the Secure Scuttlebutt protocol.
  *
- * By concrete implementations of this class provide Agents for the `feeds` and the `blobs`
- * sub-protocols by implementing createFeedsAgent and createBlobsAgent. They also provide the
+ * By concrete implementations of this class provide storage layers for the `feeds` and the `blobs`
+ * sub-protocols by implementing createFeedsStorage and createBlobsStorage. They also provide the
  * identity key-pair by implementing getClientKeyPair()
  *
  * Consumers can interact with the default agents via the fields `feedsAgent` and `blobsAgent`.
@@ -49,11 +55,16 @@ export default abstract class ScuttlebuttHost {
 
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
+  feedsStorage: FeedsStorage;
+  blobsStorage: BlobsStorage;
+  identity: FeedId;
 
   constructor(
     readonly config: Config,
   ) {
     this.config.failureRelevanceInterval ??= DURATION.DAY;
+    this.identity = new FeedId(this.getClientKeyPair().publicKey);
+    this.followees.add(this.identity);
     if (this.config.follow) {
       this.config.follow.forEach((feedIdStr) =>
         this.followees.add(parseFeedId(feedIdStr))
@@ -64,29 +75,21 @@ export default abstract class ScuttlebuttHost {
         this.peers.add(parseAddress(addrStr))
       );
     }
-    this.feedsAgent = this.createFeedsAgent();
-    this.blobsAgent = this.createBlobsAgent();
-    if (this.feedsAgent) this.agents.add(this.feedsAgent);
-    if (this.blobsAgent) this.agents.add(this.blobsAgent);
-  }
-
-  protected createFeedsAgent(): FeedsAgent | undefined {
-    const storage = this.createFeedsStorage();
-    return new FeedsAgent(
-      storage,
+    this.feedsStorage = this.createFeedsStorage();
+    this.blobsStorage = this.createBlobsStorage();
+    this.feedsAgent = new FeedsAgent(
+      this.feedsStorage,
       this.followees,
       this.peers,
     );
+    this.blobsAgent = new BlobsAgent(this.blobsStorage);
+    if (this.feedsAgent) this.agents.add(this.feedsAgent);
+    if (this.blobsAgent) this.agents.add(this.blobsAgent);
   }
 
   protected abstract createFeedsStorage(): FeedsStorage;
 
   protected abstract createBlobsStorage(): BlobsStorage;
-
-  protected createBlobsAgent(): BlobsAgent | undefined {
-    const storage = this.createBlobsStorage();
-    return new BlobsAgent(storage);
-  }
 
   protected abstract getClientKeyPair(): KeyPair;
 
@@ -191,6 +194,10 @@ export default abstract class ScuttlebuttHost {
       Promise.all(
         agents.map(async (agent) => {
           try {
+            this.feedsAgent?.updateFeed(
+              rpcConnection,
+              rpcConnection.boxConnection.peer,
+            );
             await agent.incomingConnection(rpcConnection);
           } catch (error) {
             log.warning(
@@ -200,6 +207,52 @@ export default abstract class ScuttlebuttHost {
         }),
       );
     }
+  }
+
+  async publish(
+    content: JSONValue,
+  ) {
+    const previousSeq = await this.feedsStorage.lastMessage(this.identity);
+    const previous = previousSeq > 0
+      ? (await this.feedsStorage.getMessage(
+        this.identity,
+        previousSeq,
+      )).key
+      : false;
+    const sequence = previousSeq + 1;
+    const msgValue: JSONValue = {
+      previous,
+      sequence,
+      author: this.identity.toString(),
+      timestamp: Date.now(),
+      hash: "sha256",
+      content,
+    };
+    if (!previous) {
+      delete msgValue.previous;
+    }
+    this.signMessage(msgValue);
+    const hash = computeMsgHash(msgValue);
+    const msg: JSONValue = {
+      key: `%${toBase64(hash)}.sha256`,
+      value: msgValue,
+      timestamp: Date.now(),
+    };
+    this.feedsStorage.storeMessage(this.identity, sequence, msg);
+  }
+
+  private signMessage(
+    msgValue: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const messageData = textEncoder.encode(
+      JSON.stringify(msgValue, undefined, 2),
+    );
+    const signature = sodium.crypto_sign_detached(
+      messageData,
+      this.getClientKeyPair().privateKey,
+    );
+    msgValue["signature"] = toBase64(signature) + ".sig.ed25519";
+    return msgValue;
   }
 }
 

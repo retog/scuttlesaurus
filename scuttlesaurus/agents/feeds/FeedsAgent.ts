@@ -194,7 +194,7 @@ export default class FeedsAgent extends Agent {
     }
   }
 
-  private async updateFeed(
+  async updateFeed(
     rpcConnection: RpcConnection,
     feedKey: FeedId,
   ) {
@@ -281,10 +281,6 @@ export default class FeedsAgent extends Agent {
     );
   }
 }
-
-/*export function signMessage(msg: unknown): Record<string, unknown> {
-  return sodium.crypto_hash_sha256(textEncoder.encode(JSON.stringify(msg, undefined, 2)))
-}*/
 
 export function verifySignature(msg: { author: string; signature?: string }) {
   if (!msg.signature) {
