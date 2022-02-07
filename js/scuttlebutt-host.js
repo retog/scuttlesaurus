@@ -19280,7 +19280,6 @@ const sodium = __default;
 class NotFoundError extends Error {
 }
 await __default.ready;
-const textEncoder = new TextEncoder();
 class FeedId extends Uint8Array {
     constructor(publicKey){
         super(publicKey);
@@ -19439,18 +19438,6 @@ function computeMsgHash(msg) {
 }
 function sha256Hash(data) {
     return __default.crypto_hash_sha256(data);
-}
-function verifySignature(msg) {
-    if (!msg.signature) {
-        throw Error("no signature in messages");
-    }
-    const signatureString = msg.signature;
-    const signature = fromBase64(signatureString.substring(0, signatureString.length - ".sig.ed25519".length));
-    const authorsPubkicKey = fromBase64(msg.author.substring(1, msg.author.length - ".ed25519".length));
-    delete msg.signature;
-    const verifyResult = __default.crypto_sign_verify_detached(signature, textEncoder.encode(JSON.stringify(msg, undefined, 2)), authorsPubkicKey);
-    msg.signature = signatureString;
-    return verifyResult;
 }
 function isZero(bytes) {
     return !bytes.find((b)=>b > 0
@@ -19875,7 +19862,7 @@ class BoxServerInterface {
     }
 }
 const textDecoder = new TextDecoder();
-const textEncoder1 = new TextEncoder();
+const textEncoder = new TextEncoder();
 var RpcBodyType;
 (function(RpcBodyType1) {
     RpcBodyType1[RpcBodyType1["binary"] = 0] = "binary";
@@ -20122,10 +20109,10 @@ class RpcConnection {
             }
             if (isString(body)) {
                 if (!options.bodyType) options.bodyType = RpcBodyType.utf8;
-                return textEncoder1.encode(body);
+                return textEncoder.encode(body);
             }
             if (!options.bodyType) options.bodyType = RpcBodyType.json;
-            return textEncoder1.encode(JSON.stringify(body));
+            return textEncoder.encode(JSON.stringify(body));
         };
         const payload = getPayload();
         const flags = (options.isStream ? 8 : 0) | (options.endOrError ? 4 : 0) | options.bodyType;
@@ -20223,6 +20210,7 @@ class Agent {
         return this.run(connector);
     }
 }
+const textEncoder1 = new TextEncoder();
 class FeedsAgent extends Agent {
     feedsStorage;
     subscriptions;
@@ -20408,6 +20396,18 @@ class FeedsAgent extends Agent {
         ].map((feed)=>this.updateFeed(rpcConnection, feed)
         ));
     }
+}
+function verifySignature(msg) {
+    if (!msg.signature) {
+        throw Error("no signature in messages");
+    }
+    const signatureString = msg.signature;
+    const signature = fromBase64(signatureString.substring(0, signatureString.length - ".sig.ed25519".length));
+    const authorsPubkicKey = fromBase64(msg.author.substring(1, msg.author.length - ".ed25519".length));
+    delete msg.signature;
+    const verifyResult = __default.crypto_sign_verify_detached(signature, textEncoder1.encode(JSON.stringify(msg, undefined, 2)), authorsPubkicKey);
+    msg.signature = signatureString;
+    return verifyResult;
 }
 class BlobWant {
     blobId;
