@@ -108,7 +108,16 @@ export default class BoxConnection extends EventTarget
     }
   }
 
-  async write(message: Uint8Array) {
+  async write(message: Uint8Array): Promise<number> {
+    if (message.length <= 4096) {
+      return await this.writeChunk(message);
+    } else {
+      return await this.writeChunk(message.subarray(0, 4096)) +
+        await this.write(message.subarray(4096));
+    }
+  }
+
+  async writeChunk(message: Uint8Array) {
     //log.debug("Writing " + message);
     const headerNonce = new Uint8Array(this.clientToServerNonce);
     increment(this.clientToServerNonce);
