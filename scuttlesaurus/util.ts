@@ -14,8 +14,6 @@ export class NotFoundError extends Error {}
 
 await sodium.ready;
 
-const textEncoder = new TextEncoder();
-
 export class FeedId extends Uint8Array {
   constructor(publicKey: Uint8Array) {
     super(publicKey);
@@ -278,34 +276,6 @@ export function computeMsgHash(msg: unknown) {
 
 export function sha256Hash(data: Uint8Array) {
   return sodium.crypto_hash_sha256(data);
-}
-
-/*export function signMessage(msg: unknown): Record<string, unknown> {
-  return sodium.crypto_hash_sha256(textEncoder.encode(JSON.stringify(msg, undefined, 2)))
-}*/
-
-export function verifySignature(msg: { author: string; signature?: string }) {
-  if (!msg.signature) {
-    throw Error("no signature in messages");
-  }
-  const signatureString = msg.signature;
-  const signature = fromBase64(
-    signatureString.substring(
-      0,
-      signatureString.length - ".sig.ed25519".length,
-    ),
-  );
-  const authorsPubkicKey = fromBase64(
-    msg.author.substring(1, msg.author.length - ".ed25519".length),
-  );
-  delete msg.signature;
-  const verifyResult = sodium.crypto_sign_verify_detached(
-    signature,
-    textEncoder.encode(JSON.stringify(msg, undefined, 2)),
-    authorsPubkicKey,
-  );
-  msg.signature = signatureString;
-  return verifyResult;
 }
 
 export function isZero(bytes: Uint8Array) {
