@@ -194,10 +194,6 @@ export default abstract class ScuttlebuttHost {
       Promise.all(
         agents.map(async (agent) => {
           try {
-            this.feedsAgent?.updateFeed(
-              rpcConnection,
-              rpcConnection.boxConnection.peer,
-            );
             await agent.incomingConnection(rpcConnection);
           } catch (error) {
             log.warning(

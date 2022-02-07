@@ -77,6 +77,10 @@ export default class FeedsAgent extends Agent {
   private onGoingSyncPeers = new Map<string, RpcConnection>();
 
   async incomingConnection(rpcConnection: RpcConnection) {
+    this.updateFeed(
+      rpcConnection,
+      rpcConnection.boxConnection.peer,
+    );
     const peerStr = rpcConnection.boxConnection.peer.base64Key;
     if (!this.onGoingSyncPeers.has(peerStr)) {
       this.onGoingSyncPeers.set(peerStr, rpcConnection);
