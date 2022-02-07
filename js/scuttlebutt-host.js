@@ -20632,6 +20632,7 @@ class ConnectionManager {
         }
     }
 }
+const textEncoder2 = new TextEncoder();
 class ScuttlebuttHost {
     config;
     transportClients = new Set();
@@ -20642,9 +20643,14 @@ class ScuttlebuttHost {
     failingAddresses = new TSEMap();
     feedsAgent;
     blobsAgent;
+    feedsStorage;
+    blobsStorage;
+    identity;
     constructor(config){
         this.config = config;
         this.config.failureRelevanceInterval ??= DURATION.DAY;
+        this.identity = new FeedId(this.getClientKeyPair().publicKey);
+        this.followees.add(this.identity);
         if (this.config.follow) {
             this.config.follow.forEach((feedIdStr)=>this.followees.add(parseFeedId(feedIdStr))
             );
@@ -20653,18 +20659,12 @@ class ScuttlebuttHost {
             this.config.peers.forEach((addrStr)=>this.peers.add(parseAddress(addrStr))
             );
         }
-        this.feedsAgent = this.createFeedsAgent();
-        this.blobsAgent = this.createBlobsAgent();
+        this.feedsStorage = this.createFeedsStorage();
+        this.blobsStorage = this.createBlobsStorage();
+        this.feedsAgent = new FeedsAgent(this.feedsStorage, this.followees, this.peers);
+        this.blobsAgent = new BlobsAgent(this.blobsStorage);
         if (this.feedsAgent) this.agents.add(this.feedsAgent);
         if (this.blobsAgent) this.agents.add(this.blobsAgent);
-    }
-    createFeedsAgent() {
-        const storage = this.createFeedsStorage();
-        return new FeedsAgent(storage, this.followees, this.peers);
-    }
-    createBlobsAgent() {
-        const storage = this.createBlobsStorage();
-        return new BlobsAgent(storage);
     }
     connectionManager;
     async start() {
@@ -20732,12 +20732,43 @@ class ScuttlebuttHost {
         for await (const rpcConnection1 of this.connectionManager.listen()){
             Promise.all(agents.map(async (agent)=>{
                 try {
+                    this.feedsAgent?.updateFeed(rpcConnection1, rpcConnection1.boxConnection.peer);
                     await agent.incomingConnection(rpcConnection1);
                 } catch (error18) {
                     mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error18}`);
                 }
             }));
         }
+    }
+    async publish(content) {
+        const previousSeq = await this.feedsStorage.lastMessage(this.identity);
+        const previous = previousSeq > 0 ? (await this.feedsStorage.getMessage(this.identity, previousSeq)).key : false;
+        const sequence = previousSeq + 1;
+        const msgValue = {
+            previous,
+            sequence,
+            author: this.identity.toString(),
+            timestamp: Date.now(),
+            hash: "sha256",
+            content
+        };
+        if (!previous) {
+            delete msgValue.previous;
+        }
+        this.signMessage(msgValue);
+        const hash = computeMsgHash(msgValue);
+        const msg = {
+            key: `%${toBase64(hash)}.sha256`,
+            value: msgValue,
+            timestamp: Date.now()
+        };
+        this.feedsStorage.storeMessage(this.identity, sequence, msg);
+    }
+    signMessage(msgValue) {
+        const messageData = textEncoder2.encode(JSON.stringify(msgValue, undefined, 2));
+        const signature = __default.crypto_sign_detached(messageData, this.getClientKeyPair().privateKey);
+        msgValue["signature"] = toBase64(signature) + ".sig.ed25519";
+        return msgValue;
     }
 }
 const MINUTE = 60 * 1000;
