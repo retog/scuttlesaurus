@@ -19693,6 +19693,13 @@ class BoxConnection extends EventTarget {
         }
     }
     async write(message) {
+        if (message.length <= 4096) {
+            return await this.writeChunk(message);
+        } else {
+            return await this.writeChunk(message.subarray(0, 4096)) + await this.write(message.subarray(4096));
+        }
+    }
+    async writeChunk(message) {
         const headerNonce = new Uint8Array(this.clientToServerNonce);
         increment(this.clientToServerNonce);
         const bodyNonce = new Uint8Array(this.clientToServerNonce);
