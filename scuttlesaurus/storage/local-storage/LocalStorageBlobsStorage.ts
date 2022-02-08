@@ -2,8 +2,8 @@ import { BlobId, fromBase64, sha256Hash, toBase64 } from "../../util.ts";
 import BlobsStorage from "../BlobsStorage.ts";
 
 export class LocalStorageBlobsStorage implements BlobsStorage {
-  async hasBlob(blobId: BlobId): Promise<boolean> {
-    return (await localStorage.getItem(blobId.toString())) !== null;
+  hasBlob(blobId: BlobId): Promise<boolean> {
+    return Promise.resolve(localStorage.getItem(blobId.toString()) !== null);
   }
   async storeBlob(data: Uint8Array): Promise<BlobId> {
     const blobId = new BlobId(sha256Hash(data));
