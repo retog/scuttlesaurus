@@ -20310,6 +20310,10 @@ class FeedsAgent extends Agent {
     removeNewMessageListeners(listener) {
         this.newMessageListeners.splice(this.newMessageListeners.indexOf(listener), 1);
     }
+    fireNewMessageEvent(feedKey, msg) {
+        this.newMessageListeners.forEach((listener)=>listener(feedKey, msg)
+        );
+    }
     async *getFeed(feedId, { fromMessage =-10 , newMessages =true  } = {}) {
         if (fromMessage != 0) {
             const lastMessage = await this.feedsStorage.lastMessage(feedId);
@@ -20328,17 +20332,21 @@ class FeedsAgent extends Agent {
             }
         }
         if (newMessages) {
-            while(true){
-                let listenerPos = -1;
-                yield await new Promise((resolve6)=>{
-                    listenerPos = this.newMessageListeners.length;
-                    this.newMessageListeners[listenerPos] = (msgFeedId, msg)=>{
-                        if (feedId.base64Key === msgFeedId.base64Key) {
-                            resolve6(msg);
-                        }
-                    };
-                });
-                this.newMessageListeners.splice(listenerPos, 1);
+            let resolver;
+            const listener = (msgFeedId, msg)=>{
+                if (feedId.base64Key === msgFeedId.base64Key) {
+                    resolver(msg);
+                }
+            };
+            this.addNewMessageListeners(listener);
+            try {
+                while(true){
+                    yield await new Promise((resolve6)=>{
+                        resolver = resolve6;
+                    });
+                }
+            } finally{
+                this.removeNewMessageListeners(listener);
             }
         }
     }
@@ -20359,7 +20367,8 @@ class FeedsAgent extends Agent {
             "args": [
                 {
                     "id": feedKey.toString(),
-                    "seq": from
+                    "seq": from,
+                    "live": true
                 }
             ]
         });
@@ -20385,8 +20394,7 @@ class FeedsAgent extends Agent {
             }
             try {
                 await this.feedsStorage.storeMessage(feedKey, msg.value.sequence, msg);
-                this.newMessageListeners.forEach((listener)=>listener(feedKey, msg)
-                );
+                this.fireNewMessageEvent(feedKey, msg);
             } catch (e) {
                 mod2.debug(`Storing message: ${e}`);
             }
@@ -20767,6 +20775,7 @@ class ScuttlebuttHost {
             timestamp: Date.now()
         };
         this.feedsStorage.storeMessage(this.identity, sequence, msg);
+        this.feedsAgent?.fireNewMessageEvent(this.identity, msg);
     }
     signMessage(msgValue) {
         const messageData = textEncoder2.encode(JSON.stringify(msgValue, undefined, 2));
@@ -20899,8 +20908,8 @@ class LocalStorageFeedsStorage {
     }
 }
 class LocalStorageBlobsStorage {
-    async hasBlob(blobId) {
-        return await localStorage.getItem(blobId.toString()) !== null;
+    hasBlob(blobId) {
+        return Promise.resolve(localStorage.getItem(blobId.toString()) !== null);
     }
     async storeBlob(data) {
         const blobId = new BlobId(sha256Hash(data));
