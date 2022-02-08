@@ -43,29 +43,34 @@ export default class FeedsAgent extends Agent {
   }
 
   createRpcContext(_feedId: FeedId): RpcContext {
-    const fsStorage = this.feedsStorage;
+    // deno-lint-ignore no-this-alias
+    const agent = this;
     const rpcMethods = {
       createHistoryStream: async function* (args: Record<string, string>[]) {
         const opts = args[0];
-        const feedKey = parseFeedId(opts.id);
-        let seq = Number.parseInt(opts.seq);
-        //log.info(`got request for ${feedKey} with seq: ${seq}`);
-        //console.log(`"@${feedKey}.ed25519",`)
-        const lastMessage = await fsStorage.lastMessage(feedKey);
-        while (seq <= lastMessage) {
-          try {
-            const parsedFile = await fsStorage.getMessage(feedKey, seq++);
-            if (opts.keys === undefined || opts.keys) {
-              yield parsedFile as JSONValue | Uint8Array;
-            } else {
-              yield parsedFile.value as
-                | JSONValue
-                | Uint8Array;
-            }
-          } catch (error) {
-            if (error instanceof NotFoundError) {
-              log.debug(`Message ${seq} of ${feedKey} not found`);
-            }
+        const feedId = parseFeedId(opts.id);
+        const live = (typeof (opts.live) === "undefined")
+          ? false
+          : JSON.parse(opts.live);
+        const old = (typeof (opts.old) === "undefined")
+          ? true
+          : JSON.parse(opts.old);
+        const keys = (typeof (opts.keys) === "undefined")
+          ? true
+          : JSON.parse(opts.old);
+        const seq = (typeof (opts.seq) === "undefined")
+          ? 1
+          : Number.parseInt(opts.seq);
+        for await (
+          const msg of agent.getFeed(feedId, {
+            fromMessage: old ? seq : 0,
+            newMessages: live,
+          })
+        ) {
+          if (keys) {
+            yield msg;
+          } else {
+            yield msg.value;
           }
         }
       },
@@ -147,6 +152,17 @@ export default class FeedsAgent extends Agent {
 
   private newMessageListeners: Array<(feedId: FeedId, msg: Message) => void> =
     [];
+
+  addNewMessageListeners(listener: (feedId: FeedId, msg: Message) => void) {
+    this.newMessageListeners.push(listener);
+  }
+
+  removeNewMessageListeners(listener: (feedId: FeedId, msg: Message) => void) {
+    this.newMessageListeners.splice(
+      this.newMessageListeners.indexOf(listener),
+      1,
+    );
+  }
 
   async *getFeed(feedId: FeedId, {
     /** negative numbers are relative to the latest message, 0 means no existing message,
