@@ -45,9 +45,13 @@ export class FeedAuthorEditorElement extends HTMLElement {
       font-size: 14px; 
       color: #FFFFFF; 
       }
-      
+
+    button:disabled {
+      background: lightgrey;
+    }
       #image {
         min-width: 80px;
+        max-width: 80%;
         background-color: #8f96a3;
         min-height: 80px;
         border: dotted;
@@ -95,12 +99,18 @@ export class FeedAuthorEditorElement extends HTMLElement {
     const descriptionElt = this.shadowRoot.getElementById("description");
     const imageElt = this.shadowRoot.getElementById("image");
     const publishElt = this.shadowRoot.getElementById("publish");
+    publishElt.disabled = true;
     const { name, description, image } = await getDescription(feedUri);
-    nameElt.value = name;
-    descriptionElt.value = description;
+    if (name) nameElt.value = name;
+    if (description) descriptionElt.value = description;
     if (image) imageElt.src = image.replace("ssb:blob/", "./blob/");
     let replacementImageSigilPromise;
     const uploadElement = this.shadowRoot.getElementById("upload");
+    [nameElt, descriptionElt].forEach((elt) =>
+      elt.addEventListener("keypress", () => {
+        publishElt.disabled = false;
+      })
+    );
     uploadElement.addEventListener("change", handleFiles, false);
     function handleFiles() {
       const file = this.files[0];
@@ -109,15 +119,18 @@ export class FeedAuthorEditorElement extends HTMLElement {
       replacementImageSigilPromise = (async () => {
         const scuttlebuttHost = await window.scuttlebuttHost;
         const bytes = new Uint8Array(await file.arrayBuffer());
-        replacementImageSigilPromise = await scuttlebuttHost.blobsStorage
+        const replacementImageSigil = await scuttlebuttHost.blobsStorage
           .storeBlob(bytes);
+
         await fetch(
-          sigilToIri(replacementImageSigilPromise.toString()).replace(
+          sigilToIri(replacementImageSigil.toString()).replace(
             "ssb:",
             "/",
           ),
         );
+        return replacementImageSigil;
       })();
+      publishElt.disabled = false;
     }
     publishElt.addEventListener("click", async () => {
       const replacementImageSigil = await replacementImageSigilPromise;
@@ -134,6 +147,7 @@ export class FeedAuthorEditorElement extends HTMLElement {
       const scuttlebuttHost = await window.scuttlebuttHost;
       await scuttlebuttHost.publish(content);
       console.log(`content published`, content);
+      publishElt.disabled = true;
     });
   }
 }
