@@ -21,7 +21,7 @@ import {
   TSEMap,
 } from "./util.ts";
 import Agent from "./agents/Agent.ts";
-import FeedsAgent from "./agents/feeds/FeedsAgent.ts";
+import FeedsAgent, { Message } from "./agents/feeds/FeedsAgent.ts";
 import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
@@ -235,6 +235,7 @@ export default abstract class ScuttlebuttHost {
       timestamp: Date.now(),
     };
     this.feedsStorage.storeMessage(this.identity, sequence, msg);
+    this.feedsAgent?.fireNewMessageEvent(this.identity, msg as Message);
   }
 
   private signMessage(

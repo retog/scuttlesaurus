@@ -164,6 +164,10 @@ export default class FeedsAgent extends Agent {
     );
   }
 
+  fireNewMessageEvent(feedKey: FeedId, msg: Message) {
+    this.newMessageListeners.forEach((listener) => listener(feedKey, msg));
+  }
+
   async *getFeed(feedId: FeedId, {
     /** negative numbers are relative to the latest message, 0 means no existing message,
      * positive numbers indicate the index of the oldest message to be returned */
@@ -196,20 +200,24 @@ export default class FeedsAgent extends Agent {
       }
     }
     if (newMessages) {
-      while (true) {
-        let listenerPos = -1;
-        yield await new Promise<Message>((resolve) => {
-          listenerPos = this.newMessageListeners.length;
-          this.newMessageListeners[listenerPos] = (
-            msgFeedId: FeedId,
-            msg: Message,
-          ) => {
-            if (feedId.base64Key === msgFeedId.base64Key) {
-              resolve(msg);
-            }
-          };
-        });
-        this.newMessageListeners.splice(listenerPos, 1);
+      let resolver: (msg: Message) => void;
+      const listener = (
+        msgFeedId: FeedId,
+        msg: Message,
+      ) => {
+        if (feedId.base64Key === msgFeedId.base64Key) {
+          resolver(msg);
+        }
+      };
+      this.addNewMessageListeners(listener);
+      try {
+        while (true) {
+          yield await new Promise<Message>((resolve) => {
+            resolver = resolve;
+          });
+        }
+      } finally {
+        this.removeNewMessageListeners(listener);
       }
     }
   }
@@ -241,6 +249,7 @@ export default class FeedsAgent extends Agent {
       "args": [{
         "id": feedKey.toString(),
         "seq": from,
+        "live": true,
       }],
     }) as AsyncIterable<Message>;
     let expectedSequence = from;
@@ -286,7 +295,7 @@ export default class FeedsAgent extends Agent {
           msg.value.sequence,
           msg,
         );
-        this.newMessageListeners.forEach((listener) => listener(feedKey, msg));
+        this.fireNewMessageEvent(feedKey, msg);
       } catch (e) {
         log.debug(`Storing message: ${e}`);
       }
