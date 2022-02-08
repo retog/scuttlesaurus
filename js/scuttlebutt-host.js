@@ -20222,25 +20222,23 @@ class FeedsAgent extends Agent {
         this.peers = peers;
     }
     createRpcContext(_feedId) {
-        const fsStorage = this.feedsStorage;
+        const agent = this;
         const rpcMethods = {
             createHistoryStream: async function*(args) {
                 const opts = args[0];
-                const feedKey = parseFeedId(opts.id);
-                let seq = Number.parseInt(opts.seq);
-                const lastMessage = await fsStorage.lastMessage(feedKey);
-                while(seq <= lastMessage){
-                    try {
-                        const parsedFile = await fsStorage.getMessage(feedKey, seq++);
-                        if (opts.keys === undefined || opts.keys) {
-                            yield parsedFile;
-                        } else {
-                            yield parsedFile.value;
-                        }
-                    } catch (error11) {
-                        if (error11 instanceof NotFoundError) {
-                            mod2.debug(`Message ${seq} of ${feedKey} not found`);
-                        }
+                const feedId = parseFeedId(opts.id);
+                const live = typeof opts.live === "undefined" ? false : JSON.parse(opts.live);
+                const old = typeof opts.old === "undefined" ? true : JSON.parse(opts.old);
+                const keys = typeof opts.keys === "undefined" ? true : JSON.parse(opts.old);
+                const seq = typeof opts.seq === "undefined" ? 1 : Number.parseInt(opts.seq);
+                for await (const msg of agent.getFeed(feedId, {
+                    fromMessage: old ? seq : 0,
+                    newMessages: live
+                })){
+                    if (keys) {
+                        yield msg;
+                    } else {
+                        yield msg.value;
                     }
                 }
             }
@@ -20249,6 +20247,7 @@ class FeedsAgent extends Agent {
     }
     onGoingSyncPeers = new Map();
     async incomingConnection(rpcConnection) {
+        this.updateFeed(rpcConnection, rpcConnection.boxConnection.peer);
         const peerStr = rpcConnection.boxConnection.peer.base64Key;
         if (!this.onGoingSyncPeers.has(peerStr)) {
             this.onGoingSyncPeers.set(peerStr, rpcConnection);
@@ -20294,8 +20293,8 @@ class FeedsAgent extends Agent {
                 (async ()=>{
                     try {
                         await connector.getConnectionWith(pickedPeer);
-                    } catch (error12) {
-                        mod2.error(`In connection with ${pickedPeer}: ${error12}`);
+                    } catch (error11) {
+                        mod2.error(`In connection with ${pickedPeer}: ${error11}`);
                     }
                 })().finally(()=>{
                     onGoingConnectionAttempts.delete(pickedPeerStr);
@@ -20305,6 +20304,12 @@ class FeedsAgent extends Agent {
         }
     }
     newMessageListeners = [];
+    addNewMessageListeners(listener) {
+        this.newMessageListeners.push(listener);
+    }
+    removeNewMessageListeners(listener) {
+        this.newMessageListeners.splice(this.newMessageListeners.indexOf(listener), 1);
+    }
     async *getFeed(feedId, { fromMessage =-10 , newMessages =true  } = {}) {
         if (fromMessage != 0) {
             const lastMessage = await this.feedsStorage.lastMessage(feedId);
@@ -20315,8 +20320,8 @@ class FeedsAgent extends Agent {
             for(let pos = fromMessage; pos <= lastMessage; pos++){
                 try {
                     yield this.feedsStorage.getMessage(feedId, pos);
-                } catch (error13) {
-                    if (error13 instanceof NotFoundError) {
+                } catch (error12) {
+                    if (error12 instanceof NotFoundError) {
                         mod2.info(`Message ${pos} of ${feedId} not found`);
                     }
                 }
@@ -20341,8 +20346,8 @@ class FeedsAgent extends Agent {
         const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
         try {
             await this.updateFeedFrom(rpcConnection, feedKey, messagesAlreadyHere + 1);
-        } catch (error14) {
-            mod2.info(`error updating feed ${feedKey}: ${error14}`);
+        } catch (error13) {
+            mod2.info(`error updating feed ${feedKey}: ${error13}`);
         }
     }
     async updateFeedFrom(rpcConnection, feedKey, from) {
@@ -20606,9 +20611,9 @@ class ConnectionManager {
         let conn;
         try {
             conn = await this.rpcClientInterface.connect(addr);
-        } catch (error15) {
+        } catch (error14) {
             this.failureListener(addr, true);
-            throw error15;
+            throw error14;
         }
         this.failureListener(addr, false);
         this.newConnection(conn);
@@ -20714,8 +20719,8 @@ class ScuttlebuttHost {
         agents.forEach(async (agent)=>{
             try {
                 await agent.start(this.connectionManager);
-            } catch (error16) {
-                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error16}`);
+            } catch (error15) {
+                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error15}`);
             }
         });
         (async ()=>{
@@ -20723,8 +20728,8 @@ class ScuttlebuttHost {
                 Promise.all(agents.map(async (agent)=>{
                     try {
                         await agent.outgoingConnection(rpcConnection);
-                    } catch (error17) {
-                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
+                    } catch (error16) {
+                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error16}`);
                     }
                 }));
             }
@@ -20732,10 +20737,9 @@ class ScuttlebuttHost {
         for await (const rpcConnection1 of this.connectionManager.listen()){
             Promise.all(agents.map(async (agent)=>{
                 try {
-                    this.feedsAgent?.updateFeed(rpcConnection1, rpcConnection1.boxConnection.peer);
                     await agent.incomingConnection(rpcConnection1);
-                } catch (error18) {
-                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error18}`);
+                } catch (error17) {
+                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
                 }
             }));
         }
