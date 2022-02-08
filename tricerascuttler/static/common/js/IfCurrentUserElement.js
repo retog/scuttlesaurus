@@ -1,9 +1,3 @@
-import {
-  FeedId,
-  parseAddress,
-  parseKeyPair,
-  serializeKeyPair,
-} from "./ext/scuttlebutt-host.js";
 import { sigilToIri } from "./web-util.js";
 import * as _instanceName from "./InstanceNameElement.js";
 import * as _feedAuthor from "./FeedAuthorLinkElement.js";
@@ -28,9 +22,6 @@ export class IfCurrentUserElement extends HTMLElement {
       } else {
         this.shadowRoot.replaceChildren(...this.children);
       }
-    } else {
-      this.shadowRoot.innerHTML = "Naaa";
-      console.log("naaa", feedUri, localId.toString());
     }
   }
 }

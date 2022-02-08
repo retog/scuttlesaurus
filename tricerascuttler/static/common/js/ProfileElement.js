@@ -3,6 +3,8 @@ import * as _FeedAuthList from "./FeedAuthorListElement.js";
 import * as _feedAuthorLink from "./FeedAuthorLinkElement.js";
 import * as _PostsList from "./PostListElement.js";
 import * as _Tabs from "./TabsElement.js";
+import * as _dsgfd from "./IfCurrentUserElement.js";
+import * as _garega from "./PostCreatorElement.js";
 
 export class ProfileElement extends HTMLElement {
   constructor() {
@@ -28,6 +30,7 @@ export class ProfileElement extends HTMLElement {
     }
     </style>
     <h1><ssb-feed-author-link feed="${feedUri}"></ssb-feed-author-link></h1>
+    <ssb-if-current-user feed="${feedUri}"><template>This is you.</template></ssb-if-current-user>
     <ssb-feed-author src="${feedUri}"></ssb-feed-author>
     <ssb-tabs>
     <ssb-tab label="Posts" active>
@@ -40,6 +43,12 @@ export class ProfileElement extends HTMLElement {
                     ssb:content ?content.
                 ?content rdf:type ssb:Post.
             } ORDER BY DESC(?seq)"></ssb-post-list>
+        <ssb-if-current-user feed="${feedUri}">
+          <template>
+            <h2>Write a new Post</h2>
+            <ssb-post-creator></ssb-post-creator>
+          </template>
+        </ssb-if-current-user>
       </template>
     </ssb-tab>
     <ssb-tab label="Liked Posts">
