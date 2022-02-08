@@ -13,30 +13,37 @@ export default class SparqlStorer {
 
   /** stored exsting and new messages in the triple store*/
   connectAgent(feedsAgent: FeedsAgent) {
+    const processMsg = async (msg: Message) => {
+      try {
+        const sparqlStatement = msgToSparql(msg as RichMessage);
+        await this.runSparqlStatement(sparqlStatement);
+      } catch (error) {
+        log.error(`Failed inserting message with sparql, ignoring: ${error}`);
+      }
+    };
     const processFeed = async (feedId: FeedId) => {
       const fromMessage = await this.firstUnrecordedMessage(feedId);
       const msgFeed = feedsAgent.getFeed(feedId, {
         fromMessage,
+        newMessages: false,
       });
-      const graphFeed = msgsToSparql(msgFeed);
-      for await (const sparqlStatement of graphFeed) {
-        try {
-          await this.runSparqlStatement(sparqlStatement);
-        } catch (error) {
-          log.error(`Failed inserting message with sparql, ignoring: ${error}`);
-        }
-        //reduce the write load to increade chances that reads still suceed
+      for await (const msg of msgFeed) {
+        processMsg(msg);
+        //reduce the write load to increase chances that reads still suceed
         await delay(100);
       }
     };
 
     Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
       (error) => {
-        console.error(`Procesing feeds: ${error}`);
+        console.error(`Processing feeds: ${error}`);
       },
     );
 
-    feedsAgent.subscriptions.addAddListener(processFeed);
+    feedsAgent.addNewMessageListeners((_feedId: FeedId, msg: Message) => {
+      processMsg(msg);
+    });
+    //feedsAgent.subscriptions.addAddListener(processFeed);
   }
 
   lastRun: Promise<void> = Promise.resolve();
@@ -90,20 +97,6 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
       return parseInt(resultJson.results.bindings[0].seq.value) + 1;
     } else {
       return 1;
-    }
-  }
-}
-
-async function* msgsToSparql(feed: AsyncIterable<Message>) {
-  for await (const msg of feed) {
-    try {
-      yield msgToSparql(msg as RichMessage);
-    } catch (error) {
-      console.error(
-        `Transforming ${
-          JSON.stringify(msg)
-        }: ${error}\nThe message will be ignored`,
-      );
     }
   }
 }
