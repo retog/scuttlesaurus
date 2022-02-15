@@ -30,8 +30,14 @@ export class ProfileElement extends HTMLElement {
     }
     </style>
     <h1><ssb-feed-author-link feed="${feedUri}"></ssb-feed-author-link></h1>
-    <ssb-if-current-user feed="${feedUri}"><template>This is you.</template></ssb-if-current-user>
-    <ssb-feed-author src="${feedUri}"></ssb-feed-author>
+    <ssb-if-current-user feed="${feedUri}">
+      <template>
+        <ssb-feed-author-editor feed="${feedUri}"></ssb-feed-author-editor>
+      </template>
+      <template>
+        <ssb-feed-author src="${feedUri}"></ssb-feed-author>
+      </template>
+    </ssb-if-current-user>
     <ssb-tabs>
     <ssb-tab label="Posts" active>
       <template>
