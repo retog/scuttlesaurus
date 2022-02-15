@@ -54,20 +54,24 @@ export class LocalIdentityElement extends HTMLElement {
       box-shadow: 0px 5px 15px rgba(0, 0, 0, .2);
       text-decoration: none;
     }
+    #serverIdLink {
+      border: solid;
+      width: max-content;
+    }
     </style>    
     <main id="main">
     <h1>Your identity</h1>
     ${localId.toString()}
     <p>This is your Scuttlebutt identity. It is stored in this browser alongside your private key.</p>
     
-    <p>On the scuttleverse portal run by <ssb-instance-name></ssb-instance-name> your profile is
+    <p>On the scuttleverse portal run by <ssb-instance-name></ssb-instance-name> your profile page is
+    <div id="serverIdLink">
     <ssb-feed-author-link feed="${
       sigilToIri(localId.toString())
     }" image ></ssb-feed-author-link>
-    Edit your description:
-    <ssb-feed-author-editor feed="${
-      sigilToIri(localId.toString())
-    }"></ssb-feed-author-editor>
+    </div>
+    There you can edit your profile or write posts.
+    </p>
     <p>
         You can download your identity secret an use it with another Scuttlebutt client or upload an identity
         created
