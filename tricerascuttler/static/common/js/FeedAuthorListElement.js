@@ -41,9 +41,12 @@ export class FeedAuthorListElement extends HTMLElement {
           }
           </div>`;
         } else {
-          template += `No feeds found with given query: <code><pre>${
-            query.replaceAll("<", "&lt;")
-          }</pre></code>`;
+          template += `No feeds found.`;
+          console.log(
+            `No feeds found with given query: >${
+              query
+            }`,
+          );
         }
 
         this.shadowRoot.innerHTML = template;

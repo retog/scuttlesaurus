@@ -111,10 +111,9 @@ export class PostListElement extends HTMLElement {
           if (offset === 0) {
             targetElement.insertAdjacentHTML(
               "beforeend",
-              `No posts found with given query: <code><pre>${
-                this.query.replaceAll("<", "&lt;")
-              }</pre></code>`,
+              `No posts found.`,
             );
+            console.log(`No posts found with given query: ${this.query}`);
           } else {
             //This shouldn't happen as we don't search if there isn't one more post
             targetElement.insertAdjacentHTML(
