@@ -22,6 +22,14 @@ export class IfCurrentUserElement extends HTMLElement {
       } else {
         this.shadowRoot.replaceChildren(...this.children);
       }
+    } else {
+      if (
+        this.children.length > 0 && this.children[1].tagName === "TEMPLATE"
+      ) {
+        this.shadowRoot.replaceChildren(
+          this.children[1].content.cloneNode(true),
+        );
+      }
     }
   }
 }
