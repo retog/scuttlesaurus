@@ -24,7 +24,7 @@ export class IfCurrentUserElement extends HTMLElement {
       }
     } else {
       if (
-        this.children.length > 0 && this.children[1].tagName === "TEMPLATE"
+        this.children.length > 1 && this.children[1].tagName === "TEMPLATE"
       ) {
         this.shadowRoot.replaceChildren(
           this.children[1].content.cloneNode(true),
