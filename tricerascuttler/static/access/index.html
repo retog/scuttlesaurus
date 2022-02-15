@@ -23,6 +23,12 @@
         <ssb-tab label="Explore" active>
             <template id="main"></template>
         </ssb-tab>
+        <ssb-tab label="Circle" hash="circle">
+            <template>
+                <ssb-circle></ssb-circle>
+                <script type="module" src="js/CircleElement.js"></script>
+            </template>
+        </ssb-tab>
         <ssb-tab label="Read" hash="read">
             <template>
                 <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
