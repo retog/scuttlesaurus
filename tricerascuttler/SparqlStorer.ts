@@ -95,9 +95,13 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
     PREFIX ssb: <ssb:ontology:>
     
     SELECT ?next WHERE {
-      ?msg rdf:type ssb:Message;
+      {
+        ?msg rdf:type ssb:Message;
            ssb:author <${feedId.toUri()}>;
           ssb:seq ?seq.
+      } UNION {
+        BIND (0 AS ?seq)
+      }
       BIND((?seq+1) AS ?next)
       MINUS  {
         ?otherMsg rdf:type ssb:Message;
