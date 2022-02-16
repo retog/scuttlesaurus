@@ -4,12 +4,12 @@ const examples = [
   {
     name: "List feeds",
     value: `PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-    PREFIX ssb: <ssb:ontology:>
-    PREFIX ssbx: <ssb:ontology:derivatives:>
-    SELECT DISTINCT ?author (count(?msg) as ?msgCount) (max(?seq) as ?maxSeq) { 
-      ?msg ssb:author ?author;
-           ssb:seq ?seq. 
-    } LIMIT 10`,
+PREFIX ssb: <ssb:ontology:>
+PREFIX ssbx: <ssb:ontology:derivatives:>
+SELECT * { 
+  ?msg ssb:author ?author;
+        ssb:seq ?seq. 
+} LIMIT 10`,
   },
 ];
 
@@ -40,7 +40,7 @@ export class QueryElement extends HTMLElement {
         endpoint: "./query",
         method: "GET",
       },
-      copyEndpointOnNewTab: false,
+      copyEndpointOnNewTab: true,
       populateFromUrl: false,
       autofocus: true,
     });
@@ -49,7 +49,14 @@ export class QueryElement extends HTMLElement {
       examples.forEach((example) => {
         const tab = yasgui.addTab(
           true, // set as active tab
-          { ...Yasgui.Tab.getDefaults(), name: example.name },
+          {
+            ...Yasgui.Tab.getDefaults(),
+            name: example.name,
+            requestConfig: {
+              endpoint: "./query",
+              method: "GET",
+            },
+          },
         );
         tab.setQuery(example.value);
       });
