@@ -1,6 +1,4 @@
-import ScuttlebuttHost, {
-  FeedId,
-} from "./ext/scuttlebutt-host.js";
+import ScuttlebuttHost, { FeedId } from "./ext/scuttlebutt-host.js";
 import { iriToSigil, mainIdentity } from "./web-util.js";
 export default class ClientHostProvider {
   async getScuttlebuttHost() {

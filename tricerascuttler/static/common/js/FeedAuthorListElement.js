@@ -43,9 +43,7 @@ export class FeedAuthorListElement extends HTMLElement {
         } else {
           template += `No feeds found.`;
           console.log(
-            `No feeds found with given query: >${
-              query
-            }`,
+            `No feeds found with given query: >${query}`,
           );
         }
 

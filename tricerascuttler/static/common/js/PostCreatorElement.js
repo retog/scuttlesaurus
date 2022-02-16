@@ -1,4 +1,3 @@
-
 export class PostCreatorElement extends HTMLElement {
   constructor() {
     super();

@@ -1,6 +1,4 @@
-import {
-  mainIdentity,
-} from "./web-util.js";
+import { mainIdentity } from "./web-util.js";
 import * as _postList from "./PostListElement.js";
 
 export class CircleElement extends HTMLElement {
