@@ -30,7 +30,7 @@ export default class SparqlStorer {
         newMessages: false,
       });
       for await (const msg of msgFeed) {
-        processMsg(msg);
+        await processMsg(msg);
         //reduce the write load to increase chances that reads still suceed
         await delay(100);
       }
@@ -48,27 +48,47 @@ export default class SparqlStorer {
     //feedsAgent.subscriptions.addAddListener(processFeed);
   }
 
-  lastRun: Promise<void> = Promise.resolve();
+  /*  lastRun: Promise<void> = Promise.resolve();
 
   private async runSparqlStatementSequential(sparqlStatement: string) {
     //retrying connection because of "connection closed before message completed"-errors
     const tryRunSparqlStatement = (attemptsLeft = 5) => {
-      this.lastRun = this.runSparqlStatement(sparqlStatement).catch((error) => {
-        if (attemptsLeft === 0) {
-          log.error(`Running SPARQL Update: ${error}`);
-        } else {
-          tryRunSparqlStatement(attemptsLeft - 1);
+      this.lastRun = (async () => {
+        try {
+          await this.runSparqlStatement(sparqlStatement);
+        } catch (error) {
+          if (attemptsLeft === 0) {
+            log.error(`Running SPARQL Update: ${error}`);
+          } else {
+            await delay(10000);
+            await tryRunSparqlStatement(attemptsLeft - 1);
+          }
         }
-      });
+      })();
     };
     await this.lastRun;
     tryRunSparqlStatement();
     //reduce the write load to increase chances that reads still succeed
-    await delay(5);
+    await delay(10000);
     await this.lastRun;
+  }*/
+
+  semaphore: Promise<void> = Promise.resolve();
+
+  private async runSparqlStatementSequential(sparqlStatement: string) {
+    while (true) {
+      const semaphore = this.semaphore;
+      await semaphore;
+      if (semaphore === this.semaphore) {
+        break;
+      }
+    }
+    this.semaphore = this.runSparqlStatement(sparqlStatement);
+    await this.semaphore;
   }
 
   private async runSparqlStatement(sparqlStatement: string) {
+    await delay(100);
     const response = await fetch(this.sparqlEndpointUpdate, {
       "headers": {
         "Accept": "text/plain,*/*;q=0.9",
