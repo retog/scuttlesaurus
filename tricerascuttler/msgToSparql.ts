@@ -1,5 +1,6 @@
 import { Message } from "../scuttlesaurus/agents/feeds/FeedsAgent.ts";
 import {
+  log,
   parseBlobId,
   parseFeedId,
   parseMsgKey,
@@ -76,14 +77,30 @@ export default function msgToSparql(msg: RichMessage) {
 
   class BasicMessage extends StatementGenerator {
     get insertDataContent(): string {
+      const safeContent = (() => {
+        try {
+          return this.content;
+        } catch (error) {
+          log.error(
+            `Failed converting ${
+              JSON.stringify(content)
+            } to sparql: ${error}. Stack: ${error.stack}`,
+          );
+          return undefined;
+        }
+      })();
       return `
         <${msgUri}> rdf:type ssb:Message;
         ssb:seq ${msg.value.sequence};
         ssb:timestamp ${timestamp};
         ssb:author <${feedIdToUri(msg.value.author as FeedIdStr)}>;
-        ${this.content ? `ssb:content [${this.content}];` : ""}
-        ssb:raw "${escapeLiteral(JSON.stringify(content))}".
-        `;
+        ssb:raw "${escapeLiteral(JSON.stringify(content))}"
+        ${
+        safeContent
+          ? `; ssb:content <content:${msgUri}>. <content:${msgUri}> ${safeContent}`
+          : ""
+      }.
+      `;
     }
     get content(): string | undefined {
       return undefined;
@@ -91,11 +108,11 @@ export default function msgToSparql(msg: RichMessage) {
   }
 
   function feedIdToUri(feedId: FeedIdStr) {
-    const [key, cypher] = feedId.split(".");
+    const [key, cypher] = feedId.trim().split(".");
     if (cypher !== "ed25519") {
       return `ssb:feed/${cypher}/${
         key.substring(1).replaceAll("/", "_").replaceAll("+", "-")
-      }`;
+      }`.replaceAll("}", encodeURIComponent("}")); //TODO make safety more generic
     }
     return parseFeedId(feedId).toUri();
   }

@@ -14,11 +14,13 @@ export default class SparqlStorer {
   /** stored exsting and new messages in the triple store*/
   connectAgent(feedsAgent: FeedsAgent) {
     const processMsg = async (msg: Message) => {
+      const sparqlStatement = msgToSparql(msg as RichMessage);
       try {
-        const sparqlStatement = msgToSparql(msg as RichMessage);
-        await this.runSparqlStatement(sparqlStatement);
+        await this.runSparqlStatementSequential(sparqlStatement);
       } catch (error) {
-        log.error(`Failed inserting message with sparql, ignoring: ${error}`);
+        log.error(
+          `Failed inserting message with sparql, ignoring: ${error}. Stack: ${error.stack}`,
+        );
       }
     };
     const processFeed = async (feedId: FeedId) => {
@@ -48,6 +50,24 @@ export default class SparqlStorer {
 
   lastRun: Promise<void> = Promise.resolve();
 
+  private async runSparqlStatementSequential(sparqlStatement: string) {
+    //retrying connection because of "connection closed before message completed"-errors
+    const tryRunSparqlStatement = (attemptsLeft = 5) => {
+      this.lastRun = this.runSparqlStatement(sparqlStatement).catch((error) => {
+        if (attemptsLeft === 0) {
+          log.error(`Running SPARQL Update: ${error}`);
+        } else {
+          tryRunSparqlStatement(attemptsLeft - 1);
+        }
+      });
+    };
+    await this.lastRun;
+    tryRunSparqlStatement();
+    //reduce the write load to increase chances that reads still succeed
+    await delay(5);
+    await this.lastRun;
+  }
+
   private async runSparqlStatement(sparqlStatement: string) {
     const response = await fetch(this.sparqlEndpointUpdate, {
       "headers": {
@@ -66,7 +86,7 @@ export default class SparqlStorer {
 error: Uncaught (in promise) TypeError: error sending request for url (http://fuseki:3330/ds/update): connection closed before message completed
     at async mainFetch (deno:ext/fetch/26_fetch.js:266:14)
     */
-    //await response.arrayBuffer();
+    await response.arrayBuffer();
   }
   private async firstUnrecordedMessage(feedId: FeedId): Promise<number> {
     const query = `
@@ -74,12 +94,17 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
     PREFIX ssb: <ssb:ontology:>
     
-    SELECT ?author ?seq WHERE {
+    SELECT ?next WHERE {
       ?msg rdf:type ssb:Message;
-      ssb:author <${feedId.toUri()}>;
-      ssb:seq ?seq.
-    
-    } ORDER BY DESC(?seq) LIMIT 1`;
+           ssb:author <${feedId.toUri()}>;
+          ssb:seq ?seq.
+      BIND((?seq+1) AS ?next)
+      MINUS  {
+        ?otherMsg rdf:type ssb:Message;
+           ssb:author <${feedId.toUri()}>;
+          ssb:seq ?next.
+      }
+    } ORDER BY ASC(?seq) LIMIT 1`;
     const response = await fetch(this.sparqlEndpointQuery, {
       "headers": {
         "Accept": "application/sparql-results+json,*/*;q=0.9",
@@ -94,7 +119,7 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
 
     const resultJson = await response.json();
     if (resultJson.results.bindings.length === 1) {
-      return parseInt(resultJson.results.bindings[0].seq.value) + 1;
+      return parseInt(resultJson.results.bindings[0].next.value);
     } else {
       return 1;
     }
