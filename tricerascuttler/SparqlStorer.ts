@@ -78,7 +78,9 @@ export default class SparqlStorer {
   private async runSparqlStatementSequential(sparqlStatement: string) {
     while (true) {
       const semaphore = this.semaphore;
-      await semaphore;
+      try {
+        await semaphore;
+      } catch (_e) {}
       if (semaphore === this.semaphore) {
         break;
       }
