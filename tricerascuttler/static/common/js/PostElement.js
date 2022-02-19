@@ -37,73 +37,85 @@ export class PostElement extends HTMLElement {
       const text = bindings[0].text?.value;
       const timestamp = new Date(parseInt(bindings[0].timestamp?.value));
       this.shadowRoot.innerHTML = `
+        <link rel="stylesheet" href="./reset.css">
         <style>
-        img {
-          max-width: 100%;
-        }
         :host {
+          border: 1px solid gray;
+          border-radius: 0.6rem;
           display: block;
-          border-style: solid;
-          margin: 5pt;
-          padding: 5pt;
         }
-        #permalink {
-          text-decoration: none;
-          float: right;
-          height: 100%;
-          margin-top: 5px;
-          margin-right: 5px;
-          color: #232c3d;
-          font-size: 14px;
+
+        img {
+          display: block;
+          max-width: 100%;
         }
 
         ssb-feed-author-link {
-          float: right;
-          background-color: white;
-          border-bottom-left-radius: 10px;
-          padding: 5px;
-          box-shadow: -9px 7px 8px rgba(139, 138, 138, 0.1);
+          display: block;
+        }
+
+        .content {
+          border-top: 1px solid #eeeeee;
+          font-size: 1.2rem;
+          line-height: 1.4rem;
+          padding: 0.4rem 0.4rem 0.4rem 2.8rem;
+        }
+
+        .content a {
+          color: darkblue;
+        }
+
+        .meta {
+          border-top: 1px solid #eeeeee;
+          color: darkgrey;
+          font-size: 0.8rem;
+          padding: 0.2rem 0.2rem 0.2rem 2.8rem;
+        }
+
+        .content:empty,
+        .meta:empty {
+          display: none;
         }
 
         #actions {
-          width: 100%;
-          margin-top: 8px;
-          background-color: #bccbe9;
+          border-top: 1px solid #eeeeee;
+          display: flex;
+          gap: 0.2rem;
+          padding-left: 2.8rem;
         }
 
-        #actions button {
-          letter-spacing: 3px;
-          border: none;
-          padding: 5px;
-          background-color: #bccbe9;
-          color: #232c3d;
-          font-size: 14px;
+        #actions > * {
           cursor: pointer;
-          transition: 0.5s;
-          box-shadow: 0px 5px 15px rgba(0, 0, 0, .2);
+          font-size: 0.8rem;
+          padding: 0.2rem;
+        }
+
+        #actions > *:hover {
+          background-color: #eeeeee;
         }
       </style>
       <ssb-feed-author-link feed="${
         bindings[0].author.value
       }" image ></ssb-feed-author-link>
-            ${mdToHtml(text ?? "")}<br>
-            <time datetime="${timestamp.toString()}">${timestamp.toLocaleString()}</time><br>
-            
-        ${
+      <div class="content">${mdToHtml(text ?? "")}</div>
+      <div class="meta">
+        <time datetime="${timestamp.toString()}">${timestamp.toLocaleString()}</time>
+      </div>
+      <div class="meta">${
         bindings[0].root
-          ? `In reply to <ssb-post-link href="${
-            bindings[0].root.value
-          }"></ssb-post-link><br>`
-          : ""
-      }
-        ${
-        bindings[0].replies.value.split(",").filter((s) => s != "").map(
-          (reply) =>
-            `Reply: <ssb-post-link href="${reply}"></ssb-post-link><br>`,
-        ).join("")
-      }
+        ? `In reply to <ssb-post-link href="${
+          bindings[0].root.value
+        }"></ssb-post-link>`
+        : ""
+      }</div>
+      <div class="meta">${
+          bindings[0].replies.value.split(",").filter((s) => s != "").map(
+            (reply) =>
+              `Reply: <ssb-post-link href="${reply}"></ssb-post-link><br>`,
+          ).join("")
+        }</div>
         <div id="actions">
-          <a id="permalink" href="/?uri=${this.msgUri}">🔗</a>
+          <a id="permalink" href="/?uri=${this.msgUri}">Permalink</a>
         </div>`;
       const actionsArea = this.shadowRoot.getElementById("actions");
       actionsArea.append(await this.createLikeUnlikeButton());
