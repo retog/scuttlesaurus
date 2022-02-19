@@ -36,6 +36,14 @@ It i recommended to open this project as a dev container in VSCode. This will
 automatically start a Blazegraph Triple store and appropriately set the
 environment variables.
 
+To generate the scuttlesaurus bundle used in the browser run:
+
+    deno run --unstable -A ./build.ts
+
+subsequeNtly you can the programm with:
+
+    deno run --unstable -A ./main.ts --web.control.hostname 0.0.0.0 --logLevel INFO
+
 ## Mascot
 
 The project mascot is a
