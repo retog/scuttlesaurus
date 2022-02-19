@@ -10,6 +10,9 @@ export class IfCurrentUserElement extends HTMLElement {
 
   async connectedCallback() {
     const feedUri = this.getAttribute("feed");
+    while (!window.scuttlebuttHost) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
     const scuttlebuttHost = await window.scuttlebuttHost;
     const localId = sigilToIri(scuttlebuttHost.identity.toString());
     if (feedUri === localId.toString()) {
