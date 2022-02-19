@@ -6,6 +6,11 @@ export class HostPeersElement extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     this.shadowRoot.innerHTML = `
+    <style>
+    .hidden {
+      display: none;
+    }
+    </style>
     <ul id="peerList">
 
     </ul>
@@ -13,7 +18,7 @@ export class HostPeersElement extends HTMLElement {
     <ul id="potentialPeers">
 
     </ul>
-    <button id="addAllButton">Add all</button>
+    <button id="addAllButton" class="hidden">Add all</button>
     `;
     const peerList = this.shadowRoot.getElementById("peerList");
     const newPeer = this.shadowRoot.getElementById("newPeer");
@@ -60,6 +65,7 @@ export class HostPeersElement extends HTMLElement {
       potentialPeers.replaceChildren();
       for await (const pub of pubs()) {
         if (peers.indexOf(pub) === -1) {
+          addAllButton.classList.remove("hidden");
           const li = document.createElement("li");
           li.appendChild(document.createTextNode(pub));
           const button = document.createElement("button");
@@ -97,7 +103,7 @@ export class HostPeersElement extends HTMLElement {
     /*await*/ populateList();
 
     addAllButton.addEventListener("click", () => {
-      [...document.getElementsByClassName("add")].forEach((b) => b.click());
+      this.shadowRoot.querySelectorAll(".add").forEach((b) => b.click());
     });
   }
 }
