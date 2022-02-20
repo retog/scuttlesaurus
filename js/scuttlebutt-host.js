@@ -20653,6 +20653,7 @@ class ScuttlebuttHost {
     agents = new Set();
     followees = new ObservableSet();
     peers = new ObservableSet();
+    excludedPeers = new ObservableSet();
     failingAddresses = new TSEMap();
     feedsAgent;
     blobsAgent;
@@ -20709,6 +20710,7 @@ class ScuttlebuttHost {
                     if (failuresReport.lastFailure + this.config.failureRelevanceInterval < Date.now()) {
                         if (failuresReport.failureCount > 4) {
                             this.peers.delete(address);
+                            this.excludedPeers.add(address);
                         } else {
                             this.failingAddresses.set(address, {
                                 failureCount: failuresReport.failureCount + 1,
