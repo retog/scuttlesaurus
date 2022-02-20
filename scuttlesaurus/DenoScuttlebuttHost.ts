@@ -72,14 +72,37 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       log.debug(`Error reading ${peersFile}: ${error}`);
     }
     super(config);
-    const writePeersFile = () => {
-      Deno.writeTextFileSync(
-        peersFile,
-        JSON.stringify([...this.peers], undefined, 2),
+    const exludedPeersFile = path.join(config.baseDir, "excluded-peers.json");
+    try {
+      const peersFromFile = JSON.parse(
+        Deno.readTextFileSync(exludedPeersFile),
       );
-    };
-    this.peers.addAddListener(writePeersFile);
-    this.peers.addRemoveListener(writePeersFile);
+      peersFromFile.forEach((addr: string) =>
+        this.excludedPeers.add(parseAddress(addr))
+      );
+    } catch (error) {
+      log.debug(`Error reading ${exludedPeersFile}: ${error}`);
+    }
+    {
+      const writePeersFile = () => {
+        Deno.writeTextFileSync(
+          peersFile,
+          JSON.stringify([...this.peers], undefined, 2),
+        );
+      };
+      this.peers.addAddListener(writePeersFile);
+      this.peers.addRemoveListener(writePeersFile);
+    }
+    {
+      const writeExcludedPeersFile = () => {
+        Deno.writeTextFileSync(
+          exludedPeersFile,
+          JSON.stringify([...this.excludedPeers], undefined, 2),
+        );
+      };
+      this.excludedPeers.addAddListener(writeExcludedPeersFile);
+      this.excludedPeers.addRemoveListener(writeExcludedPeersFile);
+    }
     const initializeCommonRoutes = (router: Router) => {
       router.get("/whoami", (ctx: Context) => {
         ctx.response.body = JSON.stringify({
@@ -97,9 +120,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         };
         endpoint.application.use(endpoint.router.routes());
         endpoint.application.use(endpoint.router.allowedMethods());
-        endpoint.application.listen(endpointConfigs[endpointName]).catch((e) =>
-          log.error(`Error with web endpoint ${endpointName}: ${e}`)
-        );
+        endpoint.application.listen(endpointConfigs[endpointName]).catch((
+          e: unknown,
+        ) => log.error(`Error with web endpoint ${endpointName}: ${e}`));
         initializeCommonRoutes(endpoint.router);
         this.webEndpoints[endpointName] = endpoint;
       }
@@ -124,6 +147,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       });
       router.get("/peers", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.peers]);
+      });
+      router.get("/excluded-peers", (ctx: Context) => {
+        ctx.response.body = JSON.stringify([...this.excludedPeers]);
       });
       router.post("/followees", async (ctx: Context) => {
         const { value } = ctx.request.body({ type: "json" });

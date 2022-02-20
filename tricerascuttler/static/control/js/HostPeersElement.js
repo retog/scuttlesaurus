@@ -4,7 +4,9 @@ export class HostPeersElement extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+  }
 
+  async connectedCallback() {
     this.shadowRoot.innerHTML = `
     <style>
     .hidden {
@@ -19,12 +21,27 @@ export class HostPeersElement extends HTMLElement {
 
     </ul>
     <button id="addAllButton" class="hidden">Add all</button>
+    <h2 id="excludedPeersHeading" class="hidden">Exluded Peers</h2>
+    <ul id="excludedPeerList">
+
+    </ul>
     `;
     const peerList = this.shadowRoot.getElementById("peerList");
     const newPeer = this.shadowRoot.getElementById("newPeer");
     const potentialPeers = this.shadowRoot.getElementById("potentialPeers");
     const addAllButton = this.shadowRoot.getElementById("addAllButton");
+    const excludedPeersHeading = this.shadowRoot.getElementById(
+      "excludedPeersHeading",
+    );
+    const excludedPeerList = this.shadowRoot.getElementById("excludedPeerList");
 
+    const excludedPeers = await (await fetch("./excluded-peers")).json();
+    for (const peer of excludedPeers) {
+      excludedPeersHeading.classList.remove("hidden");
+      const li = document.createElement("li");
+      li.appendChild(document.createTextNode(peer));
+      excludedPeerList.appendChild(li);
+    }
     async function addPeer(peer) {
       await fetch("./peers", {
         "headers": {
@@ -64,7 +81,9 @@ export class HostPeersElement extends HTMLElement {
       });
       potentialPeers.replaceChildren();
       for await (const pub of pubs()) {
-        if (peers.indexOf(pub) === -1) {
+        if (
+          (peers.indexOf(pub) === -1) && (excludedPeers.indexOf(pub) === -1)
+        ) {
           addAllButton.classList.remove("hidden");
           const li = document.createElement("li");
           li.appendChild(document.createTextNode(pub));

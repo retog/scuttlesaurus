@@ -48,6 +48,8 @@ export default abstract class ScuttlebuttHost {
   /** Maintained here as they might be used by several agents */
   readonly followees = new ObservableSet<FeedId>();
   readonly peers = new ObservableSet<Address>();
+  /** peers excluded after failures */
+  readonly excludedPeers = new ObservableSet<Address>();
   private readonly failingAddresses = new TSEMap<Address, {
     lastFailure: number;
     failureCount: number;
@@ -146,6 +148,7 @@ export default abstract class ScuttlebuttHost {
             ) {
               if (failuresReport.failureCount > 4) {
                 this.peers.delete(address);
+                this.excludedPeers.add(address);
               } else {
                 this.failingAddresses.set(address, {
                   failureCount: failuresReport.failureCount + 1,
