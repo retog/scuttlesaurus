@@ -20210,16 +20210,198 @@ class Agent {
         return this.run(connector);
     }
 }
+class RankingTable {
+    host;
+    table;
+    followees;
+    followeeLabels;
+    peers;
+    peerLabels;
+    constructor(host){
+        this.host = host;
+        const followees = [
+            ...host.followees
+        ];
+        this.followees = followees;
+        const followeeLabels = followees.map((v)=>v.toString()
+        );
+        this.followeeLabels = followeeLabels;
+        const peers = [
+            ...host.peers
+        ];
+        this.peers = peers;
+        const peerLabels = peers.map((v)=>v.toString()
+        );
+        this.peerLabels = peerLabels;
+        this.table = new Array(followees.length);
+        for(let i1 = 0; i1 < followees.length; i1++){
+            this.table[i1] = new Uint8Array(peers.length);
+            for(let j = 0; j < peers.length; j++){
+                this.table[i1][j] = peers[j].key.toString() === followeeLabels[i1] ? 255 : 3;
+            }
+        }
+        host.followees.addRemoveListener((followee)=>{
+            const pos = followeeLabels.indexOf(followee.toString());
+            this.table.splice(pos, 1);
+            followees.splice(pos, 1);
+            followeeLabels.splice(pos, 1);
+        });
+        host.peers.addRemoveListener((peer)=>{
+            const pos = peerLabels.indexOf(peer.toString());
+            for(let i = 0; i < followees.length; i++){
+                this.table[i].copyWithin(pos, 1);
+                this.table[i] = this.table[i].subarray(0, peers.length - 1);
+            }
+            peers.splice(pos, 1);
+            peerLabels.splice(pos, 1);
+        });
+        host.followees.addAddListener((followee)=>{
+            const pos = followees.length;
+            followees[pos] = followee;
+            followeeLabels[pos] = followee.toString();
+            this.table[pos] = new Uint8Array(peers.length);
+            for(let j = 0; j < peers.length; j++){
+                this.table[pos][j] = peers[j].key.toString() === followeeLabels[pos] ? 255 : 3;
+            }
+        });
+        host.peers.addAddListener((peer)=>{
+            const pos = peers.length;
+            peers[pos] = peer;
+            peerLabels[pos] = peer.toString();
+            for(let i = 0; i < followees.length; i++){
+                const newRow = new Uint8Array(peers.length);
+                newRow.set(this.table[i]);
+                newRow[pos] = peer.key.toString() === followeeLabels[i] ? 255 : 3;
+            }
+        });
+    }
+    recordSuccess(peer, followee) {
+        const peerPositions = new Array();
+        for(let i = 0; i < this.peers.length; i++){
+            if (this.peers[i].key.toString() === peer.toString()) {
+                peerPositions.push(i);
+            }
+        }
+        const followeePos = this.followeeLabels.indexOf(followee.toString());
+        peerPositions.forEach((peerPos)=>{
+            const currentValue = this.table[followeePos][peerPos];
+            if (currentValue < 255) {
+                this.table[followeePos][peerPos]++;
+            }
+        });
+    }
+    async getRecommendation() {
+        const pickFollowee = async ()=>{
+            if (this.followees.length === 0) {
+                console.warn("No followees.");
+                return await new Promise((resolve5)=>{
+                    const listener = (feed)=>{
+                        this.host.followees.removeAddListener(listener);
+                        resolve5(feed);
+                    };
+                    this.host.followees.addAddListener(listener);
+                });
+            } else {
+                return this.followees[getRandomInt(0, this.followees.length)];
+            }
+        };
+        const followee = await pickFollowee();
+        const peer = await this.getPeerFor(followee);
+        return {
+            peer,
+            followee
+        };
+    }
+    async getPeerFor(followee) {
+        if (this.host.peers.size === 0) {
+            console.warn("No peer known.");
+            return await new Promise((resolve6)=>{
+                const listener = (addr)=>{
+                    this.host.peers.removeAddListener(listener);
+                    resolve6(addr);
+                };
+                this.host.peers.addAddListener(listener);
+            });
+        }
+        const pos = this.followeeLabels.indexOf(followee.toString());
+        const peerRatings = this.table[pos];
+        const peerRatingsSum = peerRatings.reduce((sum, value)=>sum + value + 1
+        );
+        const randomPointer = getRandomInt(0, peerRatingsSum);
+        let partialSum = 0;
+        for(let i = 0; i < peerRatings.length; i++){
+            partialSum += 1 + peerRatings[i];
+            if (partialSum > randomPointer) {
+                peerRatings[i] = Math.ceil(peerRatings[i] * 0.9);
+                return this.peers[i];
+            }
+        }
+        throw new Error("The developer was bad with numbers.");
+    }
+    async getFolloweesFor(peerKey, amount) {
+        if (amount >= this.followees.length) {
+            return this.followees;
+        }
+        const resultSet = new TSESet();
+        while(resultSet.size < amount){
+            const newOne = await this.getFolloweeFor(peerKey);
+            resultSet.add(newOne);
+        }
+        return [
+            ...resultSet
+        ];
+    }
+    async getFolloweeFor(peerKey) {
+        const peerPositions = new Array();
+        for(let i = 0; i < this.peers.length; i++){
+            if (this.peers[i].key.toString() === peerKey.toString()) {
+                peerPositions.push(i);
+            }
+        }
+        if (this.host.followees.size === 0) {
+            console.warn("No followee known.");
+            return await new Promise((resolve7)=>{
+                const listener = (addr)=>{
+                    this.host.followees.removeAddListener(listener);
+                    resolve7(addr);
+                };
+                this.host.followees.addAddListener(listener);
+            });
+        }
+        const pos = peerPositions[getRandomInt(0, peerPositions.length)];
+        const followeeRatings = this.table.map((ratings)=>ratings[pos]
+        );
+        const followeeRatingsSum = followeeRatings.reduce((sum, value)=>sum + value + 1
+        );
+        const randomPointer = getRandomInt(0, followeeRatingsSum);
+        let partialSum = 0;
+        for(let i2 = 0; i2 < followeeRatings.length; i2++){
+            partialSum += 1 + followeeRatings[i2];
+            if (partialSum > randomPointer) {
+                return this.followees[i2];
+            }
+        }
+        throw new Error("The developer was bad with numbers.");
+    }
+}
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min) + min);
+}
 const textEncoder1 = new TextEncoder();
 class FeedsAgent extends Agent {
     feedsStorage;
     subscriptions;
     peers;
+    rankingTable;
     constructor(feedsStorage, subscriptions, peers){
         super();
         this.feedsStorage = feedsStorage;
         this.subscriptions = subscriptions;
         this.peers = peers;
+        this.rankingTable = new RankingTable({
+            peers,
+            followees: subscriptions
+        });
     }
     createRpcContext(_feedId) {
         const agent = this;
@@ -20229,7 +20411,7 @@ class FeedsAgent extends Agent {
                 const feedId = parseFeedId(opts.id);
                 const live = typeof opts.live === "undefined" ? false : JSON.parse(opts.live);
                 const old = typeof opts.old === "undefined" ? true : JSON.parse(opts.old);
-                const keys = typeof opts.keys === "undefined" ? true : JSON.parse(opts.old);
+                const keys = typeof opts.keys === "undefined" ? true : JSON.parse(opts.keys);
                 const seq = typeof opts.seq === "undefined" ? 1 : Number.parseInt(opts.seq);
                 for await (const msg of agent.getFeed(feedId, {
                     fromMessage: old ? seq : 0,
@@ -20259,25 +20441,6 @@ class FeedsAgent extends Agent {
         }
     }
     outgoingConnection = this.incomingConnection;
-    async pickPeer() {
-        function getRandomInt(min, max) {
-            return Math.floor(Math.random() * (max - min) + min);
-        }
-        if (this.peers.size === 0) {
-            console.warn("No peer known.");
-            return await new Promise((resolve5)=>{
-                const listener = (addr)=>{
-                    this.peers.removeAddListener(listener);
-                    resolve5(addr);
-                };
-                this.peers.addAddListener(listener);
-            });
-        } else {
-            return [
-                ...this.peers
-            ][getRandomInt(0, this.peers.size)];
-        }
-    }
     async run(connector) {
         const onGoingConnectionAttempts = new Set();
         this.subscriptions.addAddListener(async (feedId)=>{
@@ -20286,7 +20449,8 @@ class FeedsAgent extends Agent {
             }
         });
         while(true){
-            const pickedPeer = await this.pickPeer();
+            const recommendation = await this.rankingTable.getRecommendation();
+            const pickedPeer = recommendation.peer;
             const pickedPeerStr = pickedPeer.key.base64Key;
             if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
                 onGoingConnectionAttempts.add(pickedPeerStr);
@@ -20341,8 +20505,8 @@ class FeedsAgent extends Agent {
             this.addNewMessageListeners(listener);
             try {
                 while(true){
-                    yield await new Promise((resolve6)=>{
-                        resolver = resolve6;
+                    yield await new Promise((resolve8)=>{
+                        resolver = resolve8;
                     });
                 }
             } finally{
@@ -20398,13 +20562,14 @@ class FeedsAgent extends Agent {
             } catch (e) {
                 mod2.debug(`Storing message: ${e}`);
             }
+            this.rankingTable.recordSuccess(rpcConnection.boxConnection.peer, feedKey);
         }
         mod2.debug(()=>`Stream ended for feed ${feedKey}`
         );
     }
-    updateFeeds(rpcConnection) {
-        const subscriptions = this.subscriptions;
-        return Promise.all([
+    async updateFeeds(rpcConnection) {
+        const subscriptions = await this.rankingTable.getFolloweesFor(rpcConnection.boxConnection.peer, 50);
+        await Promise.all([
             ...subscriptions
         ].map((feed)=>this.updateFeed(rpcConnection, feed)
         ));
@@ -20502,10 +20667,10 @@ class BlobsAgent extends Agent {
                         }
                     }
                     while(true){
-                        yield await new Promise((resolve7)=>{
+                        yield await new Promise((resolve9)=>{
                             const wanter = (want)=>{
                                 wantFeeds.delete(feedId.base64Key);
-                                resolve7(want.shortWant);
+                                resolve9(want.shortWant);
                             };
                             wantFeeds.set(feedId.base64Key, wanter);
                         });
@@ -20610,8 +20775,8 @@ class ConnectionManager {
     }
     async *outgoingConnections() {
         while(true){
-            yield await new Promise((resolve8)=>{
-                this.notifyOutgoingConnection = resolve8;
+            yield await new Promise((resolve10)=>{
+                this.notifyOutgoingConnection = resolve10;
             });
         }
     }
@@ -20799,10 +20964,10 @@ const DURATION = {
 };
 function makeConnectionLike(socket) {
     mod2.debug(`making connection like`);
-    const open = new Promise((resolve9, _reject)=>{
+    const open = new Promise((resolve11, _reject)=>{
         socket.onopen = ()=>{
             mod2.debug("Connection opened");
-            resolve9(true);
+            resolve11(true);
         };
     });
     let buffer = new Uint8Array(0);
@@ -20815,16 +20980,16 @@ function makeConnectionLike(socket) {
         }
     };
     const result = {
-        read: (p)=>open.then(()=>new Promise((resolve10, _reject)=>{
+        read: (p)=>open.then(()=>new Promise((resolve12, _reject)=>{
                     const resolveFromBuffer = ()=>{
                         if (p.length >= buffer.length) {
                             p.set(buffer, 0);
-                            resolve10(buffer.length);
+                            resolve12(buffer.length);
                             buffer = new Uint8Array(0);
                         } else {
                             p.set(buffer.subarray(0, p.length), 0);
                             buffer = buffer.slice(p.length);
-                            resolve10(p.length);
+                            resolve12(p.length);
                         }
                     };
                     const resolveFromDataPromises = async ()=>{
@@ -20852,9 +21017,9 @@ function makeConnectionLike(socket) {
                 })
             )
         ,
-        write: (p)=>open.then(()=>new Promise((resolve11, _reject)=>{
+        write: (p)=>open.then(()=>new Promise((resolve13, _reject)=>{
                     socket.send(p);
-                    resolve11(p.length);
+                    resolve13(p.length);
                 })
             )
         ,
