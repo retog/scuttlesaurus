@@ -17,6 +17,7 @@ import {
 import Agent from "../Agent.ts";
 import FeedsStorage from "../../storage/FeedsStorage.ts";
 import ConnectionManager from "../ConnectionManager.ts";
+import RankingTable from "./RankingTable.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -34,12 +35,14 @@ export type Message = {
 };
 
 export default class FeedsAgent extends Agent {
+  rankingTable: RankingTable;
   constructor(
     public feedsStorage: FeedsStorage,
     public subscriptions: ObservableSet<FeedId>,
     public peers: ObservableSet<Address>,
   ) {
     super();
+    this.rankingTable = new RankingTable({ peers, followees: subscriptions });
   }
 
   createRpcContext(_feedId: FeedId): RpcContext {
@@ -57,7 +60,7 @@ export default class FeedsAgent extends Agent {
           : JSON.parse(opts.old);
         const keys = (typeof (opts.keys) === "undefined")
           ? true
-          : JSON.parse(opts.old);
+          : JSON.parse(opts.keys);
         const seq = (typeof (opts.seq) === "undefined")
           ? 1
           : Number.parseInt(opts.seq);
@@ -99,26 +102,6 @@ export default class FeedsAgent extends Agent {
 
   outgoingConnection = this.incomingConnection;
 
-  private async pickPeer(): Promise<Address> {
-    //The maximum is exclusive and the minimum is inclusive
-    function getRandomInt(min: number, max: number) {
-      return Math.floor(Math.random() * (max - min) + min);
-    }
-    if (this.peers.size === 0) {
-      console.warn("No peer known.");
-      //return the first we get
-      return await new Promise((resolve) => {
-        const listener = (addr: Address) => {
-          this.peers.removeAddListener(listener);
-          resolve(addr);
-        };
-        this.peers.addAddListener(listener);
-      });
-    } else {
-      return [...this.peers][getRandomInt(0, this.peers.size)];
-    }
-  }
-
   async run(connector: ConnectionManager): Promise<void> {
     const onGoingConnectionAttempts = new Set<string>();
     this.subscriptions.addAddListener(async (feedId) => {
@@ -127,7 +110,9 @@ export default class FeedsAgent extends Agent {
       }
     });
     while (true) {
-      const pickedPeer = await this.pickPeer();
+      const recommendation = await this.rankingTable.getRecommendation();
+      const pickedPeer = recommendation.peer;
+      //TODO: also use recommendation.followee
       const pickedPeerStr = pickedPeer.key.base64Key;
       if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
         onGoingConnectionAttempts.add(pickedPeerStr);
@@ -299,13 +284,21 @@ export default class FeedsAgent extends Agent {
       } catch (e) {
         log.debug(`Storing message: ${e}`);
       }
+
+      this.rankingTable.recordSuccess(
+        rpcConnection.boxConnection.peer,
+        feedKey,
+      );
     }
     log.debug(() => `Stream ended for feed ${feedKey}`);
   }
 
-  private updateFeeds(rpcConnection: RpcConnection) {
-    const subscriptions = this.subscriptions;
-    return Promise.all(
+  private async updateFeeds(rpcConnection: RpcConnection) {
+    const subscriptions = await this.rankingTable.getFolloweesFor(
+      rpcConnection.boxConnection.peer,
+      50,
+    );
+    await Promise.all(
       [...subscriptions].map((feed) => this.updateFeed(rpcConnection, feed)),
     );
   }

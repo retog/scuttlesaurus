@@ -1,6 +1,6 @@
 # Selection of peers to connect and feeds to ask
 
-**Status: idea**
+**Status: partially freely implemented**
 
 ## Ranking
 
