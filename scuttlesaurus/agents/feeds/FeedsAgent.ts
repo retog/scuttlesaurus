@@ -112,14 +112,17 @@ export default class FeedsAgent extends Agent {
     while (true) {
       const recommendation = await this.rankingTable.getRecommendation();
       const pickedPeer = recommendation.peer;
-      //TODO: also use recommendation.followee
       const pickedPeerStr = pickedPeer.key.base64Key;
       if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
         onGoingConnectionAttempts.add(pickedPeerStr);
         (async () => {
           try {
             //this will cause `outgoingConnection` to be invoked
-            await connector.getConnectionWith(pickedPeer);
+            const rpcConnection = await connector.getConnectionWith(pickedPeer);
+            this.updateFeed(
+              rpcConnection,
+              recommendation.followee,
+            );
           } catch (error) {
             log.error(
               `In connection with ${pickedPeer}: ${error}`,
@@ -241,7 +244,7 @@ export default class FeedsAgent extends Agent {
     for await (const msg of historyStream) {
       if (expectedSequence !== msg.value.sequence) {
         throw new Error(
-          `Expected sequence ${expectedSequence} but got ${msg.value.sequence}`,
+          `Expected sequ ence ${expectedSequence} but got ${msg.value.sequence}`,
         );
       }
       expectedSequence++;
