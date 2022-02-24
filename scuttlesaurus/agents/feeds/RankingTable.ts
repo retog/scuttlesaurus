@@ -1,72 +1,14 @@
-import { Address, FeedId, ObservableSet, TSESet } from "../../util.ts";
+import RankingTableStorage from "../../storage/RankingTableStorage.ts";
+import {
+  Address,
+  delay,
+  FeedId,
+  log,
+  ObservableSet,
+  TSESet,
+} from "../../util.ts";
 
-export default class RankingTable {
-  table: Uint8Array[];
-  followees: FeedId[];
-  followeeLabels: string[];
-  peers: Address[];
-  peerLabels: string[];
-  constructor(
-    private host: {
-      peers: ObservableSet<Address>;
-      followees: ObservableSet<FeedId>;
-    },
-  ) {
-    const followees = [...host.followees];
-    this.followees = followees;
-    const followeeLabels = followees.map((v) => v.toString());
-    this.followeeLabels = followeeLabels;
-    const peers = [...host.peers];
-    this.peers = peers;
-    const peerLabels = peers.map((v) => v.toString());
-    this.peerLabels = peerLabels;
-    this.table = new Array(followees.length);
-    for (let i = 0; i < followees.length; i++) {
-      this.table[i] = new Uint8Array(peers.length);
-      for (let j = 0; j < peers.length; j++) {
-        this.table[i][j] = (peers[j].key.toString() === followeeLabels[i])
-          ? 255
-          : 3;
-      }
-    }
-    host.followees.addRemoveListener((followee) => {
-      const pos = followeeLabels.indexOf(followee.toString());
-      this.table.splice(pos, 1);
-      followees.splice(pos, 1);
-      followeeLabels.splice(pos, 1);
-    });
-    host.peers.addRemoveListener((peer) => {
-      const pos = peerLabels.indexOf(peer.toString());
-      for (let i = 0; i < followees.length; i++) {
-        this.table[i].copyWithin(pos, 1);
-        this.table[i] = this.table[i].subarray(0, peers.length - 1);
-      }
-      peers.splice(pos, 1);
-      peerLabels.splice(pos, 1);
-    });
-    host.followees.addAddListener((followee) => {
-      const pos = followees.length;
-      followees[pos] = followee;
-      followeeLabels[pos] = followee.toString();
-      this.table[pos] = new Uint8Array(peers.length);
-      for (let j = 0; j < peers.length; j++) {
-        this.table[pos][j] = (peers[j].key.toString() === followeeLabels[pos])
-          ? 255
-          : 3;
-      }
-    });
-    host.peers.addAddListener((peer) => {
-      const pos = peers.length;
-      peers[pos] = peer;
-      peerLabels[pos] = peer.toString();
-      for (let i = 0; i < followees.length; i++) {
-        const newRow = new Uint8Array(peers.length);
-        newRow.set(this.table[i]);
-        newRow[pos] = (peer.key.toString() === followeeLabels[i]) ? 255 : 3;
-      }
-    });
-  }
-  /* Simplified system: every time we get feed contents from a peer the respectie tuple gets points.
+/* Table followees/peers: every time we get feed contents from a peer the respective tuple gets points.
   * Whenever we recommend a tuple this costs some points.
   * Problem 1: FeedAgent knows ID but not the full address -> reward all addresses with that ID
   * Problem 2: This penalizes peers with only few feeds
@@ -76,7 +18,100 @@ export default class RankingTable {
   * - Sucess gives 1 point per message
   * - recommendation costs 10%
   */
-  recordSuccess(peer: FeedId, followee: FeedId) {
+export default class RankingTable {
+  tablePromise: Promise<Uint8Array[]>;
+  followees: FeedId[];
+  followeeLabels: string[];
+  peers: Address[];
+  peerLabels: string[];
+  pendingSave: Promise<void> | null = null;
+  constructor(
+    private host: {
+      peers: ObservableSet<Address>;
+      followees: ObservableSet<FeedId>;
+    },
+    private storage: RankingTableStorage,
+  ) {
+    const followees = [...host.followees];
+    this.followees = followees;
+    const followeeLabels = followees.map((v) => v.toString());
+    this.followeeLabels = followeeLabels;
+    const peers = [...host.peers];
+    this.peers = peers;
+    const peerLabels = peers.map((v) => v.toString());
+    this.peerLabels = peerLabels;
+    this.tablePromise = (async () => {
+      const table = await (async () => {
+        let table: Uint8Array[] | undefined;
+        try {
+          table = await storage.getFeedPeerRankings();
+        } catch (error) {
+          log.error(`Error loading peer-rankings: ${error}`);
+        }
+        if (
+          !table ||
+          table.length !== followees.length ||
+          (table.length > 0 && table[0].length !== peers.length)
+        ) {
+          table = new Array(followees.length);
+          for (let i = 0; i < followees.length; i++) {
+            table[i] = new Uint8Array(peers.length);
+            for (let j = 0; j < peers.length; j++) {
+              table[i][j] = (peers[j].key.toString() === followeeLabels[i])
+                ? 255
+                : 3;
+            }
+          }
+        }
+        return table;
+      })();
+
+      host.followees.addRemoveListener((followee) => {
+        const pos = followeeLabels.indexOf(followee.toString());
+        table.splice(pos, 1);
+        followees.splice(pos, 1);
+        followeeLabels.splice(pos, 1);
+        storage.storeFeedPeerRankings(table);
+      });
+      host.peers.addRemoveListener((peer) => {
+        const pos = peerLabels.indexOf(peer.toString());
+        for (let i = 0; i < followees.length; i++) {
+          table[i].copyWithin(pos, 1);
+          table[i] = table[i].subarray(0, peers.length - 1);
+        }
+        peers.splice(pos, 1);
+        peerLabels.splice(pos, 1);
+        storage.storeFeedPeerRankings(table);
+      });
+      host.followees.addAddListener((followee) => {
+        const pos = followees.length;
+        followees[pos] = followee;
+        followeeLabels[pos] = followee.toString();
+        table[pos] = new Uint8Array(peers.length);
+        for (let j = 0; j < peers.length; j++) {
+          table[pos][j] = (peers[j].key.toString() === followeeLabels[pos])
+            ? 255
+            : 3;
+        }
+        storage.storeFeedPeerRankings(table);
+      });
+      host.peers.addAddListener((peer) => {
+        const pos = peers.length;
+        peers[pos] = peer;
+        peerLabels[pos] = peer.toString();
+        for (let i = 0; i < followees.length; i++) {
+          const newRow = new Uint8Array(peers.length);
+          newRow.set(table[i]);
+          newRow[pos] = (peer.key.toString() === followeeLabels[i]) ? 255 : 3;
+        }
+        storage.storeFeedPeerRankings(table);
+      });
+      return table as Uint8Array[];
+    })();
+  }
+
+  async recordSuccess(peer: FeedId, followee: FeedId) {
+    const table = await this.tablePromise;
     const peerPositions = new Array<number>();
     for (let i = 0; i < this.peers.length; i++) {
       if (this.peers[i].key.toString() === peer.toString()) {
@@ -85,11 +120,22 @@ export default class RankingTable {
     }
     const followeePos = this.followeeLabels.indexOf(followee.toString());
     peerPositions.forEach((peerPos) => {
-      const currentValue = this.table[followeePos][peerPos];
+      const currentValue = table[followeePos][peerPos];
       if (currentValue < 0xFF) {
-        this.table[followeePos][peerPos]++; //the reward
+        table[followeePos][peerPos]++; //the reward
+        this.saveEventually();
       }
     });
+  }
+
+  private saveEventually() {
+    if (!this.pendingSave) {
+      this.pendingSave = (async () => {
+        await delay(5 * 1000);
+        await this.storage.storeFeedPeerRankings(await this.tablePromise);
+        this.pendingSave = null;
+      })();
+    }
   }
 
   async getRecommendation(): Promise<{ peer: Address; followee: FeedId }> {
@@ -113,6 +159,7 @@ export default class RankingTable {
     return { peer, followee };
   }
   async getPeerFor(followee: FeedId): Promise<Address> {
+    const table = await this.tablePromise;
     if (this.host.peers.size === 0) {
       console.warn("No peer known.");
       //return the first we get
@@ -125,7 +172,7 @@ export default class RankingTable {
       });
     }
     const pos = this.followeeLabels.indexOf(followee.toString());
-    const peerRatings = this.table[pos];
+    const peerRatings = table[pos];
     const peerRatingsSum = peerRatings.reduce((sum, value) => sum + value + 1);
     const randomPointer = getRandomInt(0, peerRatingsSum);
     let partialSum = 0;
@@ -133,6 +180,7 @@ export default class RankingTable {
       partialSum += 1 + peerRatings[i];
       if (partialSum > randomPointer) {
         peerRatings[i] = Math.ceil(peerRatings[i] * 0.9); //recommendation cost
+        this.saveEventually();
         return this.peers[i];
       }
     }
@@ -152,6 +200,7 @@ export default class RankingTable {
   }
 
   async getFolloweeFor(peerKey: FeedId): Promise<FeedId> {
+    const table = await this.tablePromise;
     const peerPositions = new Array<number>();
     for (let i = 0; i < this.peers.length; i++) {
       if (this.peers[i].key.toString() === peerKey.toString()) {
@@ -170,7 +219,7 @@ export default class RankingTable {
       });
     }
     const pos = peerPositions[getRandomInt(0, peerPositions.length)];
-    const followeeRatings = this.table.map((ratings) => ratings[pos]);
+    const followeeRatings = table.map((ratings) => ratings[pos]);
     const followeeRatingsSum = followeeRatings.reduce((sum, value) =>
       sum + value + 1
     );

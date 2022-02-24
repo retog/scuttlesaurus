@@ -1,8 +1,10 @@
 import FeedsStorage from "../FeedsStorage.ts";
-import { FeedId, JSONValue, NotFoundError } from "../../util.ts";
+import { FeedId, JSONValue, NotFoundError, toHex } from "../../util.ts";
 import type { Message } from "../../agents/feeds/FeedsAgent.ts";
+import RankingTableStorage from "../RankingTableStorage.ts";
 
-export class LocalStorageFeedsStorage implements FeedsStorage {
+export class LocalStorageFeedsStorage
+  implements FeedsStorage, RankingTableStorage {
   private storageKey(feedKey: FeedId, position: number) {
     return feedKey.base64Key + "@" + position;
   }
@@ -51,6 +53,25 @@ export class LocalStorageFeedsStorage implements FeedsStorage {
       return parseInt(positionStr);
     } else {
       return 0;
+    }
+  }
+
+  async storeFeedPeerRankings(table: Uint8Array[]): Promise<void> {
+    const fileContent = JSON.stringify(table.map((u) => toHex(u)));
+    await window.localStorage.setItem(
+      "peer-ranking",
+      fileContent,
+    );
+  }
+
+  async getFeedPeerRankings(): Promise<Uint8Array[]> {
+    const fileContent = await window.localStorage.getItem(
+      "peer-ranking",
+    );
+    if (fileContent) {
+      return JSON.parse(fileContent);
+    } else {
+      return [];
     }
   }
 }

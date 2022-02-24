@@ -18,6 +18,7 @@ import Agent from "../Agent.ts";
 import FeedsStorage from "../../storage/FeedsStorage.ts";
 import ConnectionManager from "../ConnectionManager.ts";
 import RankingTable from "./RankingTable.ts";
+import RankingTableStorage from "../../storage/RankingTableStorage.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -37,12 +38,15 @@ export type Message = {
 export default class FeedsAgent extends Agent {
   rankingTable: RankingTable;
   constructor(
-    public feedsStorage: FeedsStorage,
+    public feedsStorage: (FeedsStorage & RankingTableStorage),
     public subscriptions: ObservableSet<FeedId>,
     public peers: ObservableSet<Address>,
   ) {
     super();
-    this.rankingTable = new RankingTable({ peers, followees: subscriptions });
+    this.rankingTable = new RankingTable(
+      { peers, followees: subscriptions },
+      feedsStorage,
+    );
   }
 
   createRpcContext(_feedId: FeedId): RpcContext {

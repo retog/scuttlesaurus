@@ -26,6 +26,7 @@ import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
 import ConnectionManager from "./agents/ConnectionManager.ts";
+import RankingTableStorage from "./storage/RankingTableStorage.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -57,7 +58,7 @@ export default abstract class ScuttlebuttHost {
 
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
-  feedsStorage: FeedsStorage;
+  feedsStorage: FeedsStorage & RankingTableStorage;
   blobsStorage: BlobsStorage;
   identity: FeedId;
 
@@ -89,7 +90,7 @@ export default abstract class ScuttlebuttHost {
     if (this.blobsAgent) this.agents.add(this.blobsAgent);
   }
 
-  protected abstract createFeedsStorage(): FeedsStorage;
+  protected abstract createFeedsStorage(): FeedsStorage & RankingTableStorage;
 
   protected abstract createBlobsStorage(): BlobsStorage;
 

@@ -12,12 +12,31 @@ import {
 
 import BlobsStorage from "../BlobsStorage.ts";
 import FeedsStorage from "../FeedsStorage.ts";
+import RankingTableStorage from "../RankingTableStorage.ts";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-export default class FsStorage implements BlobsStorage, FeedsStorage {
-  constructor(public readonly dataDir: string) {}
+export default class FsStorage
+  implements BlobsStorage, FeedsStorage, RankingTableStorage {
+  rankingTableFile;
+  constructor(public readonly dataDir: string) {
+    this.rankingTableFile = path.join(dataDir, "ranking-table.json");
+  }
+
+  async storeFeedPeerRankings(table: Uint8Array[]): Promise<void> {
+    const fileContent = JSON.stringify(
+      table.map((u) => toHex(u)),
+      undefined,
+      2,
+    );
+    await Deno.writeTextFile(this.rankingTableFile, fileContent);
+  }
+
+  async getFeedPeerRankings(): Promise<Uint8Array[]> {
+    const fileContent = await Deno.readTextFile(this.rankingTableFile);
+    return JSON.parse(fileContent);
+  }
 
   private getFeedDir(feedKey: FeedId) {
     const feedsDir = path.join(this.dataDir, "feeds");
