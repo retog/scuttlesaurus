@@ -19404,6 +19404,9 @@ function toBase64(data) {
 function fromBase64(text) {
     return __default.from_base64(text, base64_variants.ORIGINAL_NO_PADDING);
 }
+function toHex(data) {
+    return __default.to_hex(data);
+}
 function nodeBinaryEncode(text) {
     function encodeValue(value) {
         if (value <= 65535) {
@@ -20212,13 +20215,16 @@ class Agent {
 }
 class RankingTable {
     host;
-    table;
+    storage;
+    tablePromise;
     followees;
     followeeLabels;
     peers;
     peerLabels;
-    constructor(host){
+    pendingSave = null;
+    constructor(host, storage){
         this.host = host;
+        this.storage = storage;
         const followees = [
             ...host.followees
         ];
@@ -20233,49 +20239,68 @@ class RankingTable {
         const peerLabels = peers.map((v)=>v.toString()
         );
         this.peerLabels = peerLabels;
-        this.table = new Array(followees.length);
-        for(let i1 = 0; i1 < followees.length; i1++){
-            this.table[i1] = new Uint8Array(peers.length);
-            for(let j = 0; j < peers.length; j++){
-                this.table[i1][j] = peers[j].key.toString() === followeeLabels[i1] ? 255 : 3;
-            }
-        }
-        host.followees.addRemoveListener((followee)=>{
-            const pos = followeeLabels.indexOf(followee.toString());
-            this.table.splice(pos, 1);
-            followees.splice(pos, 1);
-            followeeLabels.splice(pos, 1);
-        });
-        host.peers.addRemoveListener((peer)=>{
-            const pos = peerLabels.indexOf(peer.toString());
-            for(let i = 0; i < followees.length; i++){
-                this.table[i].copyWithin(pos, 1);
-                this.table[i] = this.table[i].subarray(0, peers.length - 1);
-            }
-            peers.splice(pos, 1);
-            peerLabels.splice(pos, 1);
-        });
-        host.followees.addAddListener((followee)=>{
-            const pos = followees.length;
-            followees[pos] = followee;
-            followeeLabels[pos] = followee.toString();
-            this.table[pos] = new Uint8Array(peers.length);
-            for(let j = 0; j < peers.length; j++){
-                this.table[pos][j] = peers[j].key.toString() === followeeLabels[pos] ? 255 : 3;
-            }
-        });
-        host.peers.addAddListener((peer)=>{
-            const pos = peers.length;
-            peers[pos] = peer;
-            peerLabels[pos] = peer.toString();
-            for(let i = 0; i < followees.length; i++){
-                const newRow = new Uint8Array(peers.length);
-                newRow.set(this.table[i]);
-                newRow[pos] = peer.key.toString() === followeeLabels[i] ? 255 : 3;
-            }
-        });
+        this.tablePromise = (async ()=>{
+            const table1 = await (async ()=>{
+                let table;
+                try {
+                    table = await storage.getFeedPeerRankings();
+                } catch (error11) {
+                    mod2.error(`Error loading peer-rankings: ${error11}`);
+                }
+                if (!table || table.length !== followees.length || table.length > 0 && table[0].length !== peers.length) {
+                    table = new Array(followees.length);
+                    for(let i = 0; i < followees.length; i++){
+                        table[i] = new Uint8Array(peers.length);
+                        for(let j = 0; j < peers.length; j++){
+                            table[i][j] = peers[j].key.toString() === followeeLabels[i] ? 255 : 3;
+                        }
+                    }
+                }
+                return table;
+            })();
+            host.followees.addRemoveListener((followee)=>{
+                const pos = followeeLabels.indexOf(followee.toString());
+                table1.splice(pos, 1);
+                followees.splice(pos, 1);
+                followeeLabels.splice(pos, 1);
+                storage.storeFeedPeerRankings(table1);
+            });
+            host.peers.addRemoveListener((peer)=>{
+                const pos = peerLabels.indexOf(peer.toString());
+                for(let i = 0; i < followees.length; i++){
+                    table1[i].copyWithin(pos, 1);
+                    table1[i] = table1[i].subarray(0, peers.length - 1);
+                }
+                peers.splice(pos, 1);
+                peerLabels.splice(pos, 1);
+                storage.storeFeedPeerRankings(table1);
+            });
+            host.followees.addAddListener((followee)=>{
+                const pos = followees.length;
+                followees[pos] = followee;
+                followeeLabels[pos] = followee.toString();
+                table1[pos] = new Uint8Array(peers.length);
+                for(let j = 0; j < peers.length; j++){
+                    table1[pos][j] = peers[j].key.toString() === followeeLabels[pos] ? 255 : 3;
+                }
+                storage.storeFeedPeerRankings(table1);
+            });
+            host.peers.addAddListener((peer)=>{
+                const pos = peers.length;
+                peers[pos] = peer;
+                peerLabels[pos] = peer.toString();
+                for(let i = 0; i < followees.length; i++){
+                    const newRow = new Uint8Array(peers.length);
+                    newRow.set(table1[i]);
+                    newRow[pos] = peer.key.toString() === followeeLabels[i] ? 255 : 3;
+                }
+                storage.storeFeedPeerRankings(table1);
+            });
+            return table1;
+        })();
     }
-    recordSuccess(peer, followee) {
+    async recordSuccess(peer, followee) {
+        const table = await this.tablePromise;
         const peerPositions = new Array();
         for(let i = 0; i < this.peers.length; i++){
             if (this.peers[i].key.toString() === peer.toString()) {
@@ -20284,11 +20309,21 @@ class RankingTable {
         }
         const followeePos = this.followeeLabels.indexOf(followee.toString());
         peerPositions.forEach((peerPos)=>{
-            const currentValue = this.table[followeePos][peerPos];
+            const currentValue = table[followeePos][peerPos];
             if (currentValue < 255) {
-                this.table[followeePos][peerPos]++;
+                table[followeePos][peerPos]++;
+                this.saveEventually();
             }
         });
+    }
+    saveEventually() {
+        if (!this.pendingSave) {
+            this.pendingSave = (async ()=>{
+                await delay(5 * 1000);
+                await this.storage.storeFeedPeerRankings(await this.tablePromise);
+                this.pendingSave = null;
+            })();
+        }
     }
     async getRecommendation() {
         const pickFollowee = async ()=>{
@@ -20313,6 +20348,7 @@ class RankingTable {
         };
     }
     async getPeerFor(followee) {
+        const table = await this.tablePromise;
         if (this.host.peers.size === 0) {
             console.warn("No peer known.");
             return await new Promise((resolve6)=>{
@@ -20324,7 +20360,7 @@ class RankingTable {
             });
         }
         const pos = this.followeeLabels.indexOf(followee.toString());
-        const peerRatings = this.table[pos];
+        const peerRatings = table[pos];
         const peerRatingsSum = peerRatings.reduce((sum, value)=>sum + value + 1
         );
         const randomPointer = getRandomInt(0, peerRatingsSum);
@@ -20333,6 +20369,7 @@ class RankingTable {
             partialSum += 1 + peerRatings[i];
             if (partialSum > randomPointer) {
                 peerRatings[i] = Math.ceil(peerRatings[i] * 0.9);
+                this.saveEventually();
                 return this.peers[i];
             }
         }
@@ -20352,6 +20389,7 @@ class RankingTable {
         ];
     }
     async getFolloweeFor(peerKey) {
+        const table = await this.tablePromise;
         const peerPositions = new Array();
         for(let i = 0; i < this.peers.length; i++){
             if (this.peers[i].key.toString() === peerKey.toString()) {
@@ -20369,16 +20407,16 @@ class RankingTable {
             });
         }
         const pos = peerPositions[getRandomInt(0, peerPositions.length)];
-        const followeeRatings = this.table.map((ratings)=>ratings[pos]
+        const followeeRatings = table.map((ratings)=>ratings[pos]
         );
         const followeeRatingsSum = followeeRatings.reduce((sum, value)=>sum + value + 1
         );
         const randomPointer = getRandomInt(0, followeeRatingsSum);
         let partialSum = 0;
-        for(let i2 = 0; i2 < followeeRatings.length; i2++){
-            partialSum += 1 + followeeRatings[i2];
+        for(let i1 = 0; i1 < followeeRatings.length; i1++){
+            partialSum += 1 + followeeRatings[i1];
             if (partialSum > randomPointer) {
-                return this.followees[i2];
+                return this.followees[i1];
             }
         }
         throw new Error("The developer was bad with numbers.");
@@ -20401,7 +20439,7 @@ class FeedsAgent extends Agent {
         this.rankingTable = new RankingTable({
             peers,
             followees: subscriptions
-        });
+        }, feedsStorage);
     }
     createRpcContext(_feedId) {
         const agent = this;
@@ -20456,9 +20494,10 @@ class FeedsAgent extends Agent {
                 onGoingConnectionAttempts.add(pickedPeerStr);
                 (async ()=>{
                     try {
-                        await connector.getConnectionWith(pickedPeer);
-                    } catch (error11) {
-                        mod2.error(`In connection with ${pickedPeer}: ${error11}`);
+                        const rpcConnection = await connector.getConnectionWith(pickedPeer);
+                        this.updateFeed(rpcConnection, recommendation.followee);
+                    } catch (error12) {
+                        mod2.error(`In connection with ${pickedPeer}: ${error12}`);
                     }
                 })().finally(()=>{
                     onGoingConnectionAttempts.delete(pickedPeerStr);
@@ -20488,8 +20527,8 @@ class FeedsAgent extends Agent {
             for(let pos = fromMessage; pos <= lastMessage; pos++){
                 try {
                     yield this.feedsStorage.getMessage(feedId, pos);
-                } catch (error12) {
-                    if (error12 instanceof NotFoundError) {
+                } catch (error13) {
+                    if (error13 instanceof NotFoundError) {
                         mod2.info(`Message ${pos} of ${feedId} not found`);
                     }
                 }
@@ -20518,8 +20557,8 @@ class FeedsAgent extends Agent {
         const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
         try {
             await this.updateFeedFrom(rpcConnection, feedKey, messagesAlreadyHere + 1);
-        } catch (error13) {
-            mod2.info(`error updating feed ${feedKey}: ${error13}`);
+        } catch (error14) {
+            mod2.info(`error updating feed ${feedKey}: ${error14}`);
         }
     }
     async updateFeedFrom(rpcConnection, feedKey, from) {
@@ -20539,7 +20578,7 @@ class FeedsAgent extends Agent {
         let expectedSequence = from;
         for await (const msg of historyStream){
             if (expectedSequence !== msg.value.sequence) {
-                throw new Error(`Expected sequence ${expectedSequence} but got ${msg.value.sequence}`);
+                throw new Error(`Expected sequ ence ${expectedSequence} but got ${msg.value.sequence}`);
             }
             expectedSequence++;
             const hash = computeMsgHash(msg.value);
@@ -20784,9 +20823,9 @@ class ConnectionManager {
         let conn;
         try {
             conn = await this.rpcClientInterface.connect(addr);
-        } catch (error14) {
+        } catch (error15) {
             this.failureListener(addr, true);
-            throw error14;
+            throw error15;
         }
         this.failureListener(addr, false);
         this.newConnection(conn);
@@ -20894,8 +20933,8 @@ class ScuttlebuttHost {
         agents.forEach(async (agent)=>{
             try {
                 await agent.start(this.connectionManager);
-            } catch (error15) {
-                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error15}`);
+            } catch (error16) {
+                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error16}`);
             }
         });
         (async ()=>{
@@ -20903,8 +20942,8 @@ class ScuttlebuttHost {
                 Promise.all(agents.map(async (agent)=>{
                     try {
                         await agent.outgoingConnection(rpcConnection);
-                    } catch (error16) {
-                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error16}`);
+                    } catch (error17) {
+                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
                     }
                 }));
             }
@@ -20913,8 +20952,8 @@ class ScuttlebuttHost {
             Promise.all(agents.map(async (agent)=>{
                 try {
                     await agent.incomingConnection(rpcConnection1);
-                } catch (error17) {
-                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
+                } catch (error18) {
+                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error18}`);
                 }
             }));
         }
@@ -21071,6 +21110,19 @@ class LocalStorageFeedsStorage {
             return parseInt(positionStr);
         } else {
             return 0;
+        }
+    }
+    async storeFeedPeerRankings(table) {
+        const fileContent = JSON.stringify(table.map((u)=>toHex(u)
+        ));
+        await window.localStorage.setItem("peer-ranking", fileContent);
+    }
+    async getFeedPeerRankings() {
+        const fileContent = await window.localStorage.getItem("peer-ranking");
+        if (fileContent) {
+            return JSON.parse(fileContent);
+        } else {
+            return [];
         }
     }
 }
