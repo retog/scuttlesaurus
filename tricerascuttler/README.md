@@ -40,7 +40,7 @@ To generate the scuttlesaurus bundle used in the browser run:
 
     deno run --unstable -A ./build.ts
 
-subsequeNtly you can the programm with:
+Subsequently you can run the programm with:
 
     deno run --unstable -A ./main.ts --web.control.hostname 0.0.0.0 --logLevel INFO
 
