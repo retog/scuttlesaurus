@@ -97,10 +97,12 @@ export class PostElement extends HTMLElement {
           : ""
       }
         ${
-        bindings[0].replies.value.split(",").filter((s) => s != "").map(
-          (reply) =>
-            `Reply: <ssb-post-link href="${reply}"></ssb-post-link><br>`,
-        ).join("")
+        bindings[0].replies
+          ? bindings[0].replies.value.split(",").filter((s) => s != "").map(
+            (reply) =>
+              `Reply: <ssb-post-link href="${reply}"></ssb-post-link><br>`,
+          ).join("")
+          : ""
       }
         <div id="actions">
           <a id="permalink" href="/?uri=${this.msgUri}">🔗</a>
@@ -191,7 +193,7 @@ export class PostElement extends HTMLElement {
         type: "vote",
         vote: {
           link: iriToSigil(this.msgUri),
-        }
+        },
       };
       if (!isLiked) {
         message.vote.value = 1;
@@ -199,7 +201,7 @@ export class PostElement extends HTMLElement {
       } else {
         message.vote.value = 0;
         message.vote.expression = "Unlike";
-      } 
+      }
       await scuttlebuttHost.publish(message);
       isLiked = !isLiked;
       setLabel();
