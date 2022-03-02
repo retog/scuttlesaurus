@@ -30,7 +30,13 @@ const sparqlEndpointQuery = getRequiredEnvVar("SPARQL_ENDPOINT_QUERY");
 const sparqlEndpointUpdate = getRequiredEnvVar("SPARQL_ENDPOINT_UPDATE");
 
 const host = await createScuttlebuttHost();
-const storer = new SparqlStorer(sparqlEndpointQuery, sparqlEndpointUpdate);
+const portalOwner = Deno.env.get("SSB_PORTAL_OWNER");
+
+const storer = new SparqlStorer(
+  sparqlEndpointQuery,
+  sparqlEndpointUpdate,
+  Deno.env.get("SPARQL_ENDPOINT_CREDENTIALS"),
+);
 storer.connectAgent(host.feedsAgent!);
 function addCommonEndpoints(
   { application, router }: {
@@ -54,6 +60,12 @@ function addCommonEndpoints(
         new Headers({ "Cache-Control": "max-age=30, public" }),
     }),
   );
+  /** the owner if one is set, otherwise scuttlesaurus identity */
+  router.get("/main-identity", (ctx: Context) => {
+    ctx.response.body = JSON.stringify({
+      feedId: portalOwner ?? host.identity,
+    });
+  });
   router.get(
     "/blob/sha256/:hash",
     async (ctx: Context) => {
@@ -83,7 +95,7 @@ addCommonEndpoints(host.webEndpoints.control);
 
 host.webEndpoints.access.application.use(staticFiles("static/access"));
 host.webEndpoints.control.application.use(staticFiles("static/control"));
-
+//await registerFollowees(host, sparqlEndpointQuery);
 host.start();
 
 function staticFiles(

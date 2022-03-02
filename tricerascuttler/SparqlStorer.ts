@@ -9,6 +9,7 @@ export default class SparqlStorer {
   constructor(
     public sparqlEndpointQuery: string,
     public sparqlEndpointUpdate: string,
+    public credentials: string | undefined,
   ) {}
 
   /** stored exsting and new messages in the triple store*/
@@ -24,6 +25,7 @@ export default class SparqlStorer {
       }
     };
     const processFeed = async (feedId: FeedId) => {
+      await delay(100);
       const fromMessage = await this.firstUnrecordedMessage(feedId);
       const msgFeed = feedsAgent.getFeed(feedId, {
         fromMessage,
@@ -36,9 +38,9 @@ export default class SparqlStorer {
       }
     };
 
-    Promise.all([...feedsAgent.subscriptions].map(processFeed)).catch(
+    Promise.allSettled([...feedsAgent.subscriptions].map(processFeed)).catch(
       (error) => {
-        console.error(`Processing feeds: ${error}`);
+        console.error(`Processing feeds: ${error.stack}`);
       },
     );
 
@@ -48,39 +50,16 @@ export default class SparqlStorer {
     //feedsAgent.subscriptions.addAddListener(processFeed);
   }
 
-  /*  lastRun: Promise<void> = Promise.resolve();
-
-  private async runSparqlStatementSequential(sparqlStatement: string) {
-    //retrying connection because of "connection closed before message completed"-errors
-    const tryRunSparqlStatement = (attemptsLeft = 5) => {
-      this.lastRun = (async () => {
-        try {
-          await this.runSparqlStatement(sparqlStatement);
-        } catch (error) {
-          if (attemptsLeft === 0) {
-            log.error(`Running SPARQL Update: ${error}`);
-          } else {
-            await delay(10000);
-            await tryRunSparqlStatement(attemptsLeft - 1);
-          }
-        }
-      })();
-    };
-    await this.lastRun;
-    tryRunSparqlStatement();
-    //reduce the write load to increase chances that reads still succeed
-    await delay(10000);
-    await this.lastRun;
-  }*/
-
-  semaphore: Promise<void> = Promise.resolve();
+  semaphore: Promise<unknown> = Promise.resolve();
 
   private async runSparqlStatementSequential(sparqlStatement: string) {
     while (true) {
       const semaphore = this.semaphore;
       try {
         await semaphore;
-      } catch (_e) {}
+      } catch (_e) {
+        //this should be handled by the concurrent invoker
+      }
       if (semaphore === this.semaphore) {
         break;
       }
@@ -91,15 +70,22 @@ export default class SparqlStorer {
 
   private async runSparqlStatement(sparqlStatement: string) {
     await delay(100);
-    const response = await fetch(this.sparqlEndpointUpdate, {
-      "headers": {
-        "Accept": "text/plain,*/*;q=0.9",
-        "Content-Type": "application/sparql-update;charset=utf-8",
+    const headers: Record<string, string> = {
+      "Accept": "text/plain,*/*;q=0.9",
+      "Content-Type": "application/sparql-update;charset=utf-8",
+    };
+    if (this.credentials) {
+      headers.Authorization = `Basic ${btoa(this.credentials)}`;
+    }
+    const response = await fetch(
+      this.sparqlEndpointUpdate,
+      {
+        headers,
+        "body": sparqlStatement,
+        "method": "POST",
+        keepalive: false,
       },
-      "body": sparqlStatement,
-      "method": "POST",
-      keepalive: false,
-    });
+    );
     if (!response.ok) {
       const body = await response.text();
       throw new Error(`${body}\n${sparqlStatement}`);
@@ -111,6 +97,17 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
     await response.arrayBuffer();
   }
   private async firstUnrecordedMessage(feedId: FeedId): Promise<number> {
+    while (true) {
+      const semaphore = this.semaphore;
+      try {
+        await semaphore;
+      } catch (_e) {
+        //this should be handled by the concurrent invoker
+      }
+      if (semaphore === this.semaphore) {
+        break;
+      }
+    }
     const query = `
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -131,16 +128,23 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
           ssb:seq ?next.
       }
     } ORDER BY ASC(?seq) LIMIT 1`;
-    const response = await fetch(this.sparqlEndpointQuery, {
-      "headers": {
-        "Accept": "application/sparql-results+json,*/*;q=0.9",
-        "Content-Type": "application/sparql-query",
-      },
+    const headers: Record<string, string> = {
+      "Accept": "application/sparql-results+json,*/*;q=0.9",
+      "Content-Type": "application/sparql-query",
+    };
+    if (this.credentials) {
+      headers.Authorization = `Basic ${btoa(this.credentials)}`;
+    }
+    const fetchResult = fetch(this.sparqlEndpointQuery, {
+      headers,
       "body": query,
       "method": "POST",
     });
-    if (response.status >= 300) {
-      throw new Error(response.statusText);
+    this.semaphore = fetchResult;
+    const response = await fetchResult;
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`${body}`);
     }
 
     const resultJson = await response.json();
