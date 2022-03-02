@@ -133,8 +133,10 @@ export default function msgToSparql(msg: RichMessage) {
         }
     ${
           content.mentions && Object.entries(content.mentions).length > 0
-            ? ";\n" + content.mentions.map((mention) =>
-              `ssb:mention [${mentionAsTurtlePredicates(mention)}]`
+            ? ";\n" + content.mentions.map((mention, index) =>
+              `ssb:mention <mention:${msgUri}/${index}>. <mention:${msgUri}/${index}> ${
+                mentionAsTurtlePredicates(mention)
+              }`
             ).join(";\n")
             : ""
         }  
