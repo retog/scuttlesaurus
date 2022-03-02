@@ -20406,6 +20406,9 @@ class RankingTable {
                 this.host.followees.addAddListener(listener);
             });
         }
+        if (peerPositions.length === 0) {
+            return this.followees[getRandomInt(0, this.followees.length)];
+        }
         const pos = peerPositions[getRandomInt(0, peerPositions.length)];
         const followeeRatings = table.map((ratings)=>ratings[pos]
         );
