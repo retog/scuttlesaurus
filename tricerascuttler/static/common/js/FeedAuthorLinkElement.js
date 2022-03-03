@@ -9,7 +9,6 @@ export class FeedAuthorLinkElement extends HTMLElement {
     getDescription(feedUri).then(
       ({ name, description, image }) => {
         this.shadowRoot.innerHTML = `
-      <link rel="stylesheet" href="/reset.css">
       <style>
         :host {
         }

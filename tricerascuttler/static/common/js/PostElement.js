@@ -37,8 +37,11 @@ export class PostElement extends HTMLElement {
       const text = bindings[0].text?.value;
       const timestamp = new Date(parseInt(bindings[0].timestamp?.value));
       this.shadowRoot.innerHTML = `
-        <link rel="stylesheet" href="./reset.css">
         <style>
+        *:where(:not(iframe, canvas, img, svg, video):not(svg *, symbol *)) {
+          all: unset;
+          display: revert;
+        }
         :host {
           border: 1px solid gray;
           border-radius: 0.6rem;
