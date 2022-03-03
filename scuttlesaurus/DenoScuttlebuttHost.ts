@@ -106,7 +106,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     const initializeCommonRoutes = (router: Router) => {
       router.get("/whoami", (ctx: Context) => {
         ctx.response.body = JSON.stringify({
-          feedId: new FeedId(this.getClientKeyPair().publicKey),
+          feedId: this.identity,
         });
       });
     };
