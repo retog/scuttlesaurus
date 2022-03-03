@@ -10,10 +10,32 @@ services:
       - "8989:8989"
       - "127.0.0.1:8990:8990"
     depends_on:
-      - "blazegraph"
+      - "virtuoso"
     environment:
-      - SPARQL_ENDPOINT_QUERY=http://blazegraph:8080/blazegraph/sparql
-      - SPARQL_ENDPOINT_UPDATE=http://blazegraph:8080/blazegraph/sparql
-      - LOG_LEVEL=DEBUG
+     - SPARQL_ENDPOINT_QUERY=http://anzograph:7070/sparql
+     - SPARQL_ENDPOINT_UPDATE=http://anzograph:7070/sparql
+#     - SPARQL_ENDPOINT_QUERY=http://virtuoso:8890/sparql
+#     - SPARQL_ENDPOINT_UPDATE=http://virtuoso:8890/sparql?default-graph-uri=urn:default
+#     - SPARQL_ENDPOINT_QUERY=http://blazegraph:8080/blazegraph/sparql
+#     - SPARQL_ENDPOINT_UPDATE=http://blazegraph:8080/blazegraph/sparql
+     - SPARQL_ENDPOINT_CREDENTIALS=ssb:ssb
+     - LOG_LEVEL=DEBUG
   blazegraph:
     image: "metaphacts/blazegraph-basic"
+    volumes:
+     - ../blazegraph-data:/blazegraph-data
+  anzograph:
+    image: cambridgesemantics/anzograph
+    volumes:
+      - ../anzograph-data:/opt/anzograph/persistence
+  virtuoso:
+    image: openlink/virtuoso-opensource-7
+    environment:
+      SPARQL_UPDATE: "true"
+      DEFAULT_GRAPH: "http://www.example.com/my-graph"
+      DBA_PASSWORD: dba
+    ports:
+        - 8890:8890
+    volumes:
+        - ../virtuoso-data:/data
+
