@@ -70,7 +70,7 @@ export function iriToSigil(iri) {
 }
 
 export async function mainIdentity() {
-  const response = await fetch("/whoami");
+  const response = await fetch("/main-identity");
   const whoami = await response.json();
   return sigilToIri(whoami.feedId);
 }
