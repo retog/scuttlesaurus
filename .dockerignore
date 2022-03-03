@@ -1,5 +1,7 @@
-.vscode
-*/.vscode
-*/fuseki-dataset
-*/ssb-base
-*/.devcontainer/container-data
+**/.devcontainer
+.git
+tricerascuttler/ssb-base
+blazegraph-data
+fuseki-data
+anzograph-data
+virtuoso-data

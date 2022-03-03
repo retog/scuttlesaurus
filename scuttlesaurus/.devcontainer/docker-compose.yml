@@ -7,7 +7,7 @@ services:
     image: reto/deno-dev
     
     ports:
-      - "127.0.0.1:18001:8000"
+      - "127.0.0.1:18991:8990"
 
     volumes:
       - ../..:/monorepo:cached
