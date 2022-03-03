@@ -10,9 +10,11 @@ export class PostListElement extends HTMLElement {
     this.loadSize = parseInt(this.getAttribute("loadSize") ?? 20);
     this.styleElem = document.createElement("style");
     this.styleElem.innerHTML = `
-    .post {
-      display: block;
-      margin: 5px;
+    .posts {
+      display: grid;
+      gap: 0.4rem;
+      padding: 0.4rem;
+      max-width: 100vw;
     }
     .hideRead .read {
       display: none;
