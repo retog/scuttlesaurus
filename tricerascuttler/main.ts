@@ -78,13 +78,15 @@ function addCommonEndpoints(
         throw new Error("No BlobsAgent");
       }
       host.blobsAgent.want(blobId);
-      const data = await host.blobsAgent.storage.getBlob(blobId);
-      if (data) {
+      try {
+        const data = await host.blobsAgent.storage.getBlob(blobId);
         ctx.response.body = data;
         ctx.response.headers.append(
           "Cache-Control",
           "Immutable, max-age=604800, public",
         );
+      } catch (_error) {
+        ctx.response.status = 404;
       }
     },
   );
