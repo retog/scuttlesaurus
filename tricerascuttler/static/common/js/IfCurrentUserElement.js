@@ -1,4 +1,4 @@
-import { sigilToIri } from "./web-util.js";
+import { getBrowserUser } from "./web-util.js";
 import * as _instanceName from "./InstanceNameElement.js";
 import * as _feedAuthor from "./FeedAuthorLinkElement.js";
 import * as _feedAuthorEditor from "./FeedAuthorEditorElement.js";
@@ -10,11 +10,7 @@ export class IfCurrentUserElement extends HTMLElement {
 
   async connectedCallback() {
     const feedUri = this.getAttribute("feed");
-    while (!window.scuttlebuttHost) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    const scuttlebuttHost = await window.scuttlebuttHost;
-    const localId = sigilToIri(scuttlebuttHost.identity.toString());
+    const localId = await getBrowserUser();
     if (feedUri === localId.toString()) {
       if (
         this.children.length > 0 && this.children[0].tagName === "TEMPLATE"

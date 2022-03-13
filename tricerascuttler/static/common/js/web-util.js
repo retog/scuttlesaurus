@@ -114,3 +114,12 @@ export const ReadStateManager = {
     return this.getReadMessages().indexOf(msgUri) > -1;
   },
 };
+
+export async function getBrowserUser() {
+  while (!window.scuttlebuttHost) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  const scuttlebuttHost = await window.scuttlebuttHost;
+  const localId = sigilToIri(scuttlebuttHost.identity.toString());
+  return localId;
+}
