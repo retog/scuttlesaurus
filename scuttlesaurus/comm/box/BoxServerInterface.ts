@@ -161,26 +161,34 @@ export default class BoxServerInterface
     return connection;
   }
 
-  async *listen() {
+  async *listen(signal?: AbortSignal) {
     const iterator = combine(
-      ...this.transports.map((i) => i.listen()),
+      ...this.transports.map((i) => i.listen(signal)),
     );
-    for await (
-      const conn of {
-        [Symbol.asyncIterator]: () => iterator,
+    try {
+      for await (
+        const conn of {
+          [Symbol.asyncIterator]: () => iterator,
+        }
+      ) {
+        try {
+          const boxConnection = await this.acceptConnection(conn);
+          signal?.addEventListener("abort", () => {
+            boxConnection.close();
+          }, { once: true });
+          yield boxConnection;
+        } catch (error) {
+          log.warning(
+            `Error with incoming connection with remote ${
+              JSON.stringify(
+                (conn as unknown as { remoteAddr: unknown }).remoteAddr!,
+              )
+            }: ${error}\n${error.stack}`,
+          );
+        }
       }
-    ) {
-      try {
-        yield await this.acceptConnection(conn);
-      } catch (error) {
-        log.warning(
-          `Error with incoming connection with remote ${
-            JSON.stringify(
-              (conn as unknown as { remoteAddr: unknown }).remoteAddr!,
-            )
-          }: ${error}\n${error.stack}`,
-        );
-      }
+    } catch (error) {
+      log.warning(`iterating over combined transports: ${error}`);
     }
   }
 }

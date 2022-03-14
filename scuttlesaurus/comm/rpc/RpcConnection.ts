@@ -198,7 +198,7 @@ export default class RpcConnection {
     })();
     const checkTimeout = async () => {
       while (!this.boxConnection.closed) {
-        await delay(5000);
+        await delay(500);
         const timeSinceRead = Date.now() - lastAnswer;
         if (timeSinceRead > answerTimeout * 1000) {
           log.info(

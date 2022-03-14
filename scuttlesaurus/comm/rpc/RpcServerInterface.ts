@@ -23,8 +23,8 @@ export default class RpcSeverInterface
     this.activityTimeout = activityTimeout;
   }
 
-  async *listen() {
-    for await (const boxConnection of this.boxServerInterface.listen()) {
+  async *listen(signal?: AbortSignal) {
+    for await (const boxConnection of this.boxServerInterface.listen(signal)) {
       yield new RpcConnection(
         boxConnection,
         this.requestHandlerBuilder(boxConnection.peer),

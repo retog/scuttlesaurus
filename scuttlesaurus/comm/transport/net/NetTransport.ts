@@ -17,7 +17,9 @@ export default class NetTransport implements Transport {
     });
     return connection;
   }
-  listen() {
-    return Deno.listen(this.options);
+  listen(signal?: AbortSignal) {
+    const listener = Deno.listen(this.options);
+    signal?.addEventListener("abort", () => listener.close(), { once: true });
+    return listener;
   }
 }

@@ -98,7 +98,7 @@ export default abstract class ScuttlebuttHost {
 
   connectionManager: ConnectionManager | undefined;
 
-  async start() {
+  async start(signal?: AbortSignal) {
     log.info(`Starting SSB Host`);
     if (this.transportClients.size + this.transportServers.size === 0) {
       log.warning(
@@ -168,7 +168,7 @@ export default abstract class ScuttlebuttHost {
     );
     agents.forEach(async (agent) => {
       try {
-        await agent.start(this.connectionManager!);
+        await agent.run(this.connectionManager!, signal);
       } catch (error) {
         log.warning(
           `Error starting agent ${agent.constructor.name}: ${error}`,
@@ -194,7 +194,7 @@ export default abstract class ScuttlebuttHost {
       }
     })();
 
-    for await (const rpcConnection of this.connectionManager.listen()) {
+    for await (const rpcConnection of this.connectionManager.listen(signal)) {
       Promise.all(
         agents.map(async (agent) => {
           try {

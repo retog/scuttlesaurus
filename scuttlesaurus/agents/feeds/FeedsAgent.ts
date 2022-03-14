@@ -106,15 +106,18 @@ export default class FeedsAgent extends Agent {
 
   outgoingConnection = this.incomingConnection;
 
-  async run(connector: ConnectionManager): Promise<void> {
+  async run(connector: ConnectionManager, signal?: AbortSignal): Promise<void> {
     const onGoingConnectionAttempts = new Set<string>();
     this.subscriptions.addAddListener(async (feedId) => {
       for (const connection of this.onGoingSyncPeers.values()) {
-        await this.updateFeed(connection, feedId);
+        await this.updateFeed(connection, feedId, signal);
       }
     });
     while (true) {
-      const recommendation = await this.rankingTable.getRecommendation();
+      if (signal?.aborted) {
+        throw new DOMException("FeedsAgent was aborted.", "AbortError");
+      }
+      const recommendation = await this.rankingTable.getRecommendation(signal);
       const pickedPeer = recommendation.peer;
       const pickedPeerStr = pickedPeer.key.base64Key;
       if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
@@ -126,10 +129,11 @@ export default class FeedsAgent extends Agent {
             this.updateFeed(
               rpcConnection,
               recommendation.followee,
+              signal,
             );
           } catch (error) {
             log.error(
-              `In connection with ${pickedPeer}: ${error}`,
+              `In connection with ${pickedPeer}: ${error.stack}`,
             );
             //TODO this shoul cause this peer to be attempted less frequently
           }
@@ -138,7 +142,7 @@ export default class FeedsAgent extends Agent {
         });
       }
       // wait some time depending on how many syncs are going on
-      await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000);
+      await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000, { signal });
     }
   }
 
@@ -217,6 +221,7 @@ export default class FeedsAgent extends Agent {
   async updateFeed(
     rpcConnection: RpcConnection,
     feedKey: FeedId,
+    signal?: AbortSignal,
   ) {
     const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
     try {
@@ -224,6 +229,7 @@ export default class FeedsAgent extends Agent {
         rpcConnection,
         feedKey,
         messagesAlreadyHere + 1,
+        signal,
       );
     } catch (error) {
       log.info(`error updating feed ${feedKey}: ${error}`);
@@ -234,6 +240,7 @@ export default class FeedsAgent extends Agent {
     rpcConnection: RpcConnection,
     feedKey: FeedId,
     from: number,
+    signal?: AbortSignal,
   ) {
     log.debug(`Updating Feed ${feedKey} from ${from}`);
     const historyStream = await rpcConnection.sendSourceRequest({
@@ -295,6 +302,7 @@ export default class FeedsAgent extends Agent {
       this.rankingTable.recordSuccess(
         rpcConnection.boxConnection.peer,
         feedKey,
+        signal,
       );
     }
     log.debug(() => `Stream ended for feed ${feedKey}`);

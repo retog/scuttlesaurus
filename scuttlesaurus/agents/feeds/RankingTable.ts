@@ -46,7 +46,9 @@ export default class RankingTable {
         try {
           table = await storage.getFeedPeerRankings();
         } catch (error) {
-          log.error(`Error loading peer-rankings: ${error}`);
+          log.info(
+            `Error loading peer-rankings, will create new table: ${error}`,
+          );
         }
         if (
           !table ||
@@ -110,7 +112,7 @@ export default class RankingTable {
     })();
   }
 
-  async recordSuccess(peer: FeedId, followee: FeedId) {
+  async recordSuccess(peer: FeedId, followee: FeedId, signal?: AbortSignal) {
     const table = await this.tablePromise;
     const peerPositions = new Array<number>();
     for (let i = 0; i < this.peers.length; i++) {
@@ -123,22 +125,26 @@ export default class RankingTable {
       const currentValue = table[followeePos][peerPos];
       if (currentValue < 0xFF) {
         table[followeePos][peerPos]++; //the reward
-        this.saveEventually();
+        this.saveEventually(signal);
       }
     });
   }
 
-  private saveEventually() {
+  private saveEventually(signal?: AbortSignal) {
     if (!this.pendingSave) {
       this.pendingSave = (async () => {
-        await delay(5 * 1000);
+        try {
+          await delay(5 * 1000, { signal });
+        } catch (_e) { 
+          //aborted
+        }
         await this.storage.storeFeedPeerRankings(await this.tablePromise);
         this.pendingSave = null;
       })();
     }
   }
 
-  async getRecommendation(): Promise<{ peer: Address; followee: FeedId }> {
+  async getRecommendation(signal?: AbortSignal): Promise<{ peer: Address; followee: FeedId }> {
     const pickFollowee = async () => {
       if (this.followees.length === 0) {
         console.warn("No followees.");
@@ -155,10 +161,10 @@ export default class RankingTable {
       }
     };
     const followee = await pickFollowee();
-    const peer = await this.getPeerFor(followee);
+    const peer = await this.getPeerFor(followee, signal);
     return { peer, followee };
   }
-  async getPeerFor(followee: FeedId): Promise<Address> {
+  async getPeerFor(followee: FeedId, signal?: AbortSignal): Promise<Address> {
     const table = await this.tablePromise;
     if (this.host.peers.size === 0) {
       console.warn("No peer known.");
@@ -180,7 +186,7 @@ export default class RankingTable {
       partialSum += 1 + peerRatings[i];
       if (partialSum > randomPointer) {
         peerRatings[i] = Math.ceil(peerRatings[i] * 0.9); //recommendation cost
-        this.saveEventually();
+        this.saveEventually(signal);
         return this.peers[i];
       }
     }

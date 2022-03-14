@@ -25,8 +25,8 @@ export default class ConnectionManager
     );
   }
 
-  async *listen(): AsyncIterable<RpcConnection> {
-    for await (const conn of this.rpcServerInterface.listen()) {
+  async *listen(signal?: AbortSignal): AsyncIterable<RpcConnection> {
+    for await (const conn of this.rpcServerInterface.listen(signal)) {
       this.newConnection(conn);
       yield conn;
     }
