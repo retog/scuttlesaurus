@@ -18840,11 +18840,25 @@ const mod2 = await async function() {
         setup: setup
     };
 }();
-function delay(ms) {
-    return new Promise((res)=>setTimeout(()=>{
-            res();
-        }, ms)
-    );
+function delay(ms, options = {}) {
+    const { signal  } = options;
+    if (signal?.aborted) {
+        return Promise.reject(new DOMException("Delay was aborted.", "AbortError"));
+    }
+    return new Promise((resolve3, reject)=>{
+        const abort = ()=>{
+            clearTimeout(i);
+            reject(new DOMException("Delay was aborted.", "AbortError"));
+        };
+        const done = ()=>{
+            signal?.removeEventListener("abort", abort);
+            resolve3();
+        };
+        const i = setTimeout(done, ms);
+        signal?.addEventListener("abort", abort, {
+            once: true
+        });
+    });
 }
 class DenoStdInternalError1 extends Error {
     constructor(message){
@@ -19850,17 +19864,27 @@ class BoxServerInterface {
         });
         return connection;
     }
-    async *listen() {
-        const iterator = combine(...this.transports.map((i)=>i.listen()
+    async *listen(signal) {
+        const iterator = combine(...this.transports.map((i)=>i.listen(signal)
         ));
-        for await (const conn of {
-            [Symbol.asyncIterator]: ()=>iterator
-        }){
-            try {
-                yield await this.acceptConnection(conn);
-            } catch (error4) {
-                mod2.warning(`Error with incoming connection with remote ${JSON.stringify(conn.remoteAddr)}: ${error4}\n${error4.stack}`);
+        try {
+            for await (const conn of {
+                [Symbol.asyncIterator]: ()=>iterator
+            }){
+                try {
+                    const boxConnection = await this.acceptConnection(conn);
+                    signal?.addEventListener("abort", ()=>{
+                        boxConnection.close();
+                    }, {
+                        once: true
+                    });
+                    yield boxConnection;
+                } catch (error4) {
+                    mod2.warning(`Error with incoming connection with remote ${JSON.stringify(conn.remoteAddr)}: ${error4}\n${error4.stack}`);
+                }
             }
+        } catch (error5) {
+            mod2.warning(`iterating over combined transports: ${error5}`);
         }
     }
 }
@@ -19930,9 +19954,9 @@ class RpcConnection {
                             const decoded = textDecoder.decode(body);
                             try {
                                 return JSON.parse(decoded);
-                            } catch (error5) {
+                            } catch (error6) {
                                 mod2.error(`Parsing ${decoded} in request ${JSON.stringify(header)}`);
-                                throw error5;
+                                throw error6;
                             }
                         };
                         const request = parse11();
@@ -19949,9 +19973,9 @@ class RpcConnection {
                                                     isStream: true,
                                                     inReplyTo: header.requestNumber
                                                 });
-                                            } catch (error6) {
+                                            } catch (error7) {
                                                 mod2.error(`Error sending back response to request ${JSON.stringify(request)} by
-                          ${this.boxConnection.peer}: ${error6}`);
+                          ${this.boxConnection.peer}: ${error7}`);
                                             }
                                         }
                                         await this.sendRpcMessage("true", {
@@ -19960,8 +19984,8 @@ class RpcConnection {
                                             bodyType: RpcBodyType.json,
                                             inReplyTo: header.requestNumber
                                         });
-                                    } catch (error7) {
-                                        mod2.error(`Error iterating on respone on ${request.name} (${JSON.stringify(request.args)}) request by ${this.boxConnection.peer}: ${error7.stack}`);
+                                    } catch (error8) {
+                                        mod2.error(`Error iterating on respone on ${request.name} (${JSON.stringify(request.args)}) request by ${this.boxConnection.peer}: ${error8.stack}`);
                                         return;
                                     }
                                 })();
@@ -19990,13 +20014,13 @@ class RpcConnection {
         (async ()=>{
             try {
                 await monitorConnection();
-            } catch (error8) {
-                mod2.warning(`Caught error monitoring RPC connection: ${error8}`);
+            } catch (error9) {
+                mod2.warning(`Caught error monitoring RPC connection: ${error9}`);
             }
         })();
         const checkTimeout = async ()=>{
             while(!this.boxConnection.closed){
-                await delay(5000);
+                await delay(500);
                 const timeSinceRead = Date.now() - lastAnswer;
                 if (timeSinceRead > answerTimeout * 1000) {
                     mod2.info(`RPCConnection readTimeout: ${timeSinceRead / 1000} seconds since last response was received.`);
@@ -20050,11 +20074,11 @@ class RpcConnection {
                             }
                         }
                     }
-                    yield await new Promise((resolve3, reject)=>{
+                    yield await new Promise((resolve4, reject)=>{
                         responseStreamListeners.set(requestNumber, (message, header)=>{
                             if (!header.endOrError) {
                                 responseStreamListeners.set(requestNumber, bufferer);
-                                resolve3(parse3(message, header.bodyType));
+                                resolve4(parse3(message, header.bodyType));
                             } else {
                                 const endMessage = textDecoder.decode(message);
                                 if (endMessage === "true") {
@@ -20067,11 +20091,11 @@ class RpcConnection {
                         });
                     });
                 }
-            } catch (error9) {
-                if (error9 instanceof EndOfStream) {
+            } catch (error10) {
+                if (error10 instanceof EndOfStream) {
                     return;
                 } else {
-                    throw error9;
+                    throw error10;
                 }
             }
         };
@@ -20086,11 +20110,11 @@ class RpcConnection {
             bodyType: RpcBodyType.json,
             isStream: false
         });
-        return new Promise((resolve4, reject)=>{
+        return new Promise((resolve5, reject)=>{
             this.responseStreamListeners.set(requestNumber, (message, header)=>{
                 this.responseStreamListeners.delete(requestNumber);
                 if (!header.endOrError) {
-                    resolve4(parse3(message, header.bodyType));
+                    resolve5(parse3(message, header.bodyType));
                 } else {
                     reject(new Error(textDecoder.decode(message)));
                 }
@@ -20131,8 +20155,8 @@ class RpcConnection {
         const message = concat(header, payload);
         try {
             await this.boxConnection.write(message);
-        } catch (error10) {
-            throw new Error(`Failed writing to boxConnection with ${this.boxConnection.peer}: ${error10}.`);
+        } catch (error11) {
+            throw new Error(`Failed writing to boxConnection with ${this.boxConnection.peer}: ${error11}.`);
         }
         return requestNumber;
     };
@@ -20167,8 +20191,8 @@ class RpcSeverInterface {
         this.answerTimeout = answerTimeout;
         this.activityTimeout = activityTimeout;
     }
-    async *listen() {
-        for await (const boxConnection of this.boxServerInterface.listen()){
+    async *listen(signal) {
+        for await (const boxConnection of this.boxServerInterface.listen(signal)){
             yield new RpcConnection(boxConnection, this.requestHandlerBuilder(boxConnection.peer), this);
         }
     }
@@ -20244,8 +20268,8 @@ class RankingTable {
                 let table;
                 try {
                     table = await storage.getFeedPeerRankings();
-                } catch (error11) {
-                    mod2.error(`Error loading peer-rankings: ${error11}`);
+                } catch (error12) {
+                    mod2.info(`Error loading peer-rankings, will create new table: ${error12}`);
                 }
                 if (!table || table.length !== followees.length || table.length > 0 && table[0].length !== peers.length) {
                     table = new Array(followees.length);
@@ -20299,7 +20323,7 @@ class RankingTable {
             return table1;
         })();
     }
-    async recordSuccess(peer, followee) {
+    async recordSuccess(peer, followee, signal) {
         const table = await this.tablePromise;
         const peerPositions = new Array();
         for(let i = 0; i < this.peers.length; i++){
@@ -20312,27 +20336,31 @@ class RankingTable {
             const currentValue = table[followeePos][peerPos];
             if (currentValue < 255) {
                 table[followeePos][peerPos]++;
-                this.saveEventually();
+                this.saveEventually(signal);
             }
         });
     }
-    saveEventually() {
+    saveEventually(signal) {
         if (!this.pendingSave) {
             this.pendingSave = (async ()=>{
-                await delay(5 * 1000);
+                try {
+                    await delay(5 * 1000, {
+                        signal
+                    });
+                } catch (_e) {}
                 await this.storage.storeFeedPeerRankings(await this.tablePromise);
                 this.pendingSave = null;
             })();
         }
     }
-    async getRecommendation() {
+    async getRecommendation(signal) {
         const pickFollowee = async ()=>{
             if (this.followees.length === 0) {
                 console.warn("No followees.");
-                return await new Promise((resolve5)=>{
+                return await new Promise((resolve6)=>{
                     const listener = (feed)=>{
                         this.host.followees.removeAddListener(listener);
-                        resolve5(feed);
+                        resolve6(feed);
                     };
                     this.host.followees.addAddListener(listener);
                 });
@@ -20341,20 +20369,20 @@ class RankingTable {
             }
         };
         const followee = await pickFollowee();
-        const peer = await this.getPeerFor(followee);
+        const peer = await this.getPeerFor(followee, signal);
         return {
             peer,
             followee
         };
     }
-    async getPeerFor(followee) {
+    async getPeerFor(followee, signal) {
         const table = await this.tablePromise;
         if (this.host.peers.size === 0) {
             console.warn("No peer known.");
-            return await new Promise((resolve6)=>{
+            return await new Promise((resolve7)=>{
                 const listener = (addr)=>{
                     this.host.peers.removeAddListener(listener);
-                    resolve6(addr);
+                    resolve7(addr);
                 };
                 this.host.peers.addAddListener(listener);
             });
@@ -20369,7 +20397,7 @@ class RankingTable {
             partialSum += 1 + peerRatings[i];
             if (partialSum > randomPointer) {
                 peerRatings[i] = Math.ceil(peerRatings[i] * 0.9);
-                this.saveEventually();
+                this.saveEventually(signal);
                 return this.peers[i];
             }
         }
@@ -20398,10 +20426,10 @@ class RankingTable {
         }
         if (this.host.followees.size === 0) {
             console.warn("No followee known.");
-            return await new Promise((resolve7)=>{
+            return await new Promise((resolve8)=>{
                 const listener = (addr)=>{
                     this.host.followees.removeAddListener(listener);
-                    resolve7(addr);
+                    resolve8(addr);
                 };
                 this.host.followees.addAddListener(listener);
             });
@@ -20482,15 +20510,18 @@ class FeedsAgent extends Agent {
         }
     }
     outgoingConnection = this.incomingConnection;
-    async run(connector) {
+    async run(connector, signal) {
         const onGoingConnectionAttempts = new Set();
         this.subscriptions.addAddListener(async (feedId)=>{
             for (const connection of this.onGoingSyncPeers.values()){
-                await this.updateFeed(connection, feedId);
+                await this.updateFeed(connection, feedId, signal);
             }
         });
         while(true){
-            const recommendation = await this.rankingTable.getRecommendation();
+            if (signal?.aborted) {
+                throw new DOMException("FeedsAgent was aborted.", "AbortError");
+            }
+            const recommendation = await this.rankingTable.getRecommendation(signal);
             const pickedPeer = recommendation.peer;
             const pickedPeerStr = pickedPeer.key.base64Key;
             if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
@@ -20498,15 +20529,17 @@ class FeedsAgent extends Agent {
                 (async ()=>{
                     try {
                         const rpcConnection = await connector.getConnectionWith(pickedPeer);
-                        this.updateFeed(rpcConnection, recommendation.followee);
-                    } catch (error12) {
-                        mod2.error(`In connection with ${pickedPeer}: ${error12}`);
+                        this.updateFeed(rpcConnection, recommendation.followee, signal);
+                    } catch (error13) {
+                        mod2.error(`In connection with ${pickedPeer}: ${error13.stack}`);
                     }
                 })().finally(()=>{
                     onGoingConnectionAttempts.delete(pickedPeerStr);
                 });
             }
-            await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000);
+            await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000, {
+                signal
+            });
         }
     }
     newMessageListeners = [];
@@ -20530,8 +20563,8 @@ class FeedsAgent extends Agent {
             for(let pos = fromMessage; pos <= lastMessage; pos++){
                 try {
                     yield this.feedsStorage.getMessage(feedId, pos);
-                } catch (error13) {
-                    if (error13 instanceof NotFoundError) {
+                } catch (error14) {
+                    if (error14 instanceof NotFoundError) {
                         mod2.info(`Message ${pos} of ${feedId} not found`);
                     }
                 }
@@ -20547,8 +20580,8 @@ class FeedsAgent extends Agent {
             this.addNewMessageListeners(listener);
             try {
                 while(true){
-                    yield await new Promise((resolve8)=>{
-                        resolver = resolve8;
+                    yield await new Promise((resolve9)=>{
+                        resolver = resolve9;
                     });
                 }
             } finally{
@@ -20556,15 +20589,15 @@ class FeedsAgent extends Agent {
             }
         }
     }
-    async updateFeed(rpcConnection, feedKey) {
+    async updateFeed(rpcConnection, feedKey, signal) {
         const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
         try {
-            await this.updateFeedFrom(rpcConnection, feedKey, messagesAlreadyHere + 1);
-        } catch (error14) {
-            mod2.info(`error updating feed ${feedKey}: ${error14}`);
+            await this.updateFeedFrom(rpcConnection, feedKey, messagesAlreadyHere + 1, signal);
+        } catch (error15) {
+            mod2.info(`error updating feed ${feedKey}: ${error15}`);
         }
     }
-    async updateFeedFrom(rpcConnection, feedKey, from) {
+    async updateFeedFrom(rpcConnection, feedKey, from, signal) {
         mod2.debug(`Updating Feed ${feedKey} from ${from}`);
         const historyStream = await rpcConnection.sendSourceRequest({
             "name": [
@@ -20604,7 +20637,7 @@ class FeedsAgent extends Agent {
             } catch (e) {
                 mod2.debug(`Storing message: ${e}`);
             }
-            this.rankingTable.recordSuccess(rpcConnection.boxConnection.peer, feedKey);
+            this.rankingTable.recordSuccess(rpcConnection.boxConnection.peer, feedKey, signal);
         }
         mod2.debug(()=>`Stream ended for feed ${feedKey}`
         );
@@ -20709,10 +20742,10 @@ class BlobsAgent extends Agent {
                         }
                     }
                     while(true){
-                        yield await new Promise((resolve9)=>{
+                        yield await new Promise((resolve10)=>{
                             const wanter = (want)=>{
                                 wantFeeds.delete(feedId.base64Key);
-                                resolve9(want.shortWant);
+                                resolve10(want.shortWant);
                             };
                             wantFeeds.set(feedId.base64Key, wanter);
                         });
@@ -20809,16 +20842,16 @@ class ConnectionManager {
     newConnection(conn) {
         this.connections.set(conn.boxConnection.peer.base64Key, new WeakRef(conn));
     }
-    async *listen() {
-        for await (const conn of this.rpcServerInterface.listen()){
+    async *listen(signal) {
+        for await (const conn of this.rpcServerInterface.listen(signal)){
             this.newConnection(conn);
             yield conn;
         }
     }
     async *outgoingConnections() {
         while(true){
-            yield await new Promise((resolve10)=>{
-                this.notifyOutgoingConnection = resolve10;
+            yield await new Promise((resolve11)=>{
+                this.notifyOutgoingConnection = resolve11;
             });
         }
     }
@@ -20826,9 +20859,9 @@ class ConnectionManager {
         let conn;
         try {
             conn = await this.rpcClientInterface.connect(addr);
-        } catch (error15) {
+        } catch (error16) {
             this.failureListener(addr, true);
-            throw error15;
+            throw error16;
         }
         this.failureListener(addr, false);
         this.newConnection(conn);
@@ -20888,7 +20921,7 @@ class ScuttlebuttHost {
         if (this.blobsAgent) this.agents.add(this.blobsAgent);
     }
     connectionManager;
-    async start() {
+    async start(signal) {
         mod2.info(`Starting SSB Host`);
         if (this.transportClients.size + this.transportServers.size === 0) {
             mod2.warning("No transport set, this host is unable to communicate with peers.");
@@ -20935,9 +20968,9 @@ class ScuttlebuttHost {
         });
         agents.forEach(async (agent)=>{
             try {
-                await agent.start(this.connectionManager);
-            } catch (error16) {
-                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error16}`);
+                await agent.run(this.connectionManager, signal);
+            } catch (error17) {
+                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error17}`);
             }
         });
         (async ()=>{
@@ -20945,18 +20978,18 @@ class ScuttlebuttHost {
                 Promise.all(agents.map(async (agent)=>{
                     try {
                         await agent.outgoingConnection(rpcConnection);
-                    } catch (error17) {
-                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error17}`);
+                    } catch (error18) {
+                        mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error18}`);
                     }
                 }));
             }
         })();
-        for await (const rpcConnection1 of this.connectionManager.listen()){
+        for await (const rpcConnection1 of this.connectionManager.listen(signal)){
             Promise.all(agents.map(async (agent)=>{
                 try {
                     await agent.incomingConnection(rpcConnection1);
-                } catch (error18) {
-                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error18}`);
+                } catch (error19) {
+                    mod2.warning(`Error with agent ${agent.constructor.name} handling incoming connection: ${error19}`);
                 }
             }));
         }
@@ -21006,10 +21039,10 @@ const DURATION = {
 };
 function makeConnectionLike(socket) {
     mod2.debug(`making connection like`);
-    const open = new Promise((resolve11, _reject)=>{
+    const open = new Promise((resolve12, _reject)=>{
         socket.onopen = ()=>{
             mod2.debug("Connection opened");
-            resolve11(true);
+            resolve12(true);
         };
     });
     let buffer = new Uint8Array(0);
@@ -21022,16 +21055,16 @@ function makeConnectionLike(socket) {
         }
     };
     const result = {
-        read: (p)=>open.then(()=>new Promise((resolve12, _reject)=>{
+        read: (p)=>open.then(()=>new Promise((resolve13, _reject)=>{
                     const resolveFromBuffer = ()=>{
                         if (p.length >= buffer.length) {
                             p.set(buffer, 0);
-                            resolve12(buffer.length);
+                            resolve13(buffer.length);
                             buffer = new Uint8Array(0);
                         } else {
                             p.set(buffer.subarray(0, p.length), 0);
                             buffer = buffer.slice(p.length);
-                            resolve12(p.length);
+                            resolve13(p.length);
                         }
                     };
                     const resolveFromDataPromises = async ()=>{
@@ -21059,9 +21092,9 @@ function makeConnectionLike(socket) {
                 })
             )
         ,
-        write: (p)=>open.then(()=>new Promise((resolve13, _reject)=>{
+        write: (p)=>open.then(()=>new Promise((resolve14, _reject)=>{
                     socket.send(p);
-                    resolve13(p.length);
+                    resolve14(p.length);
                 })
             )
         ,
