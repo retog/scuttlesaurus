@@ -22,6 +22,7 @@ export default class FsStorage
   rankingTableFile;
   constructor(public readonly dataDir: string) {
     this.rankingTableFile = path.join(dataDir, "ranking-table.json");
+    Deno.mkdirSync(dataDir, { recursive: true });
   }
 
   async storeFeedPeerRankings(table: Uint8Array[]): Promise<void> {
