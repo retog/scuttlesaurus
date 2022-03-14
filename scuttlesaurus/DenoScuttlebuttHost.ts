@@ -42,13 +42,14 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       autoConnectLocalPeers?: boolean;
       acceptIncomingConnections?: boolean;
       baseDir: string;
-      dataDir: string;
+      dataDir?: string;
       web?: {
         control?: Deno.ListenOptions;
         access?: Deno.ListenOptions;
       };
     } & ParentConfig,
   ) {
+    config.dataDir ??= path.join(config.baseDir, "data/");
     const followeesFile = path.join(config.baseDir, "followees.json");
     try {
       const followStrings = JSON.parse(
@@ -207,12 +208,13 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     }
   }
 
+  
   protected createFeedsStorage() {
-    return new FsStorage(this.config.dataDir);
+    return new FsStorage(this.config.dataDir!);
   }
 
   protected createBlobsStorage() {
-    return new FsStorage(this.config.dataDir);
+    return new FsStorage(this.config.dataDir!);
   }
 
   protected getClientKeyPair() {

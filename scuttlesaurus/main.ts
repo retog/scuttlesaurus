@@ -53,10 +53,8 @@ async function configureLogging(options: Args) {
 }
 
 function getDefaultConfig(baseDir: string) {
-  const dataDir = path.join(baseDir, "data/");
   return {
     baseDir,
-    dataDir,
     transport: {
       net: {
         port: 8008,
