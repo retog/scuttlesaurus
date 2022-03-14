@@ -1,4 +1,4 @@
-FROM denoland/deno:1.17.0
+FROM denoland/deno:1.19.3
 RUN mkdir /home/deno && chown deno /home/deno
 USER deno
 ENV DENO_DIR=/home/deno/.cache/deno

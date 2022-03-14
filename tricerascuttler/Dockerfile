@@ -1,4 +1,4 @@
-FROM denoland/deno:1.17.1
+FROM denoland/deno:1.19.3
 RUN mkdir /home/deno && chown deno /home/deno
 COPY . /home/deno/application/
 WORKDIR /home/deno/application/tricerascuttler
