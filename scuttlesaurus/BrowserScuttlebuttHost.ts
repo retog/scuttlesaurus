@@ -4,6 +4,7 @@ import { log, parseKeyPair, serializeKeyPair, sodium } from "./util.ts";
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import { LocalStorageFeedsStorage } from "./storage/local-storage/LocalStorageFeedsStorage.ts";
 import { LocalStorageBlobsStorage } from "./storage/local-storage/LocalStorageBlobsStorage.ts";
+import RankingTableStorage from "./storage/RankingTableStorage.ts";
 
 export {
   FeedId,
@@ -20,7 +21,7 @@ export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
     configureLogging();
     this.transportClients.add(new WsTransportClient());
   }
-  protected createFeedsStorage(): FeedsStorage {
+  protected createFeedsStorage(): FeedsStorage & RankingTableStorage {
     return new LocalStorageFeedsStorage();
   }
 
