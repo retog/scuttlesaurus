@@ -38,7 +38,11 @@ const storer = new SparqlStorer(
   Deno.env.get("SPARQL_ENDPOINT_CREDENTIALS"),
 );
 storer.connectAgent(host.feedsAgent!);
-const staticDir = path.join(path.dirname(path.fromFileUrl(import.meta.url)),"/static");
+const staticDir = path.join(
+  path.dirname(path.fromFileUrl(import.meta.url)),
+  "/static",
+);
+const hostRun = host.start();
 function addCommonEndpoints(
   { application, router }: {
     application: Application<
@@ -91,15 +95,19 @@ function addCommonEndpoints(
       }
     },
   );
-  application.use(staticFiles(path.join(staticDir,"common")));
+  application.use(staticFiles(path.join(staticDir, "common")));
 }
 addCommonEndpoints(host.webEndpoints.access);
 addCommonEndpoints(host.webEndpoints.control);
 
-host.webEndpoints.access.application.use(staticFiles(path.join(staticDir,"access")));
-host.webEndpoints.control.application.use(staticFiles(path.join(staticDir,"control")));
+host.webEndpoints.access.application.use(
+  staticFiles(path.join(staticDir, "access")),
+);
+host.webEndpoints.control.application.use(
+  staticFiles(path.join(staticDir, "control")),
+);
 //await registerFollowees(host, sparqlEndpointQuery);
-await host.start();
+await hostRun;
 log.info("Host terminated");
 
 function staticFiles(

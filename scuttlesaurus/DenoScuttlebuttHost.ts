@@ -8,7 +8,6 @@ import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import {
-  FeedId,
   log,
   parseAddress,
   parseFeedId,
@@ -35,6 +34,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     string,
     { application: Application; router: Router }
   > = {};
+  private followeesFile;
 
   constructor(
     readonly config: {
@@ -73,6 +73,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       log.debug(`Error reading ${peersFile}: ${error}`);
     }
     super(config);
+    this.followeesFile = followeesFile;
     const exludedPeersFile = path.join(config.baseDir, "excluded-peers.json");
     try {
       const peersFromFile = JSON.parse(
@@ -104,6 +105,8 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       this.excludedPeers.addAddListener(writeExcludedPeersFile);
       this.excludedPeers.addRemoveListener(writeExcludedPeersFile);
     }
+  }
+  async start(signal?: AbortSignal) {
     const initializeCommonRoutes = (router: Router) => {
       router.get("/whoami", (ctx: Context) => {
         ctx.response.body = JSON.stringify({
@@ -121,15 +124,18 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         };
         endpoint.application.use(endpoint.router.routes());
         endpoint.application.use(endpoint.router.allowedMethods());
-        endpoint.application.listen(endpointConfigs[endpointName]).catch((
+        endpoint.application.listen({
+          ...endpointConfigs[endpointName],
+          signal,
+        }).catch((
           e: unknown,
         ) => log.error(`Error with web endpoint ${endpointName}: ${e}`));
         initializeCommonRoutes(endpoint.router);
         this.webEndpoints[endpointName] = endpoint;
       }
     };
-    if (config.web) {
-      initializeWebEndpoints(config.web);
+    if (this.config.web) {
+      initializeWebEndpoints(this.config.web);
     }
     const initializeControlRoutes = (router: Router) => {
       router.get("/config", (ctx: Context) => {
@@ -163,7 +169,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
           ctx.response.body = "Added followee";
         }
         Deno.writeTextFileSync(
-          followeesFile,
+          this.followeesFile,
           JSON.stringify([...this.followees], undefined, 2),
         );
       });
@@ -174,26 +180,26 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     if (this.webEndpoints.control) {
       initializeControlRoutes(this.webEndpoints.control.router);
     }
-    if (config.transport?.net) {
+    if (this.config.transport?.net) {
       this.transportClients.add(
-        new NetTransport(config.transport?.net),
+        new NetTransport(this.config.transport?.net),
       );
       this.transportServers.add(
-        new NetTransport(config.transport?.net),
+        new NetTransport(this.config.transport?.net),
       );
     }
-    if (config.transport?.ws) {
+    if (this.config.transport?.ws) {
       this.transportClients.add(
         new WsTransportClient(),
       );
-      config.transport.ws.web ??= [];
-      config.transport.ws.web.forEach((endpointName) => {
+      this.config.transport.ws.web ??= [];
+      this.config.transport.ws.web.forEach((endpointName) => {
         this.transportServers.add(
           new WsTransportServer(this.webEndpoints[endpointName].application),
         );
       });
     }
-    if (config.autoConnectLocalPeers) {
+    if (this.config.autoConnectLocalPeers) {
       /*  for await (const peer of udpPeerDiscoverer) {
         if (
           JSON.stringify(peerAddresses.get(peer.hostname)) !==
@@ -206,9 +212,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       }
       */
     }
+    await super.start(signal);
   }
 
-  
   protected createFeedsStorage() {
     return new FsStorage(this.config.dataDir!);
   }

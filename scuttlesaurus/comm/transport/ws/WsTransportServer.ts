@@ -9,7 +9,7 @@ export default class WsTransportServer implements TransportServer {
   ) {}
   protocols = ["ws", "wss"];
 
-  async *listen() {
+  async *listen(signal?: AbortSignal) {
     let listener:
       | ((con: Deno.Reader & Deno.Writer & Deno.Closer) => void)
       | undefined;
@@ -25,10 +25,21 @@ export default class WsTransportServer implements TransportServer {
         await next();
       }
     });
-    while (true) {
+    while (!signal?.aborted) {
       yield await new Promise<Deno.Reader & Deno.Writer & Deno.Closer>((
         resolve,
-      ) => listener = resolve);
+        reject,
+      ) => {
+        listener = resolve;
+        signal?.addEventListener(
+          "abort",
+          () =>
+            reject(
+              new DOMException("WsTransportServer was aborted.", "AbortError"),
+            ),
+          { once: true },
+        );
+      });
     }
   }
 }
