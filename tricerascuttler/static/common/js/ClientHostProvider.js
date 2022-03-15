@@ -1,8 +1,8 @@
 import ScuttlebuttHost, { FeedId } from "./ext/scuttlebutt-host.js";
-import { iriToSigil, mainIdentity } from "./web-util.js";
+import { iriToSigil, serverIdentity } from "./web-util.js";
 export default class ClientHostProvider {
   async getScuttlebuttHost() {
-    const hostId = await mainIdentity(); //ssb:feed/ed25519/luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd-Pe75gKS4fo=
+    const hostId = await serverIdentity(); //ssb:feed/ed25519/luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd-Pe75gKS4fo=
     const hostSigil = iriToSigil(hostId); //@luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=.ed25519
     const hostKey = hostSigil.substring(
       1,

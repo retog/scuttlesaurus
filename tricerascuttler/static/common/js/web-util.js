@@ -75,6 +75,12 @@ export async function mainIdentity() {
   return sigilToIri(whoami.feedId);
 }
 
+export async function serverIdentity() {
+  const response = await fetch("/whoami");
+  const whoami = await response.json();
+  return sigilToIri(whoami.feedId);
+}
+
 export async function runQuery(query) {
   const response = await fetch("/query?" + new URLSearchParams({ query }), {
     "headers": {
