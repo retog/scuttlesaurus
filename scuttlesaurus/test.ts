@@ -46,7 +46,7 @@ Deno.test("Server -> Client Message Flow", async () => {
   }
   assertEquals(firstMsg.value.content.value, 42);
   controller.abort();
-  await delay(600); //allows rpc-timeout checker to realize connection is closed
+  await delay(900); //allows rpc-timeout checker to realize connection is closed
   await serverP;
   await clientP;
 });
@@ -95,7 +95,7 @@ Deno.test("Server -> Client Message Flow via WS", async () => {
   const firstMsg = (await feed?.[Symbol.asyncIterator]().next())!.value;
   assertEquals(firstMsg.value.content.value, 543);
   controller.abort();
-  await delay(600); //allows rpc-timeout checker to realize connection is closed
+  await delay(900); //allows rpc-timeout checker to realize connection is closed
   await serverP;
   await clientP;
 });
@@ -139,7 +139,7 @@ Deno.test("Client -> Server Message Flow via WS", async () => {
     type: "test",
     value: 58,
   });
-  await delay(500);
+  await delay(900);
   const feed = server.feedsAgent?.getFeed(client .identity);
   const firstMsg = (await feed?.[Symbol.asyncIterator]().next())!.value;
   assertEquals(firstMsg.value.content.value, 58);
