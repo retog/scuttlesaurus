@@ -23,22 +23,10 @@
         <ssb-tab label="Explore" active>
             <template id="main"></template>
         </ssb-tab>
-        <ssb-tab label="Circle" hash="circle">
-            <template>
-                <ssb-circle></ssb-circle>
-                <script type="module" src="js/CircleElement.js"></script>
-            </template>
-        </ssb-tab>
         <ssb-tab label="Read" hash="read">
             <template>
-                <ssb-post-list query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-                    PREFIX ssb: <ssb:ontology:>
-                    SELECT ?post {
-                        ?post ssb:timestamp ?timestamp;
-                             ssb:content ?content.
-                        ?content rdf:type ssb:Post.
-                    } ORDER BY DESC(?timestamp)"></ssb-post-list>
-                <script type="module" src="js/PostListElement.js"></script>
+                <ssb-reader></ssb-reader>
+                <script type="module" src="js/ReaderElement.js"></script>
             </template>
         </ssb-tab>
         <ssb-tab id="query" hash="query" label="SPARQL">
