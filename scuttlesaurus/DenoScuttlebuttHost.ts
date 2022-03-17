@@ -85,6 +85,20 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     } catch (error) {
       log.debug(`Error reading ${exludedPeersFile}: ${error}`);
     }
+    const failingPeersFile = path.join(config.baseDir, "failing-peers.json");
+    try {
+      const failingPeersFromFile = JSON.parse(
+        Deno.readTextFileSync(failingPeersFile),
+      );
+      failingPeersFromFile.forEach((entry: [string, {
+        lastFailure: number;
+        failureCount: number;
+      }]) => {
+        this.failingPeers.set(parseAddress(entry[0]), entry[1]);
+      });
+    } catch (error) {
+      log.debug(`Error reading ${exludedPeersFile}: ${error}`);
+    }
     {
       const writePeersFile = () => {
         Deno.writeTextFileSync(
@@ -104,6 +118,16 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       };
       this.excludedPeers.addAddListener(writeExcludedPeersFile);
       this.excludedPeers.addRemoveListener(writeExcludedPeersFile);
+    }
+    {
+      const writeFailingPeersFile = () => {
+        Deno.writeTextFileSync(
+          failingPeersFile,
+          JSON.stringify([...this.failingPeers], undefined, 2),
+        );
+      };
+      this.failingPeers.addAddListener(writeFailingPeersFile);
+      this.failingPeers.addRemoveListener(writeFailingPeersFile);
     }
   }
   async start(signal?: AbortSignal) {

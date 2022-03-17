@@ -513,3 +513,42 @@ export class ObservableSet<T> extends TSESet<T> {
     super.forEach((entry) => this.delete(entry));
   }
 }
+
+export class ObservableMap<T, V> extends TSEMap<T, V> {
+  private addListeners: Set<((key: T) => void)> = new Set();
+  addAddListener(l: (key: T) => void) {
+    this.addListeners.add(l);
+  }
+  removeAddListener(l: (key: T) => void) {
+    this.addListeners.delete(l);
+  }
+
+  private removeListeners: Set<((key: T) => void)> = new Set();
+  addRemoveListener(l: (key: T) => void) {
+    this.removeListeners.add(l);
+  }
+  removeRemoveListener(l: (key: T) => void) {
+    this.removeListeners.delete(l);
+  }
+
+  set(key: T, value: V) {
+    if (!super.has(key)) {
+      super.set(key, value);
+      this.addListeners.forEach((l) => l(key));
+    }
+    return this;
+  }
+  delete(key: T) {
+    if (super.delete(key)) {
+      this.removeListeners.forEach((l) => l(key));
+      return true;
+    } else {
+      return false;
+    }
+  }
+  clear() {
+    for (const key of super.keys()) {
+      this.delete(key);
+    }
+  }
+}

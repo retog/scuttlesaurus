@@ -140,7 +140,7 @@ Deno.test("Client -> Server Message Flow via WS", async () => {
     value: 58,
   });
   await delay(900);
-  const feed = server.feedsAgent?.getFeed(client .identity);
+  const feed = server.feedsAgent?.getFeed(client.identity);
   const firstMsg = (await feed?.[Symbol.asyncIterator]().next())!.value;
   assertEquals(firstMsg.value.content.value, 58);
   controller.abort();

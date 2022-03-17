@@ -13,12 +13,12 @@ import {
   JSONValue,
   KeyPair,
   log,
+  ObservableMap,
   ObservableSet,
   parseAddress,
   parseFeedId,
   sodium,
   toBase64,
-  TSEMap,
 } from "./util.ts";
 import Agent from "./agents/Agent.ts";
 import FeedsAgent, { Message } from "./agents/feeds/FeedsAgent.ts";
@@ -51,7 +51,7 @@ export default abstract class ScuttlebuttHost {
   readonly peers = new ObservableSet<Address>();
   /** peers excluded after failures */
   readonly excludedPeers = new ObservableSet<Address>();
-  private readonly failingAddresses = new TSEMap<Address, {
+  readonly failingPeers = new ObservableMap<Address, {
     lastFailure: number;
     failureCount: number;
   }>();
@@ -139,9 +139,9 @@ export default abstract class ScuttlebuttHost {
       rpcServerInterface,
       (address: Address, failure: boolean) => {
         if (!failure) {
-          this.failingAddresses.delete(address);
+          this.failingPeers.delete(address);
         } else {
-          const failuresReport = this.failingAddresses.get(address);
+          const failuresReport = this.failingPeers.get(address);
           if (failuresReport) {
             if (
               failuresReport.lastFailure +
@@ -151,14 +151,14 @@ export default abstract class ScuttlebuttHost {
                 this.peers.delete(address);
                 this.excludedPeers.add(address);
               } else {
-                this.failingAddresses.set(address, {
+                this.failingPeers.set(address, {
                   failureCount: failuresReport.failureCount + 1,
                   lastFailure: Date.now(),
                 });
               }
             }
           } else {
-            this.failingAddresses.set(address, {
+            this.failingPeers.set(address, {
               failureCount: 1,
               lastFailure: Date.now(),
             });
