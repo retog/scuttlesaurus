@@ -55,7 +55,7 @@ export class ReaderElement extends PostListElement {
       this.query = `PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX ssb: <ssb:ontology:>
         PREFIX ssbx: <ssb:ontology:derivatives:>
-        SELECT ?post {
+        SELECT DISTINCT ?post {
             ?post ssb:timestamp ?timestamp;
                 ssb:content ?content.
             ?content rdf:type ssb:Post.
