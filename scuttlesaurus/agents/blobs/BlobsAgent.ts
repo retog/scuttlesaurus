@@ -163,7 +163,11 @@ export default class BlobsAgent extends Agent {
       args: {},
     });
     for await (const hasOrWantMessage of wantsReader) {
-      for (const entry of Object.entries(hasOrWantMessage)) {
+      for (
+        const entry of Object.entries(
+          hasOrWantMessage as { [s: string]: unknown },
+        )
+      ) {
         const hasOrWant = new BlobWant(
           parseBlobId(entry[0]),
           parseInt(entry[1] as string),

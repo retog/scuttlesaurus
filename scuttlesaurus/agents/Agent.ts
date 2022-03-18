@@ -18,5 +18,8 @@ export default abstract class Agent {
   }
 
   /** Performs the self-initiated actions of this Agent. Note that the Agent may handle requests and act on incoming connection even if this method has not been invoked  */
-  abstract run(connector: ConnectionManager,signal?: AbortSignal): Promise<void>;
+  abstract run(
+    connector: ConnectionManager,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }

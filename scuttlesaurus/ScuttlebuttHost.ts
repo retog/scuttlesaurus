@@ -218,7 +218,7 @@ export default abstract class ScuttlebuttHost {
         this.identity,
         previousSeq,
       )).key
-      : false;
+      : null;
     const sequence = previousSeq + 1;
     const msgValue: JSONValue = {
       previous,
@@ -228,9 +228,6 @@ export default abstract class ScuttlebuttHost {
       hash: "sha256",
       content,
     };
-    if (!previous) {
-      delete msgValue.previous;
-    }
     this.signMessage(msgValue);
     const hash = computeMsgHash(msgValue);
     const msg: JSONValue = {

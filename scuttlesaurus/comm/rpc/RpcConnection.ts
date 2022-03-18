@@ -346,12 +346,12 @@ export default class RpcConnection {
     function isUint8Array(
       v: JSONValue | Uint8Array,
     ): v is Uint8Array {
-      return v.constructor.prototype === Uint8Array.prototype;
+      return v?.constructor.prototype === Uint8Array.prototype;
     }
     function isString(
       v: JSONValue | Uint8Array,
     ): v is string {
-      return v.constructor.prototype === String.prototype;
+      return v?.constructor.prototype === String.prototype;
     }
     const getPayload = () => {
       if (isUint8Array(body)) {

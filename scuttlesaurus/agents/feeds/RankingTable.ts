@@ -135,7 +135,7 @@ export default class RankingTable {
       this.pendingSave = (async () => {
         try {
           await delay(5 * 1000, { signal });
-        } catch (_e) { 
+        } catch (_e) {
           //aborted
         }
         await this.storage.storeFeedPeerRankings(await this.tablePromise);
@@ -144,7 +144,9 @@ export default class RankingTable {
     }
   }
 
-  async getRecommendation(signal?: AbortSignal): Promise<{ peer: Address; followee: FeedId }> {
+  async getRecommendation(
+    signal?: AbortSignal,
+  ): Promise<{ peer: Address; followee: FeedId }> {
     const pickFollowee = async () => {
       if (this.followees.length === 0) {
         console.warn("No followees.");
