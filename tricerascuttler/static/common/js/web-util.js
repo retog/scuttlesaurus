@@ -23,7 +23,52 @@ export function mdToHtml(md) {
     }
     return ast;
   }
-  return mdWriter.render(replaceSigils(mdReader.parse(md)));
+  const html = mdWriter.render(replaceSigils(mdReader.parse(md)));
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  function descend(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent;
+      const uriPos = Math.max(
+        ...["http://", "https://"].map((s) => text.lastIndexOf(s)),
+      );
+      if (uriPos === -1) {
+        return;
+      }
+      const linkedPart = node.splitText(uriPos);
+      descend(node);
+      const linkEnd = Math.min(
+        ...[" ", "\n"].map((s) => linkedPart.textContent.indexOf(s)).filter(
+          (i) => i > -1
+        ),
+      );
+      let afterLink;
+      if (linkEnd < Infinity) {
+        afterLink = linkedPart.splitText(linkEnd);
+      }
+      const link = document.createElement("a");
+      link.setAttribute("href", linkedPart.textContent);
+      link.textContent = linkedPart.textContent;
+      linkedPart.parentElement.replaceChild(link, linkedPart);
+      /* Why isn't tis needed?
+       if (afterLink) {
+        link.parentElement.replaceChildren([
+          ...link.parentElement.childNodes,
+          afterLink,
+        ]);
+      }*/
+    } else if (node.nodeName === "A") {
+      return;
+    } else {
+      for (const child of node.childNodes) {
+        descend(child);
+      }
+    }
+  }
+  descend(template.content);
+  const paras = template.content.querySelectorAll("p");
+  console.log(template, paras);
+  return template.innerHTML;
 }
 
 export function handleSsbLinks(element) {
