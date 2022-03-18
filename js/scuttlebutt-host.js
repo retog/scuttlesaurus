@@ -19630,6 +19630,44 @@ class ObservableSet extends TSESet {
         );
     }
 }
+class ObservableMap extends TSEMap {
+    addListeners = new Set();
+    addAddListener(l) {
+        this.addListeners.add(l);
+    }
+    removeAddListener(l) {
+        this.addListeners.delete(l);
+    }
+    removeListeners = new Set();
+    addRemoveListener(l) {
+        this.removeListeners.add(l);
+    }
+    removeRemoveListener(l) {
+        this.removeListeners.delete(l);
+    }
+    set(key, value) {
+        if (!super.has(key)) {
+            super.set(key, value);
+            this.addListeners.forEach((l)=>l(key)
+            );
+        }
+        return this;
+    }
+    delete(key) {
+        if (super.delete(key)) {
+            this.removeListeners.forEach((l)=>l(key)
+            );
+            return true;
+        } else {
+            return false;
+        }
+    }
+    clear() {
+        for (const key of super.keys()){
+            this.delete(key);
+        }
+    }
+}
 class BoxConnection extends EventTarget {
     conn;
     closed = false;
@@ -20124,10 +20162,10 @@ class RpcConnection {
     requestCounter;
     sendRpcMessage = async (body, options = {})=>{
         function isUint8Array(v) {
-            return v.constructor.prototype === Uint8Array.prototype;
+            return v?.constructor.prototype === Uint8Array.prototype;
         }
         function isString(v) {
-            return v.constructor.prototype === String.prototype;
+            return v?.constructor.prototype === String.prototype;
         }
         const getPayload = ()=>{
             if (isUint8Array(body)) {
@@ -20894,7 +20932,7 @@ class ScuttlebuttHost {
     followees = new ObservableSet();
     peers = new ObservableSet();
     excludedPeers = new ObservableSet();
-    failingAddresses = new TSEMap();
+    failingPeers = new ObservableMap();
     feedsAgent;
     blobsAgent;
     feedsStorage;
@@ -20943,23 +20981,23 @@ class ScuttlebuttHost {
         , boxServerInterface);
         this.connectionManager = new ConnectionManager(rpcClientInterface, rpcServerInterface, (address, failure)=>{
             if (!failure) {
-                this.failingAddresses.delete(address);
+                this.failingPeers.delete(address);
             } else {
-                const failuresReport = this.failingAddresses.get(address);
+                const failuresReport = this.failingPeers.get(address);
                 if (failuresReport) {
                     if (failuresReport.lastFailure + this.config.failureRelevanceInterval < Date.now()) {
                         if (failuresReport.failureCount > 4) {
                             this.peers.delete(address);
                             this.excludedPeers.add(address);
                         } else {
-                            this.failingAddresses.set(address, {
+                            this.failingPeers.set(address, {
                                 failureCount: failuresReport.failureCount + 1,
                                 lastFailure: Date.now()
                             });
                         }
                     }
                 } else {
-                    this.failingAddresses.set(address, {
+                    this.failingPeers.set(address, {
                         failureCount: 1,
                         lastFailure: Date.now()
                     });
@@ -20996,7 +21034,7 @@ class ScuttlebuttHost {
     }
     async publish(content) {
         const previousSeq = await this.feedsStorage.lastMessage(this.identity);
-        const previous = previousSeq > 0 ? (await this.feedsStorage.getMessage(this.identity, previousSeq)).key : false;
+        const previous = previousSeq > 0 ? (await this.feedsStorage.getMessage(this.identity, previousSeq)).key : null;
         const sequence = previousSeq + 1;
         const msgValue = {
             previous,
@@ -21006,9 +21044,6 @@ class ScuttlebuttHost {
             hash: "sha256",
             content
         };
-        if (!previous) {
-            delete msgValue.previous;
-        }
         this.signMessage(msgValue);
         const hash = computeMsgHash(msgValue);
         const msg = {
