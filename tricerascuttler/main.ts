@@ -11,11 +11,14 @@ import { createScuttlebuttHost } from "../scuttlesaurus/main.ts";
 import SparqlStorer from "./SparqlStorer.ts";
 import {
   BlobId,
+  delay,
   fromBase64,
   fromFilenameSafeAlphabet,
   log,
+  parseFeedId,
   path,
 } from "../scuttlesaurus/util.ts";
+import registerFollowees from "./registerFollowees.ts";
 
 function getRequiredEnvVar(name: string): string {
   const value = Deno.env.get(name);
@@ -31,6 +34,8 @@ const sparqlEndpointUpdate = getRequiredEnvVar("SPARQL_ENDPOINT_UPDATE");
 
 const host = await createScuttlebuttHost();
 const portalOwner = Deno.env.get("SSB_PORTAL_OWNER");
+
+const mainIdentity = portalOwner ? parseFeedId(portalOwner) : host.identity;
 
 const storer = new SparqlStorer(
   sparqlEndpointQuery,
@@ -68,7 +73,7 @@ function addCommonEndpoints(
   /** the owner if one is set, otherwise scuttlesaurus identity */
   router.get("/main-identity", (ctx: Context) => {
     ctx.response.body = JSON.stringify({
-      feedId: portalOwner ?? host.identity,
+      feedId: mainIdentity,
     });
   });
   router.get(
@@ -106,8 +111,12 @@ host.webEndpoints.access.application.use(
 host.webEndpoints.control.application.use(
   staticFiles(path.join(staticDir, "control")),
 );
-//await registerFollowees(host, sparqlEndpointQuery);
-await hostRun;
+while (true) {
+  registerFollowees(mainIdentity, host, sparqlEndpointQuery);
+  //update every 15 minutes
+  delay(15 * 60 * 1000);
+}
+//await hostRun;
 log.info("Host terminated");
 
 function staticFiles(
