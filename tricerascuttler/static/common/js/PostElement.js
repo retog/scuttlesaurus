@@ -31,12 +31,7 @@ export class PostElement extends HTMLElement {
           } ORDER BY ?replyTimestamp }
           } GROUP BY ?timestamp ?text ?root ?author`);
     const bindings = result.results.bindings;
-    if (!bindings[0]) {
-      this.shadowRoot.innerHTML = `Don't know anything about ${this.msgUri}`;
-    } else {
-      const text = bindings[0].text?.value;
-      const timestamp = new Date(parseInt(bindings[0].timestamp?.value));
-      this.shadowRoot.innerHTML = `
+    this.shadowRoot.innerHTML = `
         <style>
         img {
           max-width: 100%;
@@ -83,6 +78,19 @@ export class PostElement extends HTMLElement {
           box-shadow: 0px 5px 15px rgba(0, 0, 0, .2);
         }
       </style>
+    `;
+    if (!bindings[0]) {
+      this.shadowRoot.innerHTML +=
+        `The content of this message is not in the RDF database. You might get the message using 
+        another Scuttlebutt client or Scuttleverse Portal with one of these identifiers:
+        <ul>
+        <li>${this.msgUri}
+        <li>${iriToSigil(this.msgUri)}
+        </ul>`;
+    } else {
+      const text = bindings[0].text?.value;
+      const timestamp = new Date(parseInt(bindings[0].timestamp?.value));
+      this.shadowRoot.innerHTML += `
       <ssb-feed-author-link feed="${
         bindings[0].author.value
       }" image ></ssb-feed-author-link>

@@ -34,7 +34,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     string,
     { application: Application; router: Router }
   > = {};
-  private followeesFile;
 
   constructor(
     readonly config: {
@@ -73,7 +72,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       log.debug(`Error reading ${peersFile}: ${error}`);
     }
     super(config);
-    this.followeesFile = followeesFile;
     const exludedPeersFile = path.join(config.baseDir, "excluded-peers.json");
     try {
       const peersFromFile = JSON.parse(
@@ -98,6 +96,16 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       });
     } catch (error) {
       log.debug(`Error reading ${exludedPeersFile}: ${error}`);
+    }
+    {
+      const writeFolloweesFile = () => {
+        Deno.writeTextFileSync(
+          followeesFile,
+          JSON.stringify([...this.followees], undefined, 2),
+        );
+      };
+      this.followees.addAddListener(writeFolloweesFile);
+      this.followees.addRemoveListener(writeFolloweesFile);
     }
     {
       const writePeersFile = () => {
@@ -192,10 +200,6 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
           this.followees.add(parseFeedId(id));
           ctx.response.body = "Added followee";
         }
-        Deno.writeTextFileSync(
-          this.followeesFile,
-          JSON.stringify([...this.followees], undefined, 2),
-        );
       });
       router.get("/followees", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.followees]);
