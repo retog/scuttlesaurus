@@ -114,7 +114,7 @@ host.webEndpoints.control.application.use(
 while (true) {
   registerFollowees(mainIdentity, host, sparqlEndpointQuery);
   //update every 15 minutes
-  delay(15 * 60 * 1000);
+  await delay(15 * 60 * 1000);
 }
 //await hostRun;
 log.info("Host terminated");
