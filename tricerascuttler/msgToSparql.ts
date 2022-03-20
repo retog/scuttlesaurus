@@ -287,7 +287,13 @@ export default function msgToSparql(msg: RichMessage) {
       .replaceAll('"', '\\"')
       .replaceAll("\n", "\\n").replaceAll("\r", "");
   }
-  const statementGenerator = content.type && contentSerializers[content.type] ||
-    new BasicMessage();
-  return statementGenerator.generate();
+  const statementGenerator = content.type && contentSerializers[content.type];
+  if (statementGenerator) {
+    try {
+      return statementGenerator.generate();
+    } catch (e) {
+      log.info(`Caught ${e}, failing back to BasicMessage`);
+    }
+  }
+  return new BasicMessage().generate();
 }
