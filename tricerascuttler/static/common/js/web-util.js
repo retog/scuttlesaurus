@@ -11,10 +11,10 @@ export function mdToHtml(md) {
       node = event.node;
       if (event.entering) {
         if (node.type === "link") {
-          node.destination = sigilToIri(node.destination);
+          node.destination = sigilToIri(decodeURIComponent(node.destination));
         }
         if (node.type === "image") {
-          node.destination = sigilToIri(node.destination).replace(
+          node.destination = sigilToIri(decodeURIComponent(node.destination)).replace(
             "ssb:blob/",
             "./blob/",
           );
