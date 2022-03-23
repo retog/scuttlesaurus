@@ -117,6 +117,18 @@ export class PostElement extends HTMLElement {
         </div>`;
       const actionsArea = this.shadowRoot.getElementById("actions");
       actionsArea.append(await this.createLikeUnlikeButton());
+      const replyButton = document.createElement("button");
+      actionsArea.append(replyButton);
+      replyButton.textContent = "Reply";
+      replyButton.onclick = () => {
+        const creator = document.createElement("ssb-post-creator");
+        creator.setAttribute(
+          "root",
+          bindings[0].root ? bindings[0].root.value : this.msgUri,
+        );
+        creator.setAttribute("branch", this.msgUri);
+        this.shadowRoot.append(creator);
+      };
       const markAsReadButton = document.createElement("button");
       const setMarkAsReadButtonLabel = () => {
         if (ReadStateManager.isRead(this.msgUri)) {
