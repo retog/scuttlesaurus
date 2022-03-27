@@ -85,7 +85,7 @@ export default abstract class ScuttlebuttHost {
       this.followees,
       this.peers,
     );
-    this.blobsAgent = new BlobsAgent(this.blobsStorage);
+    this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
     if (this.feedsAgent) this.agents.add(this.feedsAgent);
     if (this.blobsAgent) this.agents.add(this.blobsAgent);
   }

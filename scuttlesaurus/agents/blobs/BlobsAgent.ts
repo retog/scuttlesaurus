@@ -58,7 +58,17 @@ class BlobHas {
 */
 
 export default class BlobsAgent extends Agent {
-  constructor(public storage: BlobsStorage) {
+  constructor(
+    public storage: BlobsStorage,
+    public followees: Set<FeedId>,
+    public options: {
+      forwardHopsUnknownPeers: number;
+      forwardHopsFollowedPeers: number;
+    } = {
+      forwardHopsUnknownPeers: 0,
+      forwardHopsFollowedPeers: 4,
+    },
+  ) {
     super();
   }
   want(blobId: BlobId) {
@@ -124,7 +134,7 @@ export default class BlobsAgent extends Agent {
         async *createWants(
           args: Record<string, string>[],
         ): AsyncIterable<JSONValue> {
-          log.info(
+          log.debug(
             `${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`,
           );
           for (const p of pendingWants.values()) {
@@ -218,10 +228,14 @@ export default class BlobsAgent extends Agent {
               );
             }
           } else {
+            //TODO check sympaty and level
+            if ((hasOrWant.level * -1 < this.options.forwardHopsUnknownPeers) || 
+              (this.followees.has(rpcConnection.boxConnection.peer) && (hasOrWant.level * -1 < this.options.forwardHopsFollowedPeers))) {
             this.processWant(
               new BlobWant(hasOrWant.blobId, hasOrWant.level - 1),
               rpcConnection.boxConnection.peer,
             );
+              }
           }
         }
       }
