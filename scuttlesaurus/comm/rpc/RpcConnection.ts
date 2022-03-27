@@ -130,8 +130,10 @@ export default class RpcConnection {
                           `Error sending back response to request ${
                             JSON.stringify(request)
                           } by
-                          ${this.boxConnection.peer}: ${error}`,
+                          ${this.boxConnection.peer} (connection closed: ${this.boxConnection.closed}): ${error}`,
                         );
+                        this.boxConnection.close();
+                        break;
                       }
                     }
                     /*log.debug(
@@ -162,7 +164,7 @@ export default class RpcConnection {
                 } else {
                   log.info(
                     `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
-                      textDecoder.decode(body)
+                      textDecoder.decode(body).substring(0,1000)
                     }`,
                   );
                 }
