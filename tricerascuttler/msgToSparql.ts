@@ -84,7 +84,7 @@ export default function msgToSparql(msg: RichMessage) {
           log.error(
             `Failed converting ${
               JSON.stringify(content)
-            } to sparql: ${error}. Stack: ${error.stack}`,
+            } to sparql: ${error}.`,
           );
           return undefined;
         }
