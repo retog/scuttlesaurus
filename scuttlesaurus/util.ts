@@ -533,10 +533,8 @@ export class ObservableMap<T, V> extends TSEMap<T, V> {
   }
 
   set(key: T, value: V) {
-    if (!super.has(key)) {
-      super.set(key, value);
-      this.addListeners.forEach((l) => l(key));
-    }
+    super.set(key, value);
+    this.addListeners.forEach((l) => l(key));
     return this;
   }
   delete(key: T) {
