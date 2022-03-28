@@ -73,7 +73,7 @@ export default class RankingTable {
         table.splice(pos, 1);
         followees.splice(pos, 1);
         followeeLabels.splice(pos, 1);
-        storage.storeFeedPeerRankings(table);
+        this.saveEventually();
       });
       host.peers.addRemoveListener((peer) => {
         const pos = peerLabels.indexOf(peer.toString());
@@ -83,7 +83,7 @@ export default class RankingTable {
         }
         peers.splice(pos, 1);
         peerLabels.splice(pos, 1);
-        storage.storeFeedPeerRankings(table);
+        this.saveEventually();
       });
       host.followees.addAddListener((followee) => {
         const pos = followees.length;
@@ -95,7 +95,7 @@ export default class RankingTable {
             ? 255
             : 3;
         }
-        storage.storeFeedPeerRankings(table);
+        this.saveEventually();
       });
       host.peers.addAddListener((peer) => {
         const pos = peers.length;
@@ -105,8 +105,9 @@ export default class RankingTable {
           const newRow = new Uint8Array(peers.length);
           newRow.set(table[i]);
           newRow[pos] = (peer.key.toString() === followeeLabels[i]) ? 255 : 3;
+          table[i] = newRow;
         }
-        storage.storeFeedPeerRankings(table);
+        this.saveEventually();
       });
       return table as Uint8Array[];
     })();
@@ -121,6 +122,10 @@ export default class RankingTable {
       }
     }
     const followeePos = this.followeeLabels.indexOf(followee.toString());
+    if (followeePos) {
+      log.debug(`No record for feed ${followee}`);
+      return;
+    }
     peerPositions.forEach((peerPos) => {
       const currentValue = table[followeePos][peerPos];
       if (currentValue < 0xFF) {
@@ -134,7 +139,7 @@ export default class RankingTable {
     if (!this.pendingSave) {
       this.pendingSave = (async () => {
         try {
-          await delay(5 * 1000, { signal });
+          await delay(2 * 60 * 1000, { signal });
         } catch (_e) {
           //aborted
         }
@@ -169,7 +174,7 @@ export default class RankingTable {
   async getPeerFor(followee: FeedId, signal?: AbortSignal): Promise<Address> {
     const table = await this.tablePromise;
     if (this.host.peers.size === 0) {
-      console.warn("No peer known.");
+      log.warning("No peer known.");
       //return the first we get
       return await new Promise((resolve) => {
         const listener = (addr: Address) => {
@@ -187,8 +192,9 @@ export default class RankingTable {
     for (let i = 0; i < peerRatings.length; i++) {
       partialSum += 1 + peerRatings[i];
       if (partialSum > randomPointer) {
-        peerRatings[i] = Math.ceil(peerRatings[i] * 0.9); //recommendation cost
-        this.saveEventually(signal);
+        const origRating = peerRatings[i];
+        peerRatings[i] = Math.ceil(origRating * 0.9); //recommendation cost
+        if (peerRatings[i] !== origRating) this.saveEventually(signal);
         return this.peers[i];
       }
     }
