@@ -5,4 +5,4 @@ ENV DENO_DIR=/home/deno/.cache/deno
 COPY ./ /home/deno/application
 WORKDIR /home/deno/application
 RUN deno cache --unstable main.ts
-CMD deno run -A --unstable main.ts --web.control.hostname 0.0.0.0 --logLevel ${LOG_LEVEL:-INFO}
+CMD deno run --v8-flags=--max-old-space-size=4096 -A --unstable main.ts --web.control.hostname 0.0.0.0 --logLevel ${LOG_LEVEL:-INFO}
