@@ -20514,7 +20514,6 @@ class FeedsAgent extends Agent {
         this.subscriptions = subscriptions;
         this.peers = peers;
         this.onGoingSyncPeers = new Map();
-        this.outgoingConnection = this.incomingConnection;
         this.newMessageListeners = [];
         this.rankingTable = new RankingTable({
             peers,
@@ -20548,6 +20547,9 @@ class FeedsAgent extends Agent {
     onGoingSyncPeers;
     async incomingConnection(rpcConnection) {
         this.updateFeed(rpcConnection, rpcConnection.boxConnection.peer);
+        await this.outgoingConnection(rpcConnection);
+    }
+    async outgoingConnection(rpcConnection) {
         const peerStr = rpcConnection.boxConnection.peer.base64Key;
         if (!this.onGoingSyncPeers.has(peerStr)) {
             this.onGoingSyncPeers.set(peerStr, rpcConnection);
@@ -20558,7 +20560,6 @@ class FeedsAgent extends Agent {
             }
         }
     }
-    outgoingConnection;
     async run(connector, signal) {
         const onGoingConnectionAttempts = new Set();
         this.subscriptions.addAddListener(async (feedId)=>{
@@ -20581,14 +20582,17 @@ class FeedsAgent extends Agent {
                         this.updateFeed(rpcConnection, recommendation.followee, signal);
                     } catch (error13) {
                         mod2.error(`In connection with ${pickedPeer}: ${error13.stack}`);
+                        if (error13.errors) {
+                            error13.errors.forEach(mod2.info);
+                        }
                     }
                 })().finally(()=>{
                     onGoingConnectionAttempts.delete(pickedPeerStr);
                 });
+                await delay((this.onGoingSyncPeers.size * 1 + 1) * 1000, {
+                    signal
+                });
             }
-            await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000, {
-                signal
-            });
         }
     }
     newMessageListeners;
@@ -20663,7 +20667,7 @@ class FeedsAgent extends Agent {
         let expectedSequence = from;
         for await (const msg of historyStream){
             if (expectedSequence !== msg.value.sequence) {
-                throw new Error(`Expected sequ ence ${expectedSequence} but got ${msg.value.sequence}`);
+                throw new Error(`Expected sequence ${expectedSequence} but got ${msg.value.sequence}`);
             }
             expectedSequence++;
             const hash = computeMsgHash(msg.value);
