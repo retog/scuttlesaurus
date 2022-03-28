@@ -2,11 +2,12 @@ version: '3'
 
 services:
   ssb-deno:
-    image: reto/ssb-deno
+    image: reto/scuttlesaurus
     build: .
     ports:
       - "8008:8008"
+      - "8989:8989"
       - "127.0.0.1:8990:8990"
     volumes:
-      - /var/ssb-deno:/root/.ssb
+      - /var/scuttlesaurus:/root/.ssb
     restart: unless-stopped
