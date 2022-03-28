@@ -66,8 +66,6 @@ export function mdToHtml(md) {
     }
   }
   descend(template.content);
-  const paras = template.content.querySelectorAll("p");
-  console.log(template, paras);
   return template.innerHTML;
 }
 
