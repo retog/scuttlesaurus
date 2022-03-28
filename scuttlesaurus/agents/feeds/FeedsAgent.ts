@@ -93,6 +93,10 @@ export default class FeedsAgent extends Agent {
       rpcConnection,
       rpcConnection.boxConnection.peer,
     );
+    await this.outgoingConnection(rpcConnection);
+  }
+
+  async outgoingConnection(rpcConnection: RpcConnection) {
     const peerStr = rpcConnection.boxConnection.peer.base64Key;
     if (!this.onGoingSyncPeers.has(peerStr)) {
       this.onGoingSyncPeers.set(peerStr, rpcConnection);
@@ -103,8 +107,6 @@ export default class FeedsAgent extends Agent {
       }
     }
   }
-
-  outgoingConnection = this.incomingConnection;
 
   async run(connector: ConnectionManager, signal?: AbortSignal): Promise<void> {
     const onGoingConnectionAttempts = new Set<string>();
@@ -135,14 +137,17 @@ export default class FeedsAgent extends Agent {
             log.error(
               `In connection with ${pickedPeer}: ${error.stack}`,
             );
+            if (error.errors) {
+              error.errors.forEach(log.info);
+            }
             //TODO this shoul cause this peer to be attempted less frequently
           }
         })().finally(() => {
           onGoingConnectionAttempts.delete(pickedPeerStr);
         });
+        // wait some time depending on how many syncs are going on
+        await delay((this.onGoingSyncPeers.size * 1 + 1) * 1000, { signal });
       }
-      // wait some time depending on how many syncs are going on
-      await delay((this.onGoingSyncPeers.size * 10 + 1) * 1000, { signal });
     }
   }
 
@@ -255,7 +260,7 @@ export default class FeedsAgent extends Agent {
     for await (const msg of historyStream) {
       if (expectedSequence !== msg.value.sequence) {
         throw new Error(
-          `Expected sequ ence ${expectedSequence} but got ${msg.value.sequence}`,
+          `Expected sequence ${expectedSequence} but got ${msg.value.sequence}`,
         );
       }
       expectedSequence++;
