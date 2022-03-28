@@ -38,11 +38,21 @@ export default class SparqlStorer {
       }
     };
 
-    Promise.allSettled([...feedsAgent.subscriptions].map(processFeed)).catch(
-      (error) => {
-        console.error(`Processing feeds: ${error.stack}`);
-      },
-    );
+    (async () => {
+      const subscriptions = [...feedsAgent.subscriptions];
+      try {
+        const promiseResults = await Promise.allSettled(
+          subscriptions.map(processFeed),
+        );
+        promiseResults.forEach((result, i) => {
+          if (result.status === "rejected") {
+            log.info(`Processing subscription ${subscriptions[i]}`);
+          }
+        });
+      } catch (e) {
+        log.error(`Processing subscriptions: ${e}`);
+      }
+    })();
 
     feedsAgent.addNewMessageListeners((_feedId: FeedId, msg: Message) => {
       processMsg(msg);
