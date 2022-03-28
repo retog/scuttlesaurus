@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "request": "launch",
+      "name": "Launch Program",
+      "type": "pwa-node",
+      "program": "${workspaceFolder}/tricerascuttler/main.ts",
+      "args": ["--web.control.hostname", "0.0.0.0", "--logLevel", "INFO"],
+      "cwd": "/monorepo/",
+      "localRoot": "/monorepo/",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": [
+        "run",
+        "--inspect-brk",
+        "--allow-all",
+        "--unstable"
+      ],
+      "attachSimplePort": 9229,
+      "env": {
+        "X-SSB_PORTAL_OWNER": "@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519"
+      }
+    }
+  ]
+}
