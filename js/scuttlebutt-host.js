@@ -19648,11 +19648,9 @@ class ObservableMap extends TSEMap {
         this.removeListeners.delete(l);
     }
     set(key, value) {
-        if (!super.has(key)) {
-            super.set(key, value);
-            this.addListeners.forEach((l)=>l(key)
-            );
-        }
+        super.set(key, value);
+        this.addListeners.forEach((l)=>l(key)
+        );
         return this;
     }
     delete(key) {
@@ -20745,9 +20743,14 @@ class PendingWant {
     alreadyAsked;
 }
 class BlobsAgent extends Agent {
-    constructor(storage){
+    constructor(storage, followees, options = {
+        forwardHopsUnknownPeers: 0,
+        forwardHopsFollowedPeers: 4
+    }){
         super();
         this.storage = storage;
+        this.followees = followees;
+        this.options = options;
         this.wantFeeds = new Map();
         this.pendingWants = new Map();
         this.connections = new Map();
@@ -20793,7 +20796,7 @@ class BlobsAgent extends Agent {
                     yield await storage.getBlob(blobId);
                 },
                 async *createWants (args) {
-                    mod2.info(`${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`);
+                    mod2.debug(`${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`);
                     for (const p of pendingWants.values()){
                         if (!p.alreadyAsked.has(feedId.base64Key) && !p.interestedPeers.has(feedId.base64Key)) {
                             yield p.want.shortWant;
@@ -20850,7 +20853,9 @@ class BlobsAgent extends Agent {
                             mod2.warning(`${rpcConnection.boxConnection.peer} asked for a blob we have, but we can't tell them`);
                         }
                     } else {
-                        this.processWant(new BlobWant(hasOrWant.blobId, hasOrWant.level - 1), rpcConnection.boxConnection.peer);
+                        if (hasOrWant.level * -1 < this.options.forwardHopsUnknownPeers || this.followees.has(rpcConnection.boxConnection.peer) && hasOrWant.level * -1 < this.options.forwardHopsFollowedPeers) {
+                            this.processWant(new BlobWant(hasOrWant.blobId, hasOrWant.level - 1), rpcConnection.boxConnection.peer);
+                        }
                     }
                 }
             }
@@ -20887,6 +20892,8 @@ class BlobsAgent extends Agent {
         }
     }
     storage;
+    followees;
+    options;
 }
 class ConnectionManager {
     connections;
@@ -20984,7 +20991,7 @@ class ScuttlebuttHost {
         this.feedsStorage = this.createFeedsStorage();
         this.blobsStorage = this.createBlobsStorage();
         this.feedsAgent = new FeedsAgent(this.feedsStorage, this.followees, this.peers);
-        this.blobsAgent = new BlobsAgent(this.blobsStorage);
+        this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
         if (this.feedsAgent) this.agents.add(this.feedsAgent);
         if (this.blobsAgent) this.agents.add(this.blobsAgent);
     }
