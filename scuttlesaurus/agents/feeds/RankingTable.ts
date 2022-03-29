@@ -122,7 +122,7 @@ export default class RankingTable {
       }
     }
     const followeePos = this.followeeLabels.indexOf(followee.toString());
-    if (followeePos) {
+    if (!followeePos) {
       log.debug(`No record for feed ${followee}`);
       return;
     }
