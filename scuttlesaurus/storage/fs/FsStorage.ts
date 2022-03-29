@@ -87,7 +87,7 @@ export default class FsStorage
   /** return the highest sequence number of an available message in the feed */
   async lastMessage(feedKey: FeedId) {
     try {
-      let highest = -1;
+      let highest = 0;
       for await (const entry of Deno.readDir(this.getFeedDir(feedKey))) {
         const seq = parseInt(
           entry.name.substring(0, entry.name.length - ".json".length),
