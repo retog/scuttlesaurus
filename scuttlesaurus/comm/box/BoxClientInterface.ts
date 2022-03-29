@@ -10,6 +10,7 @@ import {
 } from "../../util.ts";
 import BoxConnection from "./BoxConnection.ts";
 import CommClientInterface from "../CommClientInterface.ts";
+import TransportClient from "../transport/TransportClient.ts";
 
 /** A peer with an identity and the abity to connect to other peers using the Secure Scuttlebutt Handshake */
 export default class BoxClientInterface
@@ -17,9 +18,7 @@ export default class BoxClientInterface
   id;
 
   constructor(
-    public readonly transports: CommClientInterface<
-      Deno.Reader & Deno.Writer & Deno.Closer
-    >[],
+    public readonly transports: TransportClient[],
     public readonly keyPair: {
       publicKey: Uint8Array;
       privateKey: Uint8Array;
@@ -40,7 +39,7 @@ export default class BoxClientInterface
     // deno-lint-ignore no-this-alias
     const _host = this;
     const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
-    const conn = await Promise.any(this.transports.map((t) => {
+    const conn = await Promise.any(this.transports.filter(t => t.protocols.includes(address.protocol)).map((t) => {
       return t.connect(address).catch((e) => {
         log.debug(
           `Error connecting with transport ${t.constructor.name}: ${e}`,
