@@ -150,6 +150,7 @@ export default abstract class ScuttlebuttHost {
               if (failuresReport.failureCount > 4) {
                 this.peers.delete(address);
                 this.excludedPeers.add(address);
+                this.failingPeers.delete(address);
               } else {
                 this.failingPeers.set(address, {
                   failureCount: failuresReport.failureCount + 1,
@@ -171,7 +172,7 @@ export default abstract class ScuttlebuttHost {
         await agent.run(this.connectionManager!, signal);
       } catch (error) {
         log.warning(
-          `Error starting agent ${agent.constructor.name}: ${error}`,
+          `Error starting agent ${agent.constructor.name}: ${error}\n${error.stack}`,
         );
       }
     });
