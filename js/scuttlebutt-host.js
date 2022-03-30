@@ -19801,7 +19801,8 @@ class BoxClientInterface {
     connections;
     async connect(address) {
         const clientEphemeralKeyPair = __default.crypto_box_keypair("uint8array");
-        const conn = await Promise.any(this.transports.map((t)=>{
+        const conn = await Promise.any(this.transports.filter((t)=>t.protocols.includes(address.protocol)
+        ).map((t)=>{
             return t.connect(address).catch((e)=>{
                 mod2.debug(`Error connecting with transport ${t.constructor.name}: ${e}`);
                 return Promise.reject(e);
@@ -20334,7 +20335,7 @@ class RankingTable {
                 table1.splice(pos, 1);
                 followees.splice(pos, 1);
                 followeeLabels.splice(pos, 1);
-                storage.storeFeedPeerRankings(table1);
+                this.saveEventually();
             });
             host.peers.addRemoveListener((peer)=>{
                 const pos = peerLabels.indexOf(peer.toString());
@@ -20344,7 +20345,7 @@ class RankingTable {
                 }
                 peers.splice(pos, 1);
                 peerLabels.splice(pos, 1);
-                storage.storeFeedPeerRankings(table1);
+                this.saveEventually();
             });
             host.followees.addAddListener((followee)=>{
                 const pos = followees.length;
@@ -20354,7 +20355,7 @@ class RankingTable {
                 for(let j = 0; j < peers.length; j++){
                     table1[pos][j] = peers[j].key.toString() === followeeLabels[pos] ? 255 : 3;
                 }
-                storage.storeFeedPeerRankings(table1);
+                this.saveEventually();
             });
             host.peers.addAddListener((peer)=>{
                 const pos = peers.length;
@@ -20364,8 +20365,9 @@ class RankingTable {
                     const newRow = new Uint8Array(peers.length);
                     newRow.set(table1[i]);
                     newRow[pos] = peer.key.toString() === followeeLabels[i] ? 255 : 3;
+                    table1[i] = newRow;
                 }
-                storage.storeFeedPeerRankings(table1);
+                this.saveEventually();
             });
             return table1;
         })();
@@ -20379,6 +20381,10 @@ class RankingTable {
             }
         }
         const followeePos = this.followeeLabels.indexOf(followee.toString());
+        if (!followeePos) {
+            mod2.debug(`No record for feed ${followee}`);
+            return;
+        }
         peerPositions.forEach((peerPos)=>{
             const currentValue = table[followeePos][peerPos];
             if (currentValue < 255) {
@@ -20391,7 +20397,7 @@ class RankingTable {
         if (!this.pendingSave) {
             this.pendingSave = (async ()=>{
                 try {
-                    await delay(5 * 1000, {
+                    await delay(2 * 60 * 1000, {
                         signal
                     });
                 } catch (_e) {}
@@ -20425,7 +20431,7 @@ class RankingTable {
     async getPeerFor(followee, signal) {
         const table = await this.tablePromise;
         if (this.host.peers.size === 0) {
-            console.warn("No peer known.");
+            mod2.warning("No peer known.");
             return await new Promise((resolve7)=>{
                 const listener = (addr)=>{
                     this.host.peers.removeAddListener(listener);
@@ -20443,8 +20449,9 @@ class RankingTable {
         for(let i = 0; i < peerRatings.length; i++){
             partialSum += 1 + peerRatings[i];
             if (partialSum > randomPointer) {
-                peerRatings[i] = Math.ceil(peerRatings[i] * 0.9);
-                this.saveEventually(signal);
+                const origRating = peerRatings[i];
+                peerRatings[i] = Math.ceil(origRating * 0.9);
+                if (peerRatings[i] !== origRating) this.saveEventually(signal);
                 return this.peers[i];
             }
         }
@@ -21030,6 +21037,7 @@ class ScuttlebuttHost {
                         if (failuresReport.failureCount > 4) {
                             this.peers.delete(address);
                             this.excludedPeers.add(address);
+                            this.failingPeers.delete(address);
                         } else {
                             this.failingPeers.set(address, {
                                 failureCount: failuresReport.failureCount + 1,
@@ -21049,7 +21057,7 @@ class ScuttlebuttHost {
             try {
                 await agent.run(this.connectionManager, signal);
             } catch (error17) {
-                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error17}`);
+                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error17}\n${error17.stack}`);
             }
         });
         (async ()=>{
