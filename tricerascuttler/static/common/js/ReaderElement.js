@@ -30,27 +30,33 @@ export class ReaderElement extends PostListElement {
       <label for="browserUserFollowees">Feeds followed by ${browserUserName}</label>
     </div>`;
     filterArea.insertBefore(socialDiv, filterArea.firstChild);
+    {
+      const sessionState = JSON.parse(sessionStorage.getItem("readerState"));
+      if (sessionState) {
+        for (const id in sessionState) {
+          this.shadowRoot.getElementById(id).checked = sessionState[id];
+        }
+      }
+    }
     const showArticles = async () => {
       const contentDiv = this.shadowRoot.getElementById("content");
       contentDiv.replaceChildren();
       const unionClauses = [];
       if (this.shadowRoot.getElementById("portalHost").checked) {
-        unionClauses.push(`?post ssb:author <${portalHost}>.`)
+        unionClauses.push(`?post ssb:author <${portalHost}>.`);
       }
       if (this.shadowRoot.getElementById("browserUser").checked) {
-        unionClauses.push(`?post ssb:author <${browserUser}>.`)
+        unionClauses.push(`?post ssb:author <${browserUser}>.`);
       }
       if (this.shadowRoot.getElementById("portalHostFollowees").checked) {
         unionClauses.push(`
           <${portalHost}> ssbx:follows ?portalHostFollowee.
-          ?post ssb:author ?portalHostFollowee.`
-        )
+          ?post ssb:author ?portalHostFollowee.`);
       }
       if (this.shadowRoot.getElementById("browserUserFollowees").checked) {
         unionClauses.push(`
         <${browserUser}> ssbx:follows ?browserUserFollowee.
-        ?post ssb:author ?browserUserFollowee.`
-        )
+        ?post ssb:author ?browserUserFollowee.`);
       }
       this.query = `PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX ssb: <ssb:ontology:>
@@ -59,19 +65,31 @@ export class ReaderElement extends PostListElement {
             ?post ssb:timestamp ?timestamp;
                 ssb:content ?content.
             ?content rdf:type ssb:Post.
-            ${unionClauses.map(clause => `
+            ${
+        unionClauses.map((clause) => `
             {
               ${clause}
             }
-            `).join(" UNION ")}
+            `).join(" UNION ")
+      }
         } ORDER BY DESC(?timestamp)`;
       await super.connectedCallback();
+    };
+    const saveSelections = () => {
+      const checkBoxes = this.shadowRoot.querySelectorAll(
+        "input[type='checkbox']",
+      );
+      const state = {};
+      for (const cb of checkBoxes) {
+        state[cb.id] = cb.checked;
+      }
+      sessionStorage.setItem("readerState", JSON.stringify(state));
     };
     socialDiv.addEventListener("click", (e) => {
       if (e.target.type === "checkbox") {
         showArticles();
+        saveSelections();
       }
-      console.log("click", e.target.type);
     });
     showArticles();
   }
