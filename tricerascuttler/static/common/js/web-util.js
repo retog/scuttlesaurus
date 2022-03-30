@@ -37,7 +37,7 @@ export function mdToHtml(md) {
       }
       const linkedPart = node.splitText(uriPos);
       descend(node);
-      const linkEnd = Math.min(
+      /*const linkEnd = Math.min(
         ...[" ", "\n"].map((s) => linkedPart.textContent.indexOf(s)).filter(
           (i) => i > -1
         ),
@@ -45,7 +45,7 @@ export function mdToHtml(md) {
       let afterLink;
       if (linkEnd < Infinity) {
         afterLink = linkedPart.splitText(linkEnd);
-      }
+      }*/
       const link = document.createElement("a");
       link.setAttribute("href", linkedPart.textContent);
       link.textContent = linkedPart.textContent;

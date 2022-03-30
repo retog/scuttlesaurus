@@ -29,7 +29,7 @@ export class PostIteratorElement extends PostListElement {
     }
   }
 
-  async getPosts(offset, limit) {
+  async getPosts(_offset, limit) {
     for (let i = 0; i < limit; i++) {
       this.posts[i] = await this.nextPost();
     }
