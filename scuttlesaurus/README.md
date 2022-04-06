@@ -16,7 +16,6 @@ The following parts of the guide are not currently implemented:
 - private messages
 - pub invites
 - transitive following
-- publishing messages
 
 As both [Deno](https://deno.land/) and the
 [Scuttlebutt Protocol](https://ssbc.github.io/scuttlebutt-protocol-guide/) are
