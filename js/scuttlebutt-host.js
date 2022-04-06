@@ -20578,6 +20578,11 @@ class FeedsAgent extends Agent {
             if (signal?.aborted) {
                 throw new DOMException("FeedsAgent was aborted.", "AbortError");
             }
+            if (onGoingConnectionAttempts.size >= this.peers.size) {
+                await delay(2000, {
+                    signal
+                });
+            }
             const recommendation = await this.rankingTable.getRecommendation(signal);
             const pickedPeer = recommendation.peer;
             const pickedPeerStr = pickedPeer.key.base64Key;
@@ -20599,6 +20604,12 @@ class FeedsAgent extends Agent {
                 await delay((this.onGoingSyncPeers.size * 1 + 1) * 1000, {
                     signal
                 });
+                if (signal?.aborted) {
+                    for (const conn of this.onGoingSyncPeers.values()){
+                        console.warn("closing connection after abort");
+                        conn.boxConnection.close();
+                    }
+                }
             }
         }
     }
