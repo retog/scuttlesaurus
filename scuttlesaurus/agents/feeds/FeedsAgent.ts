@@ -65,9 +65,9 @@ export default class FeedsAgent extends Agent {
         const keys = (typeof (opts.keys) === "undefined")
           ? true
           : JSON.parse(opts.keys);
-        const seq = (typeof (opts.seq) === "undefined")
-          ? 1
-          : Number.parseInt(opts.seq);
+        const seq = (typeof (opts.sequence) === "undefined")
+          ? (typeof (opts.seq) === "undefined") ? 1 : Number.parseInt(opts.seq)
+          : Number.parseInt(opts.sequence);
         for await (
           const msg of agent.getFeed(feedId, {
             fromMessage: old ? seq : 0,
@@ -261,7 +261,7 @@ export default class FeedsAgent extends Agent {
       "name": ["createHistoryStream"],
       "args": [{
         "id": feedKey.toString(),
-        "seq": from,
+        "sequence": from,
         "live": true,
       }],
     }) as AsyncIterable<Message>;
