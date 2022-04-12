@@ -13,10 +13,6 @@ export default abstract class Agent {
   /** Act on a connection initiated by another agent */
   abstract outgoingConnection(rpcConnection: RpcConnection): Promise<void>;
 
-  start(connector: ConnectionManager): Promise<void> {
-    return this.run(connector);
-  }
-
   /** Performs the self-initiated actions of this Agent. Note that the Agent may handle requests and act on incoming connection even if this method has not been invoked  */
   abstract run(
     connector: ConnectionManager,
