@@ -39,7 +39,13 @@ export default class BoxClientInterface
     // deno-lint-ignore no-this-alias
     const _host = this;
     const clientEphemeralKeyPair = sodium.crypto_box_keypair("uint8array");
-    const conn = await Promise.any(this.transports.filter(t => t.protocols.includes(address.protocol)).map((t) => {
+    const matchingTransports = this.transports.filter((t) =>
+      t.protocols.includes(address.protocol)
+    );
+    if (matchingTransports.length === 0) {
+      throw new Error("No transport for " + address.protocol);
+    }
+    const conn = await Promise.any(matchingTransports.map((t) => {
       return t.connect(address).catch((e) => {
         log.debug(
           `Error connecting with transport ${t.constructor.name}: ${e}`,
