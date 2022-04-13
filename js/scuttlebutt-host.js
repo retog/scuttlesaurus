@@ -19801,8 +19801,12 @@ class BoxClientInterface {
     connections;
     async connect(address) {
         const clientEphemeralKeyPair = __default.crypto_box_keypair("uint8array");
-        const conn = await Promise.any(this.transports.filter((t)=>t.protocols.includes(address.protocol)
-        ).map((t)=>{
+        const matchingTransports = this.transports.filter((t)=>t.protocols.includes(address.protocol)
+        );
+        if (matchingTransports.length === 0) {
+            throw new Error("No transport for " + address.protocol);
+        }
+        const conn = await Promise.any(matchingTransports.map((t)=>{
             return t.connect(address).catch((e)=>{
                 mod2.debug(`Error connecting with transport ${t.constructor.name}: ${e}`);
                 return Promise.reject(e);
@@ -20282,9 +20286,6 @@ function getFunctionInContext(names, methods) {
     }
 }
 class Agent {
-    start(connector) {
-        return this.run(connector);
-    }
 }
 class RankingTable {
     tablePromise;
@@ -20536,7 +20537,7 @@ class FeedsAgent extends Agent {
                 const live = typeof opts.live === "undefined" ? false : JSON.parse(opts.live);
                 const old = typeof opts.old === "undefined" ? true : JSON.parse(opts.old);
                 const keys = typeof opts.keys === "undefined" ? true : JSON.parse(opts.keys);
-                const seq = typeof opts.seq === "undefined" ? 1 : Number.parseInt(opts.seq);
+                const seq = typeof opts.sequence === "undefined" ? typeof opts.seq === "undefined" ? 1 : Number.parseInt(opts.seq) : Number.parseInt(opts.sequence);
                 for await (const msg of agent.getFeed(feedId, {
                     fromMessage: old ? seq : 0,
                     newMessages: live
@@ -20677,7 +20678,7 @@ class FeedsAgent extends Agent {
             "args": [
                 {
                     "id": feedKey.toString(),
-                    "seq": from,
+                    "sequence": from,
                     "live": true
                 }
             ]
