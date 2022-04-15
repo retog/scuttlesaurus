@@ -58,7 +58,8 @@ export default abstract class ScuttlebuttHost {
 
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
-  feedsStorage: FeedsStorage & RankingTableStorage;
+  feedsStorage: FeedsStorage;
+  rankingTableStorage: RankingTableStorage;
   blobsStorage: BlobsStorage;
   identity: FeedId;
 
@@ -66,6 +67,8 @@ export default abstract class ScuttlebuttHost {
     readonly config: Config,
   ) {
     this.config.failureRelevanceInterval ??= DURATION.DAY;
+    this.config.outgoingConnections ??= true;
+    this.config.storeRankingTable ??= this.config.outgoingConnections;
     this.identity = new FeedId(this.getClientKeyPair().publicKey);
     this.followees.add(this.identity);
     if (this.config.follow) {
@@ -79,9 +82,13 @@ export default abstract class ScuttlebuttHost {
       );
     }
     this.feedsStorage = this.createFeedsStorage();
+    this.rankingTableStorage = this.config.storeRankingTable
+      ? this.createRankingTableStorage()
+      : new ReadOnlyStorage(this.createRankingTableStorage());
     this.blobsStorage = this.createBlobsStorage();
     this.feedsAgent = new FeedsAgent(
       this.feedsStorage,
+      this.rankingTableStorage,
       this.followees,
       this.peers,
     );
@@ -90,7 +97,9 @@ export default abstract class ScuttlebuttHost {
     if (this.blobsAgent) this.agents.add(this.blobsAgent);
   }
 
-  protected abstract createFeedsStorage(): FeedsStorage & RankingTableStorage;
+  protected abstract createFeedsStorage(): FeedsStorage;
+
+  protected abstract createRankingTableStorage(): RankingTableStorage;
 
   protected abstract createBlobsStorage(): BlobsStorage;
 
@@ -167,15 +176,17 @@ export default abstract class ScuttlebuttHost {
         }
       },
     );
-    agents.forEach(async (agent) => {
-      try {
-        await agent.run(this.connectionManager!, signal);
-      } catch (error) {
-        log.warning(
-          `Error starting agent ${agent.constructor.name}: ${error}\n${error.stack}`,
-        );
-      }
-    });
+    if (this.config.outgoingConnections) {
+      agents.forEach(async (agent) => {
+        try {
+          await agent.run(this.connectionManager!, signal);
+        } catch (error) {
+          log.warning(
+            `Error starting agent ${agent.constructor.name}: ${error}\n${error.stack}`,
+          );
+        }
+      });
+    }
 
     (async () => {
       for await (
@@ -261,6 +272,8 @@ export type Config = {
   peers?: string[];
   /** minimum interval between two connection failures to count */
   failureRelevanceInterval?: number;
+  outgoingConnections?: boolean;
+  storeRankingTable?: boolean;
 };
 
 const SECOND = 1000;
@@ -270,3 +283,13 @@ const DAY = 24 * HOUR;
 const WEEK = 7 * DAY;
 
 const DURATION = { SECOND, MINUTE, HOUR, DAY, WEEK };
+
+class ReadOnlyStorage implements RankingTableStorage {
+  constructor(private storage: RankingTableStorage) {}
+  storeFeedPeerRankings(_table: Uint8Array[]): Promise<void> {
+    return Promise.resolve();
+  }
+  getFeedPeerRankings(): Promise<Uint8Array[]> {
+    return this.storage.getFeedPeerRankings();
+  }
+}

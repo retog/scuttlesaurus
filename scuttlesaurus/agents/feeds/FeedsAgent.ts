@@ -38,14 +38,15 @@ export type Message = {
 export default class FeedsAgent extends Agent {
   rankingTable: RankingTable;
   constructor(
-    public feedsStorage: (FeedsStorage & RankingTableStorage),
+    public feedsStorage: FeedsStorage,
+    public rankingTableStorage: RankingTableStorage,
     public subscriptions: ObservableSet<FeedId>,
     public peers: ObservableSet<Address>,
   ) {
     super();
     this.rankingTable = new RankingTable(
       { peers, followees: subscriptions },
-      feedsStorage,
+      rankingTableStorage,
     );
   }
 

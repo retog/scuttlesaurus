@@ -19,6 +19,7 @@ import {
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
 import FsStorage from "./storage/fs/FsStorage.ts";
+import RankingTableStorage from "./storage/RankingTableStorage.ts";
 
 /** A ScuttlebutHost with features avialable in a Deno enviornment such as File and Network access.
  *
@@ -138,6 +139,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
       this.failingPeers.addRemoveListener(writeFailingPeersFile);
     }
   }
+
   async start(signal?: AbortSignal) {
     const initializeCommonRoutes = (router: Router) => {
       router.get("/whoami", (ctx: Context) => {
@@ -244,6 +246,10 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
   }
 
   protected createFeedsStorage() {
+    return new FsStorage(this.config.dataDir!);
+  }
+
+  protected createRankingTableStorage(): RankingTableStorage {
     return new FsStorage(this.config.dataDir!);
   }
 
