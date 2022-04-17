@@ -21,7 +21,11 @@ export default class BrowserScuttlebuttHost extends ScuttlebuttHost {
     configureLogging();
     this.transportClients.add(new WsTransportClient());
   }
-  protected createFeedsStorage(): FeedsStorage & RankingTableStorage {
+  protected createFeedsStorage(): FeedsStorage {
+    return new LocalStorageFeedsStorage();
+  }
+
+  protected createRankingTableStorage(): RankingTableStorage {
     return new LocalStorageFeedsStorage();
   }
 
