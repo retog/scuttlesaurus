@@ -41,14 +41,21 @@ export default class SparqlStorer {
     (async () => {
       const subscriptions = [...feedsAgent.subscriptions];
       try {
-        const promiseResults = await Promise.allSettled(
+        for (const subscription of subscriptions) {
+          try {
+            await processFeed(subscription)
+          } catch (e) {
+            log.info(`Processing subscription ${subscription}: ${e}`);
+          }
+        }
+        /*const promiseResults = await Promise.allSettled(
           subscriptions.map(processFeed),
         );
         promiseResults.forEach((result, i) => {
           if (result.status === "rejected") {
             log.info(`Processing subscription ${subscriptions[i]}`);
           }
-        });
+        });*/
       } catch (e) {
         log.error(`Processing subscriptions: ${e}`);
       }
@@ -107,17 +114,6 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
     await response.arrayBuffer();
   }
   private async firstUnrecordedMessage(feedId: FeedId): Promise<number> {
-    while (true) {
-      const semaphore = this.semaphore;
-      try {
-        await semaphore;
-      } catch (_e) {
-        //this should be handled by the concurrent invoker
-      }
-      if (semaphore === this.semaphore) {
-        break;
-      }
-    }
     const query = `
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -148,7 +144,6 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
       "body": query,
       "method": "POST",
     });
-    this.semaphore = fetchResult;
     const response = await fetchResult;
     if (!response.ok) {
       const body = await response.text();
