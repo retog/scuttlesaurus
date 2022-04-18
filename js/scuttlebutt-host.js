@@ -4384,7 +4384,7 @@ const __denoroot = {}, __document = {};
                     var a = mA2(), r = 2147483648;
                     if (A > r) return !1;
                     for(var t = 1; t <= 4; t *= 2){
-                        var e = a * (1 + 0.2 / t);
+                        var e = a * (1 + .2 / t);
                         if (e = Math.min(e, A + 100663296), DA2(Math.min(r, U2(Math.max(16777216, A, e), 65536)))) return !0;
                     }
                     return !1;
@@ -4523,7 +4523,7 @@ const __denoroot = {}, __document = {};
                         case 75:
                             return 16384;
                         case 39:
-                            return 1000;
+                            return 1e3;
                         case 89:
                             return 700;
                         case 71:
@@ -6055,7 +6055,7 @@ const __denoroot = {}, __document = {};
                 var a = DA1(), r = 2147483648;
                 if (A > r) return !1;
                 for(var t = 1; t <= 4; t *= 2){
-                    var e = a * (1 + 0.2 / t);
+                    var e = a * (1 + .2 / t);
                     if (e = Math.min(e, A + 100663296), bA1(Math.min(r, J1(Math.max(16777216, A, e), 65536)))) return !0;
                 }
                 return !1;
@@ -6194,7 +6194,7 @@ const __denoroot = {}, __document = {};
                     case 75:
                         return 16384;
                     case 39:
-                        return 1000;
+                        return 1e3;
                     case 89:
                         return 700;
                     case 71:
@@ -12849,7 +12849,7 @@ const __denoroot1 = {}, __document1 = {};
                     var g = DA2(), I = 2147483648;
                     if (A > I) return !1;
                     for(var e = 1; e <= 4; e *= 2){
-                        var B = g * (1 + 0.2 / e);
+                        var B = g * (1 + .2 / e);
                         if (B = Math.min(B, A + 100663296), vA2(Math.min(I, M2(Math.max(16777216, A, B), 65536)))) return !0;
                     }
                     return !1;
@@ -12988,7 +12988,7 @@ const __denoroot1 = {}, __document1 = {};
                         case 75:
                             return 16384;
                         case 39:
-                            return 1000;
+                            return 1e3;
                         case 89:
                             return 700;
                         case 71:
@@ -13764,7 +13764,7 @@ const __denoroot1 = {}, __document1 = {};
                 var g = vA1(), I = 2147483648;
                 if (A > I) return !1;
                 for(var e = 1; e <= 4; e *= 2){
-                    var B = g * (1 + 0.2 / e);
+                    var B = g * (1 + .2 / e);
                     if (B = Math.min(B, A + 100663296), dA1(Math.min(I, N1(Math.max(16777216, A, B), 65536)))) return !0;
                 }
                 return !1;
@@ -13903,7 +13903,7 @@ const __denoroot1 = {}, __document1 = {};
                     case 75:
                         return 16384;
                     case 39:
-                        return 1000;
+                        return 1e3;
                     case 89:
                         return 700;
                     case 71:
@@ -19297,11 +19297,13 @@ class NotFoundError extends Error {
 }
 await __default.ready;
 class FeedId extends Uint8Array {
-    constructor(publicKey){
+    constructor(publicKey, _base64Key){
         super(publicKey);
+        this._base64Key = _base64Key;
+        this.toJSON = this.toString;
     }
     get base64Key() {
-        return toBase64(this);
+        return this._base64Key ??= toBase64(this);
     }
     get base64FilenameSafe() {
         return toFilenameSafeAlphabet(this.base64Key);
@@ -19312,7 +19314,8 @@ class FeedId extends Uint8Array {
     toString() {
         return `@${this.base64Key}.ed25519`;
     }
-    toJSON = this.toString;
+    toJSON;
+    _base64Key;
 }
 class BlobId extends Uint8Array {
     constructor(key){
@@ -19359,7 +19362,7 @@ function parseAddress(addr) {
             protocol,
             host,
             port,
-            key: new FeedId(fromBase64(keyString)),
+            key: new FeedId(fromBase64(keyString), keyString),
             toString: ()=>{
                 return addr;
             },
@@ -19373,17 +19376,17 @@ function parseAddress(addr) {
 }
 function parseFeedId(feedIdString) {
     const base64Key = feedIdString.startsWith("@") && feedIdString.endsWith(".ed25519") ? feedIdString.substring(1, feedIdString.length - 8) : feedIdString;
-    return new FeedId(fromBase64(base64Key));
+    return new FeedId(fromBase64(base64Key), base64Key);
 }
 function parseBlobId(blobIdString) {
     const base64Key = blobIdString.startsWith("&") && blobIdString.endsWith(".sha256") ? blobIdString.substring(1, blobIdString.length - 7) : blobIdString;
     return new BlobId(fromBase64(base64Key));
 }
 function bytes2NumberUnsigned(bytes) {
-    return bytes.length === 0 ? 0 : bytes[0] * Math.pow(256, bytes.length - 1) + bytes2NumberUnsigned(bytes.subarray(1));
+    return bytes.length === 0 ? 0 : bytes[0] * Math.pow(0x100, bytes.length - 1) + bytes2NumberUnsigned(bytes.subarray(1));
 }
 function bytes2NumberSigned(bytes) {
-    return bytes[0] & 128 ? -Math.pow(2, 7 + (bytes.length - 1) * 8) + (127 & bytes[0]) * Math.pow(256, bytes.length - 1) + bytes2NumberUnsigned(bytes.subarray(1)) : bytes2NumberUnsigned(bytes);
+    return bytes[0] & 0b10000000 ? -Math.pow(2, 7 + (bytes.length - 1) * 8) + (0b01111111 & bytes[0]) * Math.pow(0x100, bytes.length - 1) + bytes2NumberUnsigned(bytes.subarray(1)) : bytes2NumberUnsigned(bytes);
 }
 function concat(...elems) {
     const result = new Uint8Array(elems.reduce((sum, elem)=>sum + elem.length
@@ -19425,13 +19428,13 @@ function toHex(data) {
 }
 function nodeBinaryEncode(text) {
     function encodeValue(value) {
-        if (value <= 65535) {
+        if (value <= 0xFFFF) {
             return new Uint8Array([
-                value & 255
+                value & 0xFF
             ]);
         } else {
-            const firstByte = Math.floor(value / 1024) - 64 & 255;
-            const secondByte = value & 255;
+            const firstByte = Math.floor(value / 0x400) - 0b1000000 & 0xFF;
+            const secondByte = value & 0xFF;
             return new Uint8Array([
                 firstByte,
                 secondByte
@@ -19719,7 +19722,7 @@ class BoxConnection extends EventTarget {
                 this.close();
                 return null;
             }
-            const bodyLength = header[0] * 256 + header[1];
+            const bodyLength = header[0] * 0x100 + header[1];
             const authenticationBodyTag = header.slice(2);
             const encryptedBody = await readBytes(this.conn, bodyLength);
             const decodedBody = __default.crypto_box_open_easy_afternm(concat(authenticationBodyTag, encryptedBody), this.serverToClientNonce, this.serverToClientKey);
@@ -19751,7 +19754,7 @@ class BoxConnection extends EventTarget {
         const messageLengh = message.length;
         const messageLenghUiA = new Uint8Array([
             messageLengh >> 8,
-            messageLengh & 255, 
+            messageLengh & 0xFF, 
         ]);
         const authenticationBodyTag = encryptedMessage.slice(0, 16);
         const encryptedHeader = __default.crypto_box_easy_afternm(concat(messageLenghUiA, authenticationBodyTag), headerNonce, this.clientToServerKey);
@@ -19939,9 +19942,9 @@ const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 var RpcBodyType;
 (function(RpcBodyType1) {
-    RpcBodyType1[RpcBodyType1["binary"] = 0] = "binary";
-    RpcBodyType1[RpcBodyType1["utf8"] = 1] = "utf8";
-    RpcBodyType1[RpcBodyType1["json"] = 2] = "json";
+    RpcBodyType1[RpcBodyType1["binary"] = 0b00] = "binary";
+    RpcBodyType1[RpcBodyType1["utf8"] = 0b01] = "utf8";
+    RpcBodyType1[RpcBodyType1["json"] = 0b10] = "json";
 })(RpcBodyType || (RpcBodyType = {}));
 class EndOfStream extends Error {
     constructor(){
@@ -19950,9 +19953,9 @@ class EndOfStream extends Error {
 }
 function parseHeader(header) {
     const flags = header[0];
-    const partOfStream = !!(flags & 8);
-    const endOrError = !!(flags & 4);
-    const bodyType = flags & 3;
+    const partOfStream = !!(flags & 0b1000);
+    const endOrError = !!(flags & 0b100);
+    const bodyType = flags & 0b11;
     const bodyLength = bytes2NumberUnsigned(header.subarray(1, 5));
     const requestNumber = bytes2NumberSigned(header.subarray(5));
     return {
@@ -20075,7 +20078,7 @@ class RpcConnection {
                 return textEncoder.encode(JSON.stringify(body));
             };
             const payload = getPayload();
-            const flags = (options.isStream ? 8 : 0) | (options.endOrError ? 4 : 0) | options.bodyType;
+            const flags = (options.isStream ? 0b1000 : 0) | (options.endOrError ? 0b100 : 0) | options.bodyType;
             const requestNumber = options.inReplyTo ? options.inReplyTo * -1 : ++this.requestCounter;
             const header = new Uint8Array(9);
             header[0] = flags;
@@ -20388,7 +20391,7 @@ class RankingTable {
         }
         peerPositions.forEach((peerPos)=>{
             const currentValue = table[followeePos][peerPos];
-            if (currentValue < 255) {
+            if (currentValue < 0xFF) {
                 table[followeePos][peerPos]++;
                 this.saveEventually(signal);
             }
@@ -20516,9 +20519,10 @@ function getRandomInt(min, max) {
 const textEncoder1 = new TextEncoder();
 class FeedsAgent extends Agent {
     rankingTable;
-    constructor(feedsStorage, subscriptions, peers){
+    constructor(feedsStorage, rankingTableStorage, subscriptions, peers){
         super();
         this.feedsStorage = feedsStorage;
+        this.rankingTableStorage = rankingTableStorage;
         this.subscriptions = subscriptions;
         this.peers = peers;
         this.onGoingSyncPeers = new Map();
@@ -20526,7 +20530,7 @@ class FeedsAgent extends Agent {
         this.rankingTable = new RankingTable({
             peers,
             followees: subscriptions
-        }, feedsStorage);
+        }, rankingTableStorage);
     }
     createRpcContext(_feedId) {
         const agent = this;
@@ -20722,6 +20726,7 @@ class FeedsAgent extends Agent {
         ));
     }
     feedsStorage;
+    rankingTableStorage;
     subscriptions;
     peers;
 }
@@ -20989,6 +20994,7 @@ class ScuttlebuttHost {
     feedsAgent;
     blobsAgent;
     feedsStorage;
+    rankingTableStorage;
     blobsStorage;
     identity;
     constructor(config){
@@ -21001,6 +21007,8 @@ class ScuttlebuttHost {
         this.excludedPeers = new ObservableSet();
         this.failingPeers = new ObservableMap();
         this.config.failureRelevanceInterval ??= DURATION.DAY;
+        this.config.outgoingConnections ??= true;
+        this.config.storeRankingTable ??= this.config.outgoingConnections;
         this.identity = new FeedId(this.getClientKeyPair().publicKey);
         this.followees.add(this.identity);
         if (this.config.follow) {
@@ -21012,8 +21020,9 @@ class ScuttlebuttHost {
             );
         }
         this.feedsStorage = this.createFeedsStorage();
+        this.rankingTableStorage = this.config.storeRankingTable ? this.createRankingTableStorage() : new ReadOnlyStorage(this.createRankingTableStorage());
         this.blobsStorage = this.createBlobsStorage();
-        this.feedsAgent = new FeedsAgent(this.feedsStorage, this.followees, this.peers);
+        this.feedsAgent = new FeedsAgent(this.feedsStorage, this.rankingTableStorage, this.followees, this.peers);
         this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
         if (this.feedsAgent) this.agents.add(this.feedsAgent);
         if (this.blobsAgent) this.agents.add(this.blobsAgent);
@@ -21065,13 +21074,15 @@ class ScuttlebuttHost {
                 }
             }
         });
-        agents.forEach(async (agent)=>{
-            try {
-                await agent.run(this.connectionManager, signal);
-            } catch (error17) {
-                mod2.warning(`Error starting agent ${agent.constructor.name}: ${error17}\n${error17.stack}`);
-            }
-        });
+        if (this.config.outgoingConnections) {
+            agents.forEach(async (agent)=>{
+                try {
+                    await agent.run(this.connectionManager, signal);
+                } catch (error17) {
+                    mod2.warning(`Error starting agent ${agent.constructor.name}: ${error17}\n${error17.stack}`);
+                }
+            });
+        }
         (async ()=>{
             for await (const rpcConnection of this.connectionManager.outgoingConnections()){
                 Promise.all(agents.map(async (agent)=>{
@@ -21134,6 +21145,18 @@ const DURATION = {
     DAY,
     WEEK
 };
+class ReadOnlyStorage {
+    constructor(storage){
+        this.storage = storage;
+    }
+    storeFeedPeerRankings(_table) {
+        return Promise.resolve();
+    }
+    getFeedPeerRankings() {
+        return this.storage.getFeedPeerRankings();
+    }
+    storage;
+}
 function makeConnectionLike(socket) {
     mod2.debug(`making connection like`);
     const open = new Promise((resolve12, _reject)=>{
@@ -21284,6 +21307,9 @@ class BrowserScuttlebuttHost extends ScuttlebuttHost {
         this.transportClients.add(new WsTransportClient());
     }
     createFeedsStorage() {
+        return new LocalStorageFeedsStorage();
+    }
+    createRankingTableStorage() {
         return new LocalStorageFeedsStorage();
     }
     createBlobsStorage() {
