@@ -124,6 +124,7 @@ export default function msgToSparql(msg: RichMessage) {
         return `rdf:type ssb:Post;
             ssb:text "${escapeLiteral(content.text)}"
             ${content.root ? `;\nssb:root <${msgKeyToUri(content.root)}>` : ""}
+            ${content.fork ? `;\nssb:fork <${msgKeyToUri(content.fork)}>` : ""}
         ${
           content.reply && Object.entries(content.reply).length > 0
             ? ";\n" + Object.entries(content.reply).map(([p, _a]) =>
