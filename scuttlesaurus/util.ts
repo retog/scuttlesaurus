@@ -15,12 +15,12 @@ export class NotFoundError extends Error {}
 await sodium.ready;
 
 export class FeedId extends Uint8Array {
-  constructor(publicKey: Uint8Array) {
+  constructor(publicKey: Uint8Array, private _base64Key?: string) {
     super(publicKey);
   }
 
   get base64Key() {
-    return toBase64(this);
+    return this._base64Key ??= toBase64(this);
   }
 
   get base64FilenameSafe() {
@@ -141,7 +141,7 @@ export function parseAddress(addr: string): Address {
       protocol,
       host,
       port,
-      key: new FeedId(fromBase64(keyString)),
+      key: new FeedId(fromBase64(keyString), keyString),
       toString: () => {
         return addr;
       },
@@ -159,7 +159,7 @@ export function parseFeedId(feedIdString: string) {
     feedIdString.startsWith("@") && feedIdString.endsWith(".ed25519")
       ? feedIdString.substring(1, feedIdString.length - 8)
       : feedIdString;
-  return new FeedId(fromBase64(base64Key));
+  return new FeedId(fromBase64(base64Key), base64Key);
 }
 
 export function parseBlobId(blobIdString: string) {
