@@ -4,6 +4,10 @@ import { Args, parse } from "https://deno.land/std@0.112.0/flags/mod.ts";
 
 /* return an SSB peer configured according to command line options */
 export async function createScuttlebuttHost() {
+  return new DenoScuttlebuttHost(await createScuttlebuttConfig());
+}
+
+export async function createScuttlebuttConfig() {
   const options = parse(Deno.args, {
     /*boolean: "incoming"*/
   });
@@ -32,7 +36,7 @@ export async function createScuttlebuttHost() {
       }
     }
   }
-  return new DenoScuttlebuttHost(config);
+  return config;
 }
 
 if (import.meta.main) {
