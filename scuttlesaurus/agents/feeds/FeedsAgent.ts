@@ -1,5 +1,5 @@
-import RpcConnection from "../../comm/rpc/RpcConnection.ts";
-import { RpcContext } from "../../comm/rpc/types.ts";
+import type RpcConnection from "../../comm/rpc/RpcConnection.ts";
+import type { RpcContext } from "../../comm/rpc/types.ts";
 import {
   Address,
   computeMsgHash,
@@ -15,10 +15,10 @@ import {
   toBase64,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
-import FeedsStorage from "../../storage/FeedsStorage.ts";
-import ConnectionManager from "../ConnectionManager.ts";
+import type FeedsStorage from "../../storage/FeedsStorage.ts";
+import type ConnectionManager from "../ConnectionManager.ts";
 import RankingTable from "./RankingTable.ts";
-import RankingTableStorage from "../../storage/RankingTableStorage.ts";
+import type RankingTableStorage from "../../storage/RankingTableStorage.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -210,14 +210,16 @@ export default class FeedsAgent extends Agent {
         }
       }
     }
-    if (newMessages) {
+    if (newMessages && this.subscriptions.has(feedId)) {
       let resolver: (msg: Message) => void;
       const listener = (
         msgFeedId: FeedId,
         msg: Message,
       ) => {
         if (feedId.base64Key === msgFeedId.base64Key) {
-          resolver(msg);
+          if (msg.value.sequence >= fromMessage) {
+            resolver(msg);
+          }
         }
       };
       this.addNewMessageListeners(listener);
