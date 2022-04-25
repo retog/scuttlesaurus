@@ -7,7 +7,7 @@ import {
   Router,
   send,
 } from "https://deno.land/x/oak@v10.2.0/mod.ts";
-import { createScuttlebuttHost } from "../scuttlesaurus/main.ts";
+import { createScuttlebuttConfig } from "../scuttlesaurus/main.ts";
 import SparqlStorer from "./SparqlStorer.ts";
 import {
   BlobId,
@@ -19,6 +19,8 @@ import {
   path,
 } from "../scuttlesaurus/util.ts";
 import registerFollowees from "./registerFollowees.ts";
+import DenoScuttlebuttHost from "../scuttlesaurus/DenoScuttlebuttHost.ts";
+import FeedsStorage from "../scuttlesaurus/storage/FeedsStorage.ts";
 
 function getRequiredEnvVar(name: string): string {
   const value = Deno.env.get(name);
@@ -32,17 +34,32 @@ function getRequiredEnvVar(name: string): string {
 const sparqlEndpointQuery = getRequiredEnvVar("SPARQL_ENDPOINT_QUERY");
 const sparqlEndpointUpdate = getRequiredEnvVar("SPARQL_ENDPOINT_UPDATE");
 
-const host = await createScuttlebuttHost();
-const portalOwner = Deno.env.get("SSB_PORTAL_OWNER");
-
-const mainIdentity = portalOwner ? parseFeedId(portalOwner) : host.identity;
-
 const storer = new SparqlStorer(
   sparqlEndpointQuery,
   sparqlEndpointUpdate,
   Deno.env.get("SPARQL_ENDPOINT_CREDENTIALS"),
 );
-storer.connectAgent(host.feedsAgent!);
+
+const storeFeedsInFiles = Deno.env.get("FEEDS_STORAGE") === "FILES";
+
+class TriceraHost extends DenoScuttlebuttHost {
+  createFeedsStorage(): FeedsStorage {
+    if (storeFeedsInFiles) {
+      return super.createFeedsStorage();
+    } else {
+      return storer;
+    }
+  }
+}
+
+const host = new TriceraHost(await createScuttlebuttConfig());
+const portalOwner = Deno.env.get("SSB_PORTAL_OWNER");
+
+const mainIdentity = portalOwner ? parseFeedId(portalOwner) : host.identity;
+
+if (storeFeedsInFiles) {
+  storer.connectAgent(host.feedsAgent!);
+}
 const staticDir = path.join(
   path.dirname(path.fromFileUrl(import.meta.url)),
   "/static",

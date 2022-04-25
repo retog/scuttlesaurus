@@ -1,21 +1,170 @@
 import FeedsAgent, {
   Message,
 } from "../scuttlesaurus/agents/feeds/FeedsAgent.ts";
-import { delay, FeedId, log } from "../scuttlesaurus/util.ts";
+import FeedsStorage from "../scuttlesaurus/storage/FeedsStorage.ts";
+import { delay, FeedId, JSONValue, log } from "../scuttlesaurus/util.ts";
 
 import msgToSparql, { RichMessage } from "./msgToSparql.ts";
 
-export default class SparqlStorer {
+export default class SparqlStorer implements FeedsStorage {
   constructor(
     public sparqlEndpointQuery: string,
     public sparqlEndpointUpdate: string,
     public credentials: string | undefined,
   ) {}
 
+  async storeMessage(
+    feedId: FeedId,
+    position: number,
+    msg: JSONValue,
+  ): Promise<void> {
+    if (await this.messageExists(feedId, position)) {
+      throw new Error("A message with that feed and position already exist");
+    }
+    const insertDelete = msgToSparql(msg as RichMessage);
+    const sparqlStatement = `
+      PREFIX ssb: <ssb:ontology:>
+      PREFIX ssbx: <ssb:ontology:derivatives:>
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+      DELETE  {
+        ${insertDelete.deleteClause}
+      }
+      INSERT {
+        ${insertDelete.insertClause}
+      }
+      WHERE {
+        OPTIONAL {?x ssb:seq ${position}; ssb:author <${feedId.toUri()}>.}
+        FILTER (!BOUND(?x))
+      }`;
+    await this.runSparqlStatementSequential(sparqlStatement);
+  }
+
+  private async messageExists(feedId: FeedId, position: number): Promise<boolean> {
+    const query = `
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      PREFIX ssb: <ssb:ontology:>
+      ASK {
+        {?x ssb:seq ${position}; ssb:author <${feedId.toUri()}>.}
+      }
+      `;
+    const headers: Record<string, string> = {
+      "Accept": "application/sparql-results+json,*/*;q=0.9",
+      "Content-Type": "application/sparql-query",
+    };
+    if (this.credentials) {
+      headers.Authorization = `Basic ${btoa(this.credentials)}`;
+    }
+    const fetchResult = fetch(this.sparqlEndpointQuery, {
+      headers,
+      "body": query,
+      "method": "POST",
+    });
+    const response = await fetchResult;
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`${body}`);
+    }
+
+    const resultJson = await response.json();
+    return resultJson.value;
+  }
+
+  async getMessage(feedId: FeedId, position: number): Promise<Message> {
+    const query = `
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX ssb: <ssb:ontology:>
+    
+    SELECT ?raw WHERE {
+      {
+        ?msg rdf:type ssb:Message;
+          ssb:author <${feedId.toUri()}>;
+          ssb:seq ${position};
+          ssb:raw ?raw.
+      }
+    }`;
+    const headers: Record<string, string> = {
+      "Accept": "application/sparql-results+json,*/*;q=0.9",
+      "Content-Type": "application/sparql-query",
+    };
+    if (this.credentials) {
+      headers.Authorization = `Basic ${btoa(this.credentials)}`;
+    }
+    const fetchResult = fetch(this.sparqlEndpointQuery, {
+      headers,
+      "body": query,
+      "method": "POST",
+    });
+    const response = await fetchResult;
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`${body}`);
+    }
+
+    const resultJson = await response.json();
+    if (resultJson.results.bindings.length === 1) {
+      return JSON.parse(resultJson.results.bindings[0].raw.value);
+    } else {
+      throw new Error("No such message")
+    }
+
+    
+  }
+
+  async lastMessage(feedId: FeedId): Promise<number> {
+    const query = `
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX ssb: <ssb:ontology:>
+    
+    SELECT (MAX(?seq) as ?last) WHERE {
+      {
+        ?msg rdf:type ssb:Message;
+           ssb:author <${feedId.toUri()}>;
+          ssb:seq ?seq.
+      }
+    }`;
+    const headers: Record<string, string> = {
+      "Accept": "application/sparql-results+json,*/*;q=0.9",
+      "Content-Type": "application/sparql-query",
+    };
+    if (this.credentials) {
+      headers.Authorization = `Basic ${btoa(this.credentials)}`;
+    }
+    const fetchResult = fetch(this.sparqlEndpointQuery, {
+      headers,
+      "body": query,
+      "method": "POST",
+    });
+    const response = await fetchResult;
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`${body}`);
+    }
+
+    const resultJson = await response.json();
+    if (resultJson.results.bindings[0]?.last?.value) {
+      return parseInt(resultJson.results.bindings[0].last.value);
+    } else {
+      return 0;
+    }
+  }
+
   /** stored exsting and new messages in the triple store*/
   connectAgent(feedsAgent: FeedsAgent) {
     const processMsg = async (msg: Message) => {
-      const sparqlStatement = msgToSparql(msg as RichMessage);
+      const insertDelete = msgToSparql(msg as RichMessage);
+      const sparqlStatement = `
+      PREFIX ssb: <ssb:ontology:>
+      PREFIX ssbx: <ssb:ontology:derivatives:>
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+  
+      INSERT DATA {
+              ${insertDelete.insertClause}
+      };
+      DELETE DATA {
+              ${insertDelete.deleteClause}
+      }
+      `;
       try {
         await this.runSparqlStatementSequential(sparqlStatement);
       } catch (error) {
@@ -43,7 +192,7 @@ export default class SparqlStorer {
       try {
         for (const subscription of subscriptions) {
           try {
-            await processFeed(subscription)
+            await processFeed(subscription);
           } catch (e) {
             log.info(`Processing subscription ${subscription}: ${e}`);
           }
@@ -116,7 +265,6 @@ error: Uncaught (in promise) TypeError: error sending request for url (http://fu
   private async firstUnrecordedMessage(feedId: FeedId): Promise<number> {
     const query = `
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
     PREFIX ssb: <ssb:ontology:>
     
     SELECT ?next WHERE {

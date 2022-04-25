@@ -57,50 +57,43 @@ export type RichMessage = Message & {
     timestamp: number;
   };
 };
-export default function msgToSparql(msg: RichMessage) {
+export type InsertDelete = { insertClause: string; deleteClause: string };
+export default function msgToSparql(msg: RichMessage): InsertDelete {
   const msgUri = parseMsgKey(msg.key).toUri();
   const timestamp = msg.value.timestamp;
   const content = msg.value.content;
   abstract class StatementGenerator {
-    abstract get insertDataContent(): string;
-    generate() {
-      return `
-      PREFIX ssb: <ssb:ontology:>
-      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-  
-      INSERT DATA {
-              ${this.insertDataContent}
-       }
-    `;
-    }
+    abstract get insertDelete(): InsertDelete;
+
   }
 
   class BasicMessage extends StatementGenerator {
-    get insertDataContent(): string {
+    get insertDelete(): InsertDelete {
       const safeContent = (() => {
         try {
           return this.content;
         } catch (error) {
           log.error(
-            `Failed converting ${
-              JSON.stringify(content)
-            } to sparql: ${error}.`,
+            `Failed converting ${JSON.stringify(content)} to sparql: ${error}.`,
           );
           return undefined;
         }
       })();
-      return `
+      return {
+        insertClause: `
         <${msgUri}> rdf:type ssb:Message;
         ssb:seq ${msg.value.sequence};
         ssb:timestamp ${timestamp};
         ssb:author <${feedIdToUri(msg.value.author as FeedIdStr)}>;
-        ssb:raw "${escapeLiteral(JSON.stringify(content))}"
+        ssb:raw "${escapeLiteral(JSON.stringify(msg))}"
         ${
-        safeContent
-          ? `; ssb:content <content:${msgUri}>. <content:${msgUri}> ${safeContent}`
-          : ""
-      }.
-      `;
+          safeContent
+            ? `; ssb:content <content:${msgUri}>. <content:${msgUri}> ${safeContent}`
+            : ""
+        }.
+      `,
+        deleteClause: "",
+      };
     }
     get content(): string | undefined {
       return undefined;
@@ -167,31 +160,25 @@ export default function msgToSparql(msg: RichMessage) {
         }
     `;
       }
-      generate(): string {
+      get insertDelete(): InsertDelete {
         const content = msg.value.content as Contact;
         if (typeof (content.following) !== "boolean") {
-          return super.generate();
+          return super.insertDelete;
         }
+        const result = super.insertDelete;
         const shortcutTriple = `<${
           feedIdToUri(msg.value.author as FeedIdStr)
         }> ssbx:follows <${feedIdToUri(content.contact)}> .`;
         if (content.following) {
-          return `
-          ${super.generate()};
-          PREFIX ssbx: <ssb:ontology:derivatives:>
-          INSERT DATA {
+          result.insertClause += `
             ${shortcutTriple}
-          }
           `;
         } else {
-          return `
-          ${super.generate()};
-          PREFIX ssbx: <ssb:ontology:derivatives:>
-          DELETE DATA {
+          result.deleteClause += `
             ${shortcutTriple}
-          }
           `;
         }
+        return result;
       }
     }(),
     "vote": new class extends BasicMessage {
@@ -291,10 +278,10 @@ export default function msgToSparql(msg: RichMessage) {
   const statementGenerator = content.type && contentSerializers[content.type];
   if (statementGenerator) {
     try {
-      return statementGenerator.generate();
+      return statementGenerator.insertDelete
     } catch (e) {
       log.info(`Caught ${e}, failing back to BasicMessage`);
     }
   }
-  return new BasicMessage().generate();
+  return new BasicMessage().insertDelete
 }
