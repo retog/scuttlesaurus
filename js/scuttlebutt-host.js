@@ -20646,11 +20646,13 @@ class FeedsAgent extends Agent {
                 }
             }
         }
-        if (newMessages) {
+        if (newMessages && this.subscriptions.has(feedId)) {
             let resolver;
             const listener = (msgFeedId, msg)=>{
                 if (feedId.base64Key === msgFeedId.base64Key) {
-                    resolver(msg);
+                    if (msg.value.sequence >= fromMessage) {
+                        resolver(msg);
+                    }
                 }
             };
             this.addNewMessageListeners(listener);
@@ -21022,10 +21024,14 @@ class ScuttlebuttHost {
         this.feedsStorage = this.createFeedsStorage();
         this.rankingTableStorage = this.config.storeRankingTable ? this.createRankingTableStorage() : new ReadOnlyStorage(this.createRankingTableStorage());
         this.blobsStorage = this.createBlobsStorage();
-        this.feedsAgent = new FeedsAgent(this.feedsStorage, this.rankingTableStorage, this.followees, this.peers);
-        this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
-        if (this.feedsAgent) this.agents.add(this.feedsAgent);
-        if (this.blobsAgent) this.agents.add(this.blobsAgent);
+        if (this.feedsStorage) {
+            this.feedsAgent = new FeedsAgent(this.feedsStorage, this.rankingTableStorage, this.followees, this.peers);
+            this.agents.add(this.feedsAgent);
+        }
+        if (this.blobsStorage) {
+            this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
+            this.agents.add(this.blobsAgent);
+        }
     }
     connectionManager;
     async start(signal) {
@@ -21105,6 +21111,9 @@ class ScuttlebuttHost {
         }
     }
     async publish(content) {
+        if (!this.feedsStorage) {
+            throw new Error("No feeds storage");
+        }
         const previousSeq = await this.feedsStorage.lastMessage(this.identity);
         const previous = previousSeq > 0 ? (await this.feedsStorage.getMessage(this.identity, previousSeq)).key : null;
         const sequence = previousSeq + 1;
