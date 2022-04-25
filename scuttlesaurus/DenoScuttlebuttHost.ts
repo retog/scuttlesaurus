@@ -20,6 +20,8 @@ import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
 import FsStorage from "./storage/fs/FsStorage.ts";
 import RankingTableStorage from "./storage/RankingTableStorage.ts";
+import FeedsStorage from "./storage/FeedsStorage.ts";
+import BlobsStorage from "./storage/BlobsStorage.ts";
 
 /** A ScuttlebutHost with features avialable in a Deno enviornment such as File and Network access.
  *
@@ -245,7 +247,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     await super.start(signal);
   }
 
-  protected createFeedsStorage() {
+  protected createFeedsStorage(): FeedsStorage | undefined {
     return new FsStorage(this.config.dataDir!);
   }
 
@@ -253,7 +255,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     return new FsStorage(this.config.dataDir!);
   }
 
-  protected createBlobsStorage() {
+  protected createBlobsStorage(): BlobsStorage | undefined {
     return new FsStorage(this.config.dataDir!);
   }
 

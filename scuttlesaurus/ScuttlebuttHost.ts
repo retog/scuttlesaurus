@@ -58,9 +58,9 @@ export default abstract class ScuttlebuttHost {
 
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
-  feedsStorage: FeedsStorage;
+  feedsStorage: FeedsStorage | undefined;
   rankingTableStorage: RankingTableStorage;
-  blobsStorage: BlobsStorage;
+  blobsStorage: BlobsStorage | undefined;
   identity: FeedId;
 
   constructor(
@@ -86,22 +86,26 @@ export default abstract class ScuttlebuttHost {
       ? this.createRankingTableStorage()
       : new ReadOnlyStorage(this.createRankingTableStorage());
     this.blobsStorage = this.createBlobsStorage();
-    this.feedsAgent = new FeedsAgent(
-      this.feedsStorage,
-      this.rankingTableStorage,
-      this.followees,
-      this.peers,
-    );
-    this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
-    if (this.feedsAgent) this.agents.add(this.feedsAgent);
-    if (this.blobsAgent) this.agents.add(this.blobsAgent);
+    if (this.feedsStorage) {
+      this.feedsAgent = new FeedsAgent(
+        this.feedsStorage,
+        this.rankingTableStorage,
+        this.followees,
+        this.peers,
+      );
+      this.agents.add(this.feedsAgent);
+    }
+    if (this.blobsStorage) {
+      this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
+      this.agents.add(this.blobsAgent);
+    }
   }
 
-  protected abstract createFeedsStorage(): FeedsStorage;
+  protected abstract createFeedsStorage(): FeedsStorage | undefined;
 
   protected abstract createRankingTableStorage(): RankingTableStorage;
 
-  protected abstract createBlobsStorage(): BlobsStorage;
+  protected abstract createBlobsStorage(): BlobsStorage | undefined;
 
   protected abstract getClientKeyPair(): KeyPair;
 
@@ -224,6 +228,9 @@ export default abstract class ScuttlebuttHost {
   async publish(
     content: JSONValue,
   ) {
+    if (!this.feedsStorage) {
+      throw new Error("No feeds storage");
+    }
     const previousSeq = await this.feedsStorage.lastMessage(this.identity);
     const previous = previousSeq > 0
       ? (await this.feedsStorage.getMessage(
