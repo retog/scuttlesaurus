@@ -228,14 +228,16 @@ export default class BlobsAgent extends Agent {
               );
             }
           } else {
-            //TODO check sympaty and level
-            if ((hasOrWant.level * -1 < this.options.forwardHopsUnknownPeers) || 
-              (this.followees.has(rpcConnection.boxConnection.peer) && (hasOrWant.level * -1 < this.options.forwardHopsFollowedPeers))) {
-            this.processWant(
-              new BlobWant(hasOrWant.blobId, hasOrWant.level - 1),
-              rpcConnection.boxConnection.peer,
-            );
-              }
+            if (
+              (hasOrWant.level * -1 < this.options.forwardHopsUnknownPeers) ||
+              (this.followees.has(rpcConnection.boxConnection.peer) &&
+                (hasOrWant.level * -1 < this.options.forwardHopsFollowedPeers))
+            ) {
+              this.processWant(
+                new BlobWant(hasOrWant.blobId, hasOrWant.level - 1),
+                rpcConnection.boxConnection.peer,
+              );
+            }
           }
         }
       }
