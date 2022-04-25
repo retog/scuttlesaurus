@@ -164,7 +164,7 @@ export default class RpcConnection {
                 } else {
                   log.info(
                     `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
-                      textDecoder.decode(body).substring(0,1000)
+                      textDecoder.decode(body).substring(0, 1000)
                     }`,
                   );
                 }

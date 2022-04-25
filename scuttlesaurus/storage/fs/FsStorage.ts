@@ -50,10 +50,10 @@ export default class FsStorage
     const rowLength = rowLengthView.getInt32(0);
     const bytes = new Uint8Array(buffer, 4);
     //why do we get excess data?
-    const excessBytes = bytes.length % rowLength
+    const excessBytes = bytes.length % rowLength;
     const table = new Array((bytes.length - excessBytes) / rowLength);
     for (let i = 0; i < table.length; i++) {
-      table[i] = bytes.subarray(i * rowLength, (i+1) * rowLength);
+      table[i] = bytes.subarray(i * rowLength, (i + 1) * rowLength);
     }
     return table;
   }

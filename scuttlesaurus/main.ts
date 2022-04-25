@@ -22,8 +22,7 @@ export async function createScuttlebuttConfig() {
       options.incoming.toLowerCase() === "true";
   }
   if (typeof (options.outgoing) !== "undefined") {
-    config.outgoingConnections =
-      options.outgoing.toLowerCase() === "true";
+    config.outgoingConnections = options.outgoing.toLowerCase() === "true";
   }
   if (typeof (options.web) !== "undefined") {
     for (const endpoint in options.web) {
