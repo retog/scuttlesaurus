@@ -43,7 +43,7 @@ const storer = new SparqlStorer(
 const storeFeedsInFiles = Deno.env.get("FEEDS_STORAGE") === "FILES";
 
 class TriceraHost extends DenoScuttlebuttHost {
-  createFeedsStorage(): FeedsStorage {
+  createFeedsStorage(): FeedsStorage | undefined {
     if (storeFeedsInFiles) {
       return super.createFeedsStorage();
     } else {
@@ -80,7 +80,7 @@ function addCommonEndpoints(
   router.all(
     "/query",
     proxy(sparqlEndpointQuery, {
-      filterReq: (req, _res) => {
+      filterReq: (req: { method: string; }, _res: unknown) => {
         return req.method !== "GET";
       },
       srcResHeaderDecorator: () =>
