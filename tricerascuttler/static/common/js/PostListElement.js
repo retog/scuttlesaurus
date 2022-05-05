@@ -8,6 +8,7 @@ export class PostListElement extends HTMLElement {
 
     this.query = this.getAttribute("query");
     this.loadSize = parseInt(this.getAttribute("loadSize") ?? 20);
+    this.showRead = this.getAttribute("showRead") ?? "hideRead";
     this.styleElem = document.createElement("style");
     this.styleElem.innerHTML = `
     .post {
@@ -33,6 +34,11 @@ export class PostListElement extends HTMLElement {
     </div>
 
     `;
+
+    const selectedOption = this.shadowRoot.querySelector(
+      `option[value="${this.showRead}"]`,
+    );
+    selectedOption.selected = true;
   }
 
   connectedCallback() {

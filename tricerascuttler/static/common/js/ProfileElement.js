@@ -41,7 +41,7 @@ export class ProfileElement extends HTMLElement {
     <ssb-tabs>
     <ssb-tab label="Posts" active>
       <template>
-        <ssb-post-list loadSize="10" query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        <ssb-post-list loadSize="10" showRead="showAll" query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             PREFIX ssb: <ssb:ontology:>
             SELECT ?post {
                 ?post ssb:seq ?seq;
@@ -59,7 +59,7 @@ export class ProfileElement extends HTMLElement {
     </ssb-tab>
     <ssb-tab label="Liked Posts">
       <template>
-        <ssb-post-list loadSize="10" query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        <ssb-post-list loadSize="10" showRead="showAll" query="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             PREFIX ssb: <ssb:ontology:>
             SELECT ?post { 
               ?msgVote ssb:content [
