@@ -64,7 +64,6 @@ export default function msgToSparql(msg: RichMessage): InsertDelete {
   const content = msg.value.content;
   abstract class StatementGenerator {
     abstract get insertDelete(): InsertDelete;
-
   }
 
   class BasicMessage extends StatementGenerator {
@@ -278,10 +277,10 @@ export default function msgToSparql(msg: RichMessage): InsertDelete {
   const statementGenerator = content.type && contentSerializers[content.type];
   if (statementGenerator) {
     try {
-      return statementGenerator.insertDelete
+      return statementGenerator.insertDelete;
     } catch (e) {
       log.info(`Caught ${e}, failing back to BasicMessage`);
     }
   }
-  return new BasicMessage().insertDelete
+  return new BasicMessage().insertDelete;
 }

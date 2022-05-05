@@ -1,5 +1,5 @@
 import ScuttlebuttHost from "../scuttlesaurus/ScuttlebuttHost.ts";
-import { log, parseFeedId, FeedId } from "../scuttlesaurus/util.ts";
+import { FeedId, log, parseFeedId } from "../scuttlesaurus/util.ts";
 
 const sigilPrefix: Record<string, string> = {
   feed: "@",

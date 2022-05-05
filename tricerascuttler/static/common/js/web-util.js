@@ -14,10 +14,11 @@ export function mdToHtml(md) {
           node.destination = sigilToIri(decodeURIComponent(node.destination));
         }
         if (node.type === "image") {
-          node.destination = sigilToIri(decodeURIComponent(node.destination)).replace(
-            "ssb:blob/",
-            "./blob/",
-          );
+          node.destination = sigilToIri(decodeURIComponent(node.destination))
+            .replace(
+              "ssb:blob/",
+              "./blob/",
+            );
         }
       }
     }

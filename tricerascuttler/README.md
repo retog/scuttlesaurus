@@ -30,11 +30,17 @@ environment variables must be set:
 - SPARQL_ENDPOINT_QUERY
 - SPARQL_ENDPOINT_UPDATE
 
-By default Tricerascuttler uses the an Scuttlesaurus' primary identity as the identity of the portal owner. As tha actual owner of the portal may not want to store their secret key on the computer running Tricerascuttler a different identity can be specified with the environment variable
+By default Tricerascuttler uses the an Scuttlesaurus' primary identity as the
+identity of the portal owner. As tha actual owner of the portal may not want to
+store their secret key on the computer running Tricerascuttler a different
+identity can be specified with the environment variable
 
 - SSB_PORTAL_OWNER
 
-The value must an SSB "sigil" Feed-ID, e.g. `@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519`. If this variable is set, the content users see will be based on the contents and follow-relationsship of this identity.
+The value must an SSB "sigil" Feed-ID, e.g.
+`@IX0YhhVNgs9btLPepGlyLpXKvB0URDHLrmrm4yDlD1c=.ed25519`. If this variable is
+set, the content users see will be based on the contents and
+follow-relationsship of this identity.
 
 ## Developing
 

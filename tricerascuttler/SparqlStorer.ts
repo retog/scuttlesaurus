@@ -40,7 +40,10 @@ export default class SparqlStorer implements FeedsStorage {
     await this.runSparqlStatementSequential(sparqlStatement);
   }
 
-  private async messageExists(feedId: FeedId, position: number): Promise<boolean> {
+  private async messageExists(
+    feedId: FeedId,
+    position: number,
+  ): Promise<boolean> {
     const query = `
       PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
       PREFIX ssb: <ssb:ontology:>
@@ -105,10 +108,8 @@ export default class SparqlStorer implements FeedsStorage {
     if (resultJson.results.bindings.length === 1) {
       return JSON.parse(resultJson.results.bindings[0].raw.value);
     } else {
-      throw new Error("No such message")
+      throw new Error("No such message");
     }
-
-    
   }
 
   async lastMessage(feedId: FeedId): Promise<number> {

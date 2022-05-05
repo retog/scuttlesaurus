@@ -80,7 +80,7 @@ function addCommonEndpoints(
   router.all(
     "/query",
     proxy(sparqlEndpointQuery, {
-      filterReq: (req: { method: string; }, _res: unknown) => {
+      filterReq: (req: { method: string }, _res: unknown) => {
         return req.method !== "GET";
       },
       srcResHeaderDecorator: () =>
