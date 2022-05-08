@@ -13,6 +13,7 @@ import {
   parseFeedId,
   sodium,
   toBase64,
+  TSEMap,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
 import type FeedsStorage from "../../storage/FeedsStorage.ts";
@@ -53,7 +54,7 @@ export default class FeedsAgent extends Agent {
   createRpcContext(_feedId: FeedId): RpcContext {
     // deno-lint-ignore no-this-alias
     const agent = this;
-    const rpcMethods = {
+    return {
       createHistoryStream: async function* (args: Record<string, string>[]) {
         const opts = args[0];
         const feedId = parseFeedId(opts.id);
@@ -83,11 +84,9 @@ export default class FeedsAgent extends Agent {
         }
       },
     };
-    return rpcMethods;
   }
 
-  /** contains the adress strings of ongoing sync partners */
-  private onGoingSyncPeers = new Map<string, RpcConnection>();
+  private onGoingSyncPeers = new TSEMap<FeedId, RpcConnection>();
 
   async incomingConnection(rpcConnection: RpcConnection) {
     this.updateFeed(
@@ -98,13 +97,13 @@ export default class FeedsAgent extends Agent {
   }
 
   async outgoingConnection(rpcConnection: RpcConnection) {
-    const peerStr = rpcConnection.boxConnection.peer.base64Key;
-    if (!this.onGoingSyncPeers.has(peerStr)) {
-      this.onGoingSyncPeers.set(peerStr, rpcConnection);
+    const peer = rpcConnection.boxConnection.peer;
+    if (!this.onGoingSyncPeers.has(peer)) {
+      this.onGoingSyncPeers.set(peer, rpcConnection);
       try {
         await this.updateFeeds(rpcConnection);
       } finally {
-        this.onGoingSyncPeers.delete(peerStr);
+        this.onGoingSyncPeers.delete(peer);
       }
     }
   }
