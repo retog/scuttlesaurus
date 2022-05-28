@@ -8,14 +8,20 @@ export default abstract class Agent {
   abstract createRpcContext(feedId: FeedId): RpcContext;
 
   /** Act on incoming connection */
-  abstract incomingConnection(rpcConnection: RpcConnection): Promise<void>;
+  abstract incomingConnection(
+    rpcConnection: RpcConnection,
+    opts?: { signal?: AbortSignal },
+  ): Promise<void>;
 
   /** Act on a connection initiated by another agent */
-  abstract outgoingConnection(rpcConnection: RpcConnection): Promise<void>;
+  abstract outgoingConnection(
+    rpcConnection: RpcConnection,
+    opts?: { signal?: AbortSignal },
+  ): Promise<void>;
 
   /** Performs the self-initiated actions of this Agent. Note that the Agent may handle requests and act on incoming connection even if this method has not been invoked  */
   abstract run(
     connector: ConnectionManager,
-    signal?: AbortSignal,
+    opts?: { signal?: AbortSignal },
   ): Promise<void>;
 }

@@ -2,17 +2,13 @@ import type RpcConnection from "../../comm/rpc/RpcConnection.ts";
 import type { RpcContext } from "../../comm/rpc/types.ts";
 import {
   Address,
-  computeMsgHash,
   delay,
   FeedId,
-  fromBase64,
   JSONValue,
   log,
   NotFoundError,
   ObservableSet,
   parseFeedId,
-  sodium,
-  toBase64,
   TSEMap,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
@@ -20,8 +16,7 @@ import type FeedsStorage from "../../storage/FeedsStorage.ts";
 import type ConnectionManager from "../ConnectionManager.ts";
 import RankingTable from "./RankingTable.ts";
 import type RankingTableStorage from "../../storage/RankingTableStorage.ts";
-
-const textEncoder = new TextEncoder();
+import { FeedsConnection } from "./FeedsConnection.ts";
 
 export type MessageValue = JSONValue & {
   sequence: number;
@@ -88,41 +83,58 @@ export default class FeedsAgent extends Agent {
 
   private onGoingSyncPeers = new TSEMap<FeedId, RpcConnection>();
 
-  async incomingConnection(rpcConnection: RpcConnection) {
+  async incomingConnection(
+    rpcConnection: RpcConnection,
+    opts?: { signal?: AbortSignal },
+  ) {
     this.updateFeed(
       rpcConnection,
       rpcConnection.boxConnection.peer,
+      { signal: opts?.signal },
     );
-    await this.outgoingConnection(rpcConnection);
+    await this.outgoingConnection(rpcConnection, opts);
   }
 
-  async outgoingConnection(rpcConnection: RpcConnection) {
+  async outgoingConnection(
+    rpcConnection: RpcConnection,
+    opts?: { signal?: AbortSignal },
+  ) {
     const peer = rpcConnection.boxConnection.peer;
     if (!this.onGoingSyncPeers.has(peer)) {
       this.onGoingSyncPeers.set(peer, rpcConnection);
       try {
-        await this.updateFeeds(rpcConnection);
+        await this.updateFeeds(rpcConnection, opts);
       } finally {
         this.onGoingSyncPeers.delete(peer);
       }
     }
   }
 
-  async run(connector: ConnectionManager, signal?: AbortSignal): Promise<void> {
+  async run(
+    connector: ConnectionManager,
+    opts?: { signal?: AbortSignal },
+  ): Promise<void> {
     const onGoingConnectionAttempts = new Set<string>();
     this.subscriptions.addAddListener(async (feedId) => {
       for (const connection of this.onGoingSyncPeers.values()) {
-        await this.updateFeed(connection, feedId, signal);
+        await this.updateFeed(connection, feedId, { signal: opts?.signal });
       }
     });
     while (true) {
-      if (signal?.aborted) {
+      if (opts?.signal?.aborted) {
         throw new DOMException("FeedsAgent was aborted.", "AbortError");
       }
       if (onGoingConnectionAttempts.size >= this.peers.size) {
-        await delay(2000, { signal });
+        try {
+          await delay(2000, opts);
+        } catch (_error) {
+          //aborted
+          break;
+        }
       }
-      const recommendation = await this.rankingTable.getRecommendation(signal);
+      const recommendation = await this.rankingTable.getRecommendation(
+        opts?.signal,
+      );
       const pickedPeer = recommendation.peer;
       const pickedPeerStr = pickedPeer.key.base64Key;
       if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
@@ -134,7 +146,7 @@ export default class FeedsAgent extends Agent {
             this.updateFeed(
               rpcConnection,
               recommendation.followee,
-              signal,
+              opts,
             );
           } catch (error) {
             log.error(
@@ -149,8 +161,12 @@ export default class FeedsAgent extends Agent {
           onGoingConnectionAttempts.delete(pickedPeerStr);
         });
         // wait some time depending on how many syncs are going on
-        await delay((this.onGoingSyncPeers.size * 1 + 1) * 1000, { signal });
-        if (signal?.aborted) {
+        try {
+          await delay((this.onGoingSyncPeers.size * 1 + 1) * 1000, opts);
+        } catch (_error) {
+          //aborted
+        }
+        if (opts?.signal?.aborted) {
           for (const conn of this.onGoingSyncPeers.values()) {
             console.warn("closing connection after abort");
             conn.boxConnection.close();
@@ -237,124 +253,43 @@ export default class FeedsAgent extends Agent {
   async updateFeed(
     rpcConnection: RpcConnection,
     feedKey: FeedId,
-    signal?: AbortSignal,
-  ) {
-    const messagesAlreadyHere = await this.feedsStorage.lastMessage(feedKey);
+    opts?: { signal?: AbortSignal },
+  ): Promise<void> {
+    const feedsConnection = new FeedsConnection(rpcConnection, {
+      signal: opts?.signal,
+      newMessageTimeout: 2 * 60 * 1000,
+    });
     try {
-      await this.updateFeedFrom(
-        rpcConnection,
+      await feedsConnection.syncFeed(
         feedKey,
-        messagesAlreadyHere + 1,
-        signal,
+        this.feedsStorage,
+        (f: FeedId, m: Message) => {
+          this.fireNewMessageEvent(f, m);
+          this.rankingTable.recordSuccess(
+            rpcConnection.boxConnection.peer,
+            f,
+            opts?.signal,
+          );
+        },
+        opts,
       );
     } catch (error) {
       log.info(`error updating feed ${feedKey}: ${error}`);
     }
   }
 
-  private async updateFeedFrom(
+  private async updateFeeds(
     rpcConnection: RpcConnection,
-    feedKey: FeedId,
-    from: number,
-    signal?: AbortSignal,
+    opts?: { signal?: AbortSignal },
   ) {
-    log.debug(`Updating Feed ${feedKey} from ${from}`);
-    const historyStream = await rpcConnection.sendSourceRequest({
-      "name": ["createHistoryStream"],
-      "args": [{
-        "id": feedKey.toString(),
-        "sequence": from,
-        "live": true,
-      }],
-    }) as AsyncIterable<Message>;
-    let expectedSequence = from;
-    for await (const msg of historyStream) {
-      if (expectedSequence !== msg.value.sequence) {
-        throw new Error(
-          `Expected sequence ${expectedSequence} but got ${msg.value.sequence}`,
-        );
-      }
-      expectedSequence++;
-      const hash = computeMsgHash(msg.value);
-      const key = `%${toBase64(hash)}.sha256`;
-      if (key !== msg.key) {
-        throw new Error(
-          "Computed hash doesn't match key " +
-            JSON.stringify(msg, undefined, 2),
-        );
-      }
-      if (
-        !verifySignature(msg.value)
-      ) {
-        throw Error(
-          `failed to verify signature of the message: ${
-            JSON.stringify(msg.value, undefined, 2)
-          }`,
-        );
-      }
-      if (msg.value.sequence > 1) {
-        const previousMessage = await this.feedsStorage.getMessage(
-          feedKey,
-          msg.value.sequence - 1,
-        );
-        if (previousMessage.key !== msg.value.previous) {
-          throw new Error(
-            `Broken Crypto-Chain in ${feedKey} at ${msg.value.sequence}`,
-          );
-        }
-      }
-
-      try {
-        await this.feedsStorage.storeMessage(
-          feedKey,
-          msg.value.sequence,
-          msg,
-        );
-        this.fireNewMessageEvent(feedKey, msg);
-      } catch (e) {
-        log.debug(`Storing message: ${e}`);
-      }
-
-      this.rankingTable.recordSuccess(
-        rpcConnection.boxConnection.peer,
-        feedKey,
-        signal,
-      );
-    }
-    log.debug(() => `Stream ended for feed ${feedKey}`);
-  }
-
-  private async updateFeeds(rpcConnection: RpcConnection) {
     const subscriptions = await this.rankingTable.getFolloweesFor(
       rpcConnection.boxConnection.peer,
       50,
     );
     await Promise.all(
-      [...subscriptions].map((feed) => this.updateFeed(rpcConnection, feed)),
+      [...subscriptions].map((feed) =>
+        this.updateFeed(rpcConnection, feed, opts)
+      ),
     );
   }
-}
-
-export function verifySignature(msg: { author: string; signature?: string }) {
-  if (!msg.signature) {
-    throw Error("no signature in messages");
-  }
-  const signatureString = msg.signature;
-  const signature = fromBase64(
-    signatureString.substring(
-      0,
-      signatureString.length - ".sig.ed25519".length,
-    ),
-  );
-  const authorsPubkicKey = fromBase64(
-    msg.author.substring(1, msg.author.length - ".ed25519".length),
-  );
-  delete msg.signature;
-  const verifyResult = sodium.crypto_sign_verify_detached(
-    signature,
-    textEncoder.encode(JSON.stringify(msg, undefined, 2)),
-    authorsPubkicKey,
-  );
-  msg.signature = signatureString;
-  return verifyResult;
 }

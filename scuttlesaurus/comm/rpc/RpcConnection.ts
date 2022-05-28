@@ -1,5 +1,6 @@
 import BoxConnection from "../box/BoxConnection.ts";
 import {
+  abortSignalPromise,
   bytes2NumberSigned,
   bytes2NumberUnsigned,
   concat,
@@ -234,7 +235,7 @@ export default class RpcConnection {
   sendSourceRequest = async (request: {
     name: string[];
     args: unknown;
-  }) => {
+  }, signal?: AbortSignal) => {
     const requestNumber = await this.sendRpcMessage({
       name: request.name,
       args: request.args,
@@ -256,6 +257,9 @@ export default class RpcConnection {
     const generate = async function* () {
       try {
         while (true) {
+          if (signal?.aborted) {
+            throw new DOMException("FeedsAgent was aborted.", "AbortError");
+          }
           while (buffer.length > 0) {
             const [message, header] = buffer.shift() as [Uint8Array, Header];
             if (!header.endOrError) {
@@ -269,38 +273,47 @@ export default class RpcConnection {
               }
             }
           }
-          yield await new Promise<
-            JSONValue | Uint8Array
-          >(
-            (resolve, reject) => {
-              responseStreamListeners.set(
-                requestNumber,
-                (message: Uint8Array, header: Header) => {
-                  if (!header.endOrError) {
-                    responseStreamListeners.set(requestNumber, bufferer);
-                    resolve(parse(message, header.bodyType));
-                  } else {
-                    const endMessage = textDecoder.decode(message);
-                    if (endMessage === "true") {
-                      log.debug(
-                        `Got end-message on response on ${request.name} by ${boxConnection.peer}`,
-                      );
-                      reject(new EndOfStream());
-                    } else {
-                      reject(
-                        new Error(
-                          `On connection with ${boxConnection.peer}: ${endMessage}`,
-                        ),
-                      );
-                    }
-                  }
+          try {
+            yield await Promise.race([
+              new Promise<
+                JSONValue | Uint8Array
+              >(
+                (resolve, reject) => {
+                  responseStreamListeners.set(
+                    requestNumber,
+                    (message: Uint8Array, header: Header) => {
+                      if (!header.endOrError) {
+                        responseStreamListeners.set(requestNumber, bufferer);
+                        resolve(parse(message, header.bodyType));
+                      } else {
+                        const endMessage = textDecoder.decode(message);
+                        if (endMessage === "true") {
+                          log.debug(
+                            `Got end-message on response on ${request.name} by ${boxConnection.peer}`,
+                          );
+                          reject(new EndOfStream());
+                        } else {
+                          reject(
+                            new Error(
+                              `On connection with ${boxConnection.peer}: ${endMessage}`,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  );
                 },
-              );
-            },
-          );
+              ),
+              abortSignalPromise(signal),
+            ]);
+          } catch (error) {
+            throw error;
+          }
         }
       } catch (error) {
         if (error instanceof EndOfStream) {
+          return;
+        } else if (error.name === "AbortError") {
           return;
         } else {
           throw error;
@@ -368,9 +381,8 @@ export default class RpcConnection {
       return textEncoder.encode(JSON.stringify(body));
     };
     const payload: Uint8Array = getPayload();
-    const flags = (options.isStream ? 0b1000 : 0) | (options.endOrError
-      ? 0b100
-      : 0) |
+    const flags = (options.isStream ? 0b1000 : 0) |
+      (options.endOrError ? 0b100 : 0) |
       options.bodyType!;
     const requestNumber = options.inReplyTo
       ? options.inReplyTo * -1

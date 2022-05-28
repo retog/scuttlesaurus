@@ -183,7 +183,7 @@ export default abstract class ScuttlebuttHost {
     if (this.config.outgoingConnections) {
       agents.forEach(async (agent) => {
         try {
-          await agent.run(this.connectionManager!, signal);
+          await agent.run(this.connectionManager!, { signal });
         } catch (error) {
           log.warning(
             `Error starting agent ${agent.constructor.name}: ${error}\n${error.stack}`,
@@ -199,7 +199,7 @@ export default abstract class ScuttlebuttHost {
         Promise.all(
           agents.map(async (agent) => {
             try {
-              await agent.outgoingConnection(rpcConnection);
+              await agent.outgoingConnection(rpcConnection, { signal });
             } catch (error) {
               log.warning(
                 `Error with agent ${agent.constructor.name} handling incoming connection: ${error}`,
@@ -214,7 +214,7 @@ export default abstract class ScuttlebuttHost {
       Promise.all(
         agents.map(async (agent) => {
           try {
-            await agent.incomingConnection(rpcConnection);
+            await agent.incomingConnection(rpcConnection, { signal });
           } catch (error) {
             log.warning(
               `Error with agent ${agent.constructor.name} handling incoming connection: ${error}`,
