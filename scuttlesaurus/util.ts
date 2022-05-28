@@ -551,3 +551,15 @@ export class ObservableMap<T, V> extends TSEMap<T, V> {
     }
   }
 }
+
+export function abortSignalPromise(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    return Promise.reject();
+  } else {
+    return new Promise((_resolve, reject) => {
+      signal?.addEventListener("abort", (_event) => {
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    });
+  }
+}
