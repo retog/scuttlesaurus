@@ -32,7 +32,7 @@ export type Message = {
 };
 
 export default class FeedsAgent extends Agent {
-  rankingTable: RankingTable;
+  rankingTable: RankingTable | undefined;
   constructor(
     public feedsStorage: FeedsStorage,
     public rankingTableStorage: RankingTableStorage,
@@ -40,10 +40,6 @@ export default class FeedsAgent extends Agent {
     public peers: ObservableSet<Address>,
   ) {
     super();
-    this.rankingTable = new RankingTable(
-      { peers, followees: subscriptions },
-      rankingTableStorage,
-    );
   }
 
   createRpcContext(_feedId: FeedId): RpcContext {
@@ -87,6 +83,13 @@ export default class FeedsAgent extends Agent {
     rpcConnection: RpcConnection,
     opts?: { signal?: AbortSignal },
   ) {
+    if (!this.rankingTable) {
+      this.rankingTable = new RankingTable(
+        { peers: this.peers, followees: this.subscriptions },
+        this.rankingTableStorage,
+        opts,
+      );
+    }
     this.updateFeed(
       rpcConnection,
       rpcConnection.boxConnection.peer,
@@ -99,6 +102,13 @@ export default class FeedsAgent extends Agent {
     rpcConnection: RpcConnection,
     opts?: { signal?: AbortSignal },
   ) {
+    if (!this.rankingTable) {
+      this.rankingTable = new RankingTable(
+        { peers: this.peers, followees: this.subscriptions },
+        this.rankingTableStorage,
+        opts,
+      );
+    }
     const peer = rpcConnection.boxConnection.peer;
     if (!this.onGoingSyncPeers.has(peer)) {
       this.onGoingSyncPeers.set(peer, rpcConnection);
@@ -114,6 +124,13 @@ export default class FeedsAgent extends Agent {
     connector: ConnectionManager,
     opts?: { signal?: AbortSignal },
   ): Promise<void> {
+    if (!this.rankingTable) {
+      this.rankingTable = new RankingTable(
+        { peers: this.peers, followees: this.subscriptions },
+        this.rankingTableStorage,
+        opts,
+      );
+    }
     const onGoingConnectionAttempts = new Set<string>();
     this.subscriptions.addAddListener(async (feedId) => {
       for (const connection of this.onGoingSyncPeers.values()) {
@@ -132,9 +149,7 @@ export default class FeedsAgent extends Agent {
           break;
         }
       }
-      const recommendation = await this.rankingTable.getRecommendation(
-        opts?.signal,
-      );
+      const recommendation = await this.rankingTable.getRecommendation();
       const pickedPeer = recommendation.peer;
       const pickedPeerStr = pickedPeer.key.base64Key;
       if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
@@ -265,10 +280,9 @@ export default class FeedsAgent extends Agent {
         this.feedsStorage,
         (f: FeedId, m: Message) => {
           this.fireNewMessageEvent(f, m);
-          this.rankingTable.recordSuccess(
+          this.rankingTable!.recordSuccess(
             rpcConnection.boxConnection.peer,
             f,
-            opts?.signal,
           );
         },
         opts,
@@ -282,7 +296,7 @@ export default class FeedsAgent extends Agent {
     rpcConnection: RpcConnection,
     opts?: { signal?: AbortSignal },
   ) {
-    const subscriptions = await this.rankingTable.getFolloweesFor(
+    const subscriptions = await this.rankingTable!.getFolloweesFor(
       rpcConnection.boxConnection.peer,
       50,
     );

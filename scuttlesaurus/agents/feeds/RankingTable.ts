@@ -31,6 +31,7 @@ export default class RankingTable {
       followees: ObservableSet<FeedId>;
     },
     private storage: RankingTableStorage,
+    public opts? : {signal?: AbortSignal}
   ) {
     const followees = [...host.followees];
     this.followees = followees;
@@ -113,7 +114,7 @@ export default class RankingTable {
     })();
   }
 
-  async recordSuccess(peer: FeedId, followee: FeedId, signal?: AbortSignal) {
+  async recordSuccess(peer: FeedId, followee: FeedId) {
     const table = await this.tablePromise;
     const peerPositions = new Array<number>();
     for (let i = 0; i < this.peers.length; i++) {
@@ -130,16 +131,16 @@ export default class RankingTable {
       const currentValue = table[followeePos][peerPos];
       if (currentValue < 0xFF) {
         table[followeePos][peerPos]++; //the reward
-        this.saveEventually(signal);
+        this.saveEventually();
       }
     });
   }
 
-  private saveEventually(signal?: AbortSignal) {
+  private saveEventually() {
     if (!this.pendingSave) {
       this.pendingSave = (async () => {
         try {
-          await delay(2 * 60 * 1000, { signal });
+          await delay(2 * 60 * 1000, this.opts);
         } catch (_e) {
           //aborted
         }
@@ -150,7 +151,6 @@ export default class RankingTable {
   }
 
   async getRecommendation(
-    signal?: AbortSignal,
   ): Promise<{ peer: Address; followee: FeedId }> {
     const pickFollowee = async () => {
       if (this.followees.length === 0) {
@@ -168,10 +168,10 @@ export default class RankingTable {
       }
     };
     const followee = await pickFollowee();
-    const peer = await this.getPeerFor(followee, signal);
+    const peer = await this.getPeerFor(followee);
     return { peer, followee };
   }
-  async getPeerFor(followee: FeedId, signal?: AbortSignal): Promise<Address> {
+  async getPeerFor(followee: FeedId): Promise<Address> {
     const table = await this.tablePromise;
     if (this.host.peers.size === 0) {
       log.warning("No peer known.");
@@ -194,7 +194,7 @@ export default class RankingTable {
       if (partialSum > randomPointer) {
         const origRating = peerRatings[i];
         peerRatings[i] = Math.ceil(origRating * 0.9); //recommendation cost
-        if (peerRatings[i] !== origRating) this.saveEventually(signal);
+        if (peerRatings[i] !== origRating) this.saveEventually();
         return this.peers[i];
       }
     }
