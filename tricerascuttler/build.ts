@@ -1,22 +1,14 @@
 import { path } from "../scuttlesaurus/util.ts";
+import { bundle } from "https://deno.land/x/emit@0.2.0/mod.ts";
 
 const encoder = new TextEncoder();
-const { files } = await Deno.emit(
+
+const result = await bundle(
   "../scuttlesaurus/BrowserScuttlebuttHost.ts",
-  {
-    bundle: "module",
-  },
 );
+
+const { code } = result;
 const outDir = "static/common/js/ext";
 Deno.mkdirSync(outDir, { recursive: true });
-for (const [fileName, text] of Object.entries(files)) {
-  const outFileName = fileName.substring("deno://".length).replace(
-    "bundle",
-    "scuttlebutt-host",
-  );
-  Deno.writeFileSync(
-    path.join(outDir, outFileName),
-    encoder.encode(text as string),
-  );
-}
+Deno.writeTextFileSync(path.join(outDir, "scuttlebutt-host.js"), code);
 console.log("All done");
