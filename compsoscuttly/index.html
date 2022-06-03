@@ -6,8 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compsoscuttly: Scuttlesaurus in the Browser</title>
   <script type="text/javascript" src="./js/editable-list.js"></script>
-  <script type="module" src="https://unpkg.com/side-drawer/dist/esm/side-drawer.min.js"></script>
-  <script nomodule src="https://unpkg.com/side-drawer/dist/iife/side-drawer.min.js"></script>
+  <script type="module" src="https://unpkg.com/side-drawer@3.1.0/side-drawer.js"></script>
   <style>
     side-drawer {
       background-color: #ffffff;
@@ -58,7 +57,6 @@
     const logArea = document.getElementById("log");
     const host = new ScuttlebuttHost({
       peers: [
-        "wss://scuttleboot.app~shs:luoZnBKHXeJl4kB39uIkZnQD4L0zl6Vd+Pe75gKS4fo=",
         "ws:ssb.farewellutopia.com:8989~shs:A2x/4olpyciSh+KXTULh9QFCCBCu5SSbL4ZmytwIuZw="
       ],
       follow: [

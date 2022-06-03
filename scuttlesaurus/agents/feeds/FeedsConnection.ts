@@ -19,7 +19,7 @@ import { Message } from "./FeedsAgent.ts";
 const textEncoder = new TextEncoder();
 
 export class FeedsConnection {
-  syncingFeeds: FeedId[] = [];
+  syncingFeeds = new Set<FeedId>();
   timeoutClockStart = Date.now();
   timeoutMonitor?: Promise<unknown>;
 
@@ -33,12 +33,15 @@ export class FeedsConnection {
     if (opts?.newMessageTimeout) {
       this.timeoutMonitor = (async () => {
         try {
-          while (!opts?.signal?.aborted && Date.now() < this.timeoutClockStart+opts?.newMessageTimeout!) {
+          while (
+            !opts?.signal?.aborted &&
+            Date.now() < this.timeoutClockStart + opts?.newMessageTimeout!
+          ) {
             await delay(opts?.newMessageTimeout!, {
               signal: opts?.signal,
             });
           }
-        } catch(_error) {
+        } catch (_error) {
           //aborted
         }
         rpcConnection.boxConnection.close();
@@ -54,6 +57,10 @@ export class FeedsConnection {
       signal?: AbortSignal;
     },
   ) {
+    if (this.syncingFeeds.has(feedId)) {
+      return;
+    }
+    this.syncingFeeds.add(feedId);
     this.timeoutClockStart = Date.now();
     const from = await store.lastMessage(feedId) + 1;
     let expectedSequence = from;
@@ -108,10 +115,10 @@ export class FeedsConnection {
       }
     }
     log.debug(() => `Stream ended for feed ${feedId}`);
+    this.syncingFeeds.delete(feedId);
   }
 
   private async *getFeed(feedId: FeedId, from: number, signal?: AbortSignal) {
-    this.syncingFeeds.push(feedId);
     const baseIterable = await this.rpcConnection.sendSourceRequest({
       "name": ["createHistoryStream"],
       "args": [{

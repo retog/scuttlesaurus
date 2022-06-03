@@ -30,7 +30,11 @@ export type Message = {
   value: MessageValue;
   key: string;
 };
-
+/**
+ * This creates a FeedsConnection for every new RpcConnection. On a FeedsConnection it requests Feeds as per the recommandations provided by RankingTable.getFolloweeFor.
+ *
+ * It regularly asks RankingTable for recommendations and creates an RpcConnection to the recommended Address if there's no current connection to the address' peer, else it asks for the feed on every existing FeedsConnection to the address' peer.
+ */
 export default class FeedsAgent extends Agent {
   rankingTable: RankingTable | undefined;
   constructor(
@@ -41,6 +45,9 @@ export default class FeedsAgent extends Agent {
   ) {
     super();
   }
+
+  rpc2FeedsConnections = new WeakMap<RpcConnection, FeedsConnection>();
+  peer2FeedsConnections = new TSEMap<FeedId, FeedsConnection[]>();
 
   createRpcContext(_feedId: FeedId): RpcContext {
     // deno-lint-ignore no-this-alias
@@ -77,7 +84,30 @@ export default class FeedsAgent extends Agent {
     };
   }
 
-  private onGoingSyncPeers = new TSEMap<FeedId, RpcConnection>();
+  //private onGoingSyncPeers = new TSEMap<FeedId, RpcConnection>();
+
+  private getFeedsConnection(
+    rpcConnection: RpcConnection,
+    opts?: { signal?: AbortSignal; newMessageTimeout?: number },
+  ): FeedsConnection {
+    const cachedFeedsConnection = this.rpc2FeedsConnections.get(rpcConnection);
+    if (
+      cachedFeedsConnection &&
+      !cachedFeedsConnection.rpcConnection.boxConnection.closed
+    ) {
+      return cachedFeedsConnection;
+    }
+    const newFeedsConnection = new FeedsConnection(rpcConnection, opts);
+    this.rpc2FeedsConnections.set(rpcConnection, newFeedsConnection);
+    const peer = rpcConnection.boxConnection.peer;
+    const connectionsToPeer = this.peer2FeedsConnections.get(peer) ?? [];
+    connectionsToPeer.push(newFeedsConnection);
+    this.peer2FeedsConnections.set(
+      peer,
+      connectionsToPeer.filter((c) => !c.rpcConnection.boxConnection.closed),
+    );
+    return newFeedsConnection;
+  }
 
   async incomingConnection(
     rpcConnection: RpcConnection,
@@ -90,12 +120,31 @@ export default class FeedsAgent extends Agent {
         opts,
       );
     }
-    this.updateFeed(
-      rpcConnection,
-      rpcConnection.boxConnection.peer,
-      { signal: opts?.signal },
-    );
+    const feedsConnection = this.getFeedsConnection(rpcConnection, {
+      signal: opts?.signal,
+      newMessageTimeout: 24 * 60 * 60 * 1000,
+    });
+    this.syncFeed(feedsConnection, rpcConnection.boxConnection.peer);
+
     await this.outgoingConnection(rpcConnection, opts);
+  }
+  async syncFeed(
+    feedsConnection: FeedsConnection,
+    feedId: FeedId,
+    opts?: { signal?: AbortSignal },
+  ) {
+    await feedsConnection.syncFeed(
+      feedId,
+      this.feedsStorage,
+      (f: FeedId, m: Message) => {
+        this.fireNewMessageEvent(f, m);
+        this.rankingTable!.recordSuccess(
+          feedsConnection.rpcConnection.boxConnection.peer,
+          f,
+        );
+      },
+      opts,
+    );
   }
 
   async outgoingConnection(
@@ -109,15 +158,11 @@ export default class FeedsAgent extends Agent {
         opts,
       );
     }
-    const peer = rpcConnection.boxConnection.peer;
-    if (!this.onGoingSyncPeers.has(peer)) {
-      this.onGoingSyncPeers.set(peer, rpcConnection);
-      try {
-        await this.updateFeeds(rpcConnection, opts);
-      } finally {
-        this.onGoingSyncPeers.delete(peer);
-      }
-    }
+    const feedsConnection = this.getFeedsConnection(rpcConnection, {
+      signal: opts?.signal,
+      newMessageTimeout: 2 * 60 * 1000,
+    });
+    await this.updateFeeds(feedsConnection, opts);
   }
 
   async run(
@@ -133,8 +178,10 @@ export default class FeedsAgent extends Agent {
     }
     const onGoingConnectionAttempts = new Set<string>();
     this.subscriptions.addAddListener(async (feedId) => {
-      for (const connection of this.onGoingSyncPeers.values()) {
-        await this.updateFeed(connection, feedId, { signal: opts?.signal });
+      for (
+        const connection of [...this.peer2FeedsConnections.values()].flat(1)
+      ) {
+        await this.syncFeed(connection, feedId, { signal: opts?.signal });
       }
     });
     while (true) {
@@ -150,43 +197,51 @@ export default class FeedsAgent extends Agent {
         }
       }
       const recommendation = await this.rankingTable.getRecommendation();
-      const pickedPeer = recommendation.peer;
-      const pickedPeerStr = pickedPeer.key.base64Key;
-      if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
-        onGoingConnectionAttempts.add(pickedPeerStr);
-        (async () => {
-          try {
-            //this will cause `outgoingConnection` to be invoked
-            const rpcConnection = await connector.getConnectionWith(pickedPeer);
-            this.updateFeed(
-              rpcConnection,
-              recommendation.followee,
-              opts,
-            );
-          } catch (error) {
-            log.error(
-              `In connection with ${pickedPeer}: ${error.stack}`,
-            );
-            if (error.errors) {
-              error.errors.forEach(log.info);
+      console.debug(
+        `Following recommendation: ${JSON.stringify(recommendation)}`,
+      );
+      const feedsConnections = (this.peer2FeedsConnections.get(
+        recommendation.peer.key,
+      ) ?? []).filter((c) => !c.rpcConnection.boxConnection.closed);
+      if (feedsConnections.length > 0) {
+        feedsConnections.forEach((c) =>
+          this.syncFeed(c, recommendation.followee, opts).catch(console.error)
+        );
+      } else {
+        const pickedPeer = recommendation.peer;
+        const pickedPeerStr = pickedPeer.key.base64Key;
+        if (!onGoingConnectionAttempts.has(pickedPeerStr)) {
+          onGoingConnectionAttempts.add(pickedPeerStr);
+          (async () => {
+            try {
+              //this will cause `outgoingConnection` to be invoked
+              const rpcConnection = await connector.getConnectionWith(
+                pickedPeer,
+              );
+              const feedsConnection = this.getFeedsConnection(rpcConnection, {
+                signal: opts?.signal,
+                newMessageTimeout: 2 * 60 * 1000,
+              });
+              this.syncFeed(feedsConnection, recommendation.followee, opts)
+                .catch(console.error);
+            } catch (error) {
+              log.error(
+                `In connection with ${pickedPeer}: ${error.stack}`,
+              );
+              if (error.errors) {
+                error.errors.forEach(log.info);
+              }
+              //TODO this shoul cause this peer to be attempted less frequently
             }
-            //TODO this shoul cause this peer to be attempted less frequently
-          }
-        })().finally(() => {
-          onGoingConnectionAttempts.delete(pickedPeerStr);
-        });
-        // wait some time depending on how many syncs are going on
-        try {
-          await delay((this.onGoingSyncPeers.size * 1 + 1) * 1000, opts);
-        } catch (_error) {
-          //aborted
+          })().finally(() => {
+            onGoingConnectionAttempts.delete(pickedPeerStr);
+          });
         }
-        if (opts?.signal?.aborted) {
-          for (const conn of this.onGoingSyncPeers.values()) {
-            console.warn("closing connection after abort");
-            conn.boxConnection.close();
-          }
-        }
+      }
+      try {
+        await delay(1000, opts);
+      } catch (_error) {
+        //aborted
       }
     }
   }
@@ -265,44 +320,17 @@ export default class FeedsAgent extends Agent {
     }
   }
 
-  async updateFeed(
-    rpcConnection: RpcConnection,
-    feedKey: FeedId,
-    opts?: { signal?: AbortSignal },
-  ): Promise<void> {
-    const feedsConnection = new FeedsConnection(rpcConnection, {
-      signal: opts?.signal,
-      newMessageTimeout: 2 * 60 * 1000,
-    });
-    try {
-      await feedsConnection.syncFeed(
-        feedKey,
-        this.feedsStorage,
-        (f: FeedId, m: Message) => {
-          this.fireNewMessageEvent(f, m);
-          this.rankingTable!.recordSuccess(
-            rpcConnection.boxConnection.peer,
-            f,
-          );
-        },
-        opts,
-      );
-    } catch (error) {
-      log.info(`error updating feed ${feedKey}: ${error}`);
-    }
-  }
-
   private async updateFeeds(
-    rpcConnection: RpcConnection,
+    feedsConnection: FeedsConnection,
     opts?: { signal?: AbortSignal },
   ) {
     const subscriptions = await this.rankingTable!.getFolloweesFor(
-      rpcConnection.boxConnection.peer,
+      feedsConnection.rpcConnection.boxConnection.peer,
       50,
     );
     await Promise.all(
       [...subscriptions].map((feed) =>
-        this.updateFeed(rpcConnection, feed, opts)
+        this.syncFeed(feedsConnection, feed, opts)
       ),
     );
   }
