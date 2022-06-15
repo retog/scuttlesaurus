@@ -1,5 +1,4 @@
 //import { delay } from "https://deno.land/std@0.103.0/async/mod.ts";
-import { log } from "../util.ts";
 
 const l = Deno.listenDatagram({
   port: 8008,
@@ -14,7 +13,7 @@ export function advertise(_multiAddress: string) {
   return new Promise((_res, _rej) => {});
 }
 
-log.info(
+console.info(
   `Listening on ${(l.addr as Deno.NetAddr).hostname}:${
     (l.addr as Deno.NetAddr).port
   }.`,
@@ -29,7 +28,7 @@ const udpPeerDiscoverer = {
         hostname: (r[1] as Deno.NetAddr).hostname,
         addresses,
       };
-      /*log.info(
+      /*console.info(
         `got UDP packet ${multiAddress} from ${
           (r[1] as Deno.NetAddr).hostname
         }:${(r[1] as Deno.NetAddr).port}.`,

@@ -6,7 +6,6 @@ import {
   concat,
   FeedId,
   JSONValue,
-  log,
   parseBlobId,
 } from "../../util.ts";
 import Agent from "../Agent.ts";
@@ -114,11 +113,11 @@ export default class BlobsAgent extends Agent {
     const rpcMethods = {
       blobs: {
         /*has(args: Record<string, string>[]): Promise<boolean> {
-          log.info(`${feedId} asked about ${args}`);
+          console.info(`${feedId} asked about ${args}`);
           return Promise.resolve(false);
         },*/
         async *get(args: (Record<string, string> | string)[]) {
-          log.debug(
+          console.debug(
             `${feedId} invoked blobs.get with args: ${JSON.stringify(args)}.`,
           );
           let blobIdString: string;
@@ -134,7 +133,7 @@ export default class BlobsAgent extends Agent {
         async *createWants(
           args: Record<string, string>[],
         ): AsyncIterable<JSONValue> {
-          log.debug(
+          console.debug(
             `${feedId} invoked blobs.createWants with  ${JSON.stringify(args)}`,
           );
           for (const p of pendingWants.values()) {
@@ -182,7 +181,7 @@ export default class BlobsAgent extends Agent {
           parseBlobId(entry[0]),
           parseInt(entry[1] as string),
         );
-        log.debug(
+        console.debug(
           `Got has/want from ${rpcConnection.boxConnection.peer}: ${
             JSON.stringify(hasOrWant)
           }`,
@@ -223,7 +222,7 @@ export default class BlobsAgent extends Agent {
               wantFeed(new BlobWant(hasOrWant.blobId, blob.length));
             } else {
               //TODO tell them if and when they invoke createWants, add to a broadened pendingWants set
-              log.warning(
+              console.warn(
                 `${rpcConnection.boxConnection.peer} asked for a blob we have, but we can't tell them`,
               );
             }
@@ -249,7 +248,7 @@ export default class BlobsAgent extends Agent {
   run(_connector: {
     connect(address: Address): Promise<RpcConnection>;
   }): Promise<void> {
-    log.info(
+    console.info(
       "BlobsAgent only acts on connections established by other agents and incoming connections.",
     );
     return Promise.resolve();

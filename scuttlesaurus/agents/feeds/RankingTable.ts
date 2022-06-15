@@ -1,12 +1,5 @@
 import RankingTableStorage from "../../storage/RankingTableStorage.ts";
-import {
-  Address,
-  delay,
-  FeedId,
-  log,
-  ObservableSet,
-  TSESet,
-} from "../../util.ts";
+import { Address, delay, FeedId, ObservableSet, TSESet } from "../../util.ts";
 
 /* Table followees/peers: every time we get feed contents from a peer the respective tuple gets points.
   * Whenever we recommend a tuple this costs some points.
@@ -31,7 +24,7 @@ export default class RankingTable {
       followees: ObservableSet<FeedId>;
     },
     private storage: RankingTableStorage,
-    public opts? : {signal?: AbortSignal}
+    public opts?: { signal?: AbortSignal },
   ) {
     const followees = [...host.followees];
     this.followees = followees;
@@ -47,7 +40,7 @@ export default class RankingTable {
         try {
           table = await storage.getFeedPeerRankings();
         } catch (error) {
-          log.info(
+          console.info(
             `Error loading peer-rankings, will create new table: ${error}`,
           );
         }
@@ -124,7 +117,7 @@ export default class RankingTable {
     }
     const followeePos = this.followeeLabels.indexOf(followee.toString());
     if (!followeePos) {
-      log.debug(`No record for feed ${followee}`);
+      console.debug(`No record for feed ${followee}`);
       return;
     }
     peerPositions.forEach((peerPos) => {
@@ -150,8 +143,7 @@ export default class RankingTable {
     }
   }
 
-  async getRecommendation(
-  ): Promise<{ peer: Address; followee: FeedId }> {
+  async getRecommendation(): Promise<{ peer: Address; followee: FeedId }> {
     const pickFollowee = async () => {
       if (this.followees.length === 0) {
         console.warn("No followees.");
@@ -174,7 +166,7 @@ export default class RankingTable {
   async getPeerFor(followee: FeedId): Promise<Address> {
     const table = await this.tablePromise;
     if (this.host.peers.size === 0) {
-      log.warning("No peer known.");
+      console.warn("No peer known.");
       //return the first we get
       return await new Promise((resolve) => {
         const listener = (addr: Address) => {

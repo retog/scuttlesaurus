@@ -1,5 +1,5 @@
 import ScuttlebuttHost from "../scuttlesaurus/ScuttlebuttHost.ts";
-import { FeedId, log, parseFeedId } from "../scuttlesaurus/util.ts";
+import { FeedId, parseFeedId } from "../scuttlesaurus/util.ts";
 
 const sigilPrefix: Record<string, string> = {
   feed: "@",
@@ -42,7 +42,7 @@ export default async function registerFollowees(
     try {
       host.followees.add(parseFeedId(iriToSigil(binding.contact.value)));
     } catch (e) {
-      log.warning(`Processing: ${binding.contact.value}: ${e}`);
+      console.warn(`Processing: ${binding.contact.value}: ${e}`);
     }
   });
 }

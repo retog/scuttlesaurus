@@ -8,7 +8,6 @@ import TransportClient from "./comm/transport/TransportClient.ts";
 import TransportServer from "./comm/transport/TransportServer.ts";
 import NetTransport from "./comm/transport/net/NetTransport.ts";
 import {
-  log,
   parseAddress,
   parseFeedId,
   parseKeyPair,
@@ -61,7 +60,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         ? config.follow.concat(followStrings)
         : followStrings;
     } catch (error) {
-      log.debug(`Error reading ${followeesFile}: ${error}`);
+      console.debug(`Error reading ${followeesFile}: ${error}`);
     }
 
     const peersFile = path.join(config.baseDir, "peers.json");
@@ -72,7 +71,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         ? config.peers.concat(peersFromFile)
         : peersFromFile;
     } catch (error) {
-      log.debug(`Error reading ${peersFile}: ${error}`);
+      console.debug(`Error reading ${peersFile}: ${error}`);
     }
     super(config);
     const exludedPeersFile = path.join(config.baseDir, "excluded-peers.json");
@@ -84,7 +83,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         this.excludedPeers.add(parseAddress(addr))
       );
     } catch (error) {
-      log.debug(`Error reading ${exludedPeersFile}: ${error}`);
+      console.debug(`Error reading ${exludedPeersFile}: ${error}`);
     }
     const failingPeersFile = path.join(config.baseDir, "failing-peers.json");
     try {
@@ -98,7 +97,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         this.failingPeers.set(parseAddress(entry[0]), entry[1]);
       });
     } catch (error) {
-      log.debug(`Error reading ${exludedPeersFile}: ${error}`);
+      console.debug(`Error reading ${exludedPeersFile}: ${error}`);
     }
     {
       const writeFolloweesFile = () => {
@@ -165,7 +164,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
           signal,
         }).catch((
           e: unknown,
-        ) => log.error(`Error with web endpoint ${endpointName}: ${e}`));
+        ) => console.error(`Error with web endpoint ${endpointName}: ${e}`));
         initializeCommonRoutes(endpoint.router);
         this.webEndpoints[endpointName] = endpoint;
       }

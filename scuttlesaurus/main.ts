@@ -1,5 +1,5 @@
 import DenoScuttlebuttHost from "./DenoScuttlebuttHost.ts";
-import { exists, log, path } from "./util.ts";
+import { exists, path } from "./util.ts";
 import { Args, parse } from "https://deno.land/std@0.112.0/flags/mod.ts";
 
 /* return an SSB peer configured according to command line options */
@@ -11,8 +11,6 @@ export async function createScuttlebuttConfig() {
   const options = parse(Deno.args, {
     /*boolean: "incoming"*/
   });
-  await configureLogging(options);
-
   //read base config from file, use defaults if missing
   const config = await getBaseConfig(options);
 
@@ -41,22 +39,6 @@ export async function createScuttlebuttConfig() {
 if (import.meta.main) {
   const host = await createScuttlebuttHost();
   host.start();
-}
-
-async function configureLogging(options: Args) {
-  const logLevel = options.logLevel ? options.logLevel : "DEBUG";
-  await log.setup({
-    handlers: {
-      console: new log.handlers.ConsoleHandler(logLevel),
-    },
-    loggers: {
-      default: {
-        level: logLevel,
-        handlers: ["console"],
-      },
-    },
-  });
-  log.info(`Log level of set to ${logLevel}`);
 }
 
 function getDefaultConfig(baseDir: string) {

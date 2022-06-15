@@ -14,7 +14,6 @@ import {
   delay,
   fromBase64,
   fromFilenameSafeAlphabet,
-  log,
   parseFeedId,
   path,
 } from "../scuttlesaurus/util.ts";
@@ -27,7 +26,7 @@ function getRequiredEnvVar(name: string): string {
   if (!value) {
     throw new Error(`The environment variable "${name}" must be set.`);
   }
-  log.debug(() => `${name} set to ${value}`);
+  console.debug(() => `${name} set to ${value}`);
   return value;
 }
 
@@ -134,7 +133,7 @@ while (true) {
   await delay(15 * 60 * 1000);
 }
 //await hostRun;
-log.info("Host terminated");
+console.info("Host terminated");
 
 function staticFiles(
   baseDir: string,

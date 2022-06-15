@@ -10,7 +10,6 @@ import {
   delay,
   FeedId,
   fromBase64,
-  log,
   sodium,
   toBase64,
 } from "../../util.ts";
@@ -111,10 +110,10 @@ export class FeedsConnection {
         fireNewMessageEvent(feedId, msg);
         this.timeoutClockStart = Date.now();
       } catch (e) {
-        log.debug(`Storing message: ${e}`);
+        console.debug(`Storing message: ${e}`);
       }
     }
-    log.debug(() => `Stream ended for feed ${feedId}`);
+    console.debug(() => `Stream ended for feed ${feedId}`);
     this.syncingFeeds.delete(feedId);
   }
 

@@ -1,4 +1,4 @@
-import { concat, FeedId, isZero, log, readBytes, sodium } from "../../util.ts";
+import { concat, FeedId, isZero, readBytes, sodium } from "../../util.ts";
 
 export default class BoxConnection extends EventTarget
   implements Deno.Reader, Deno.Writer, Deno.Closer {
@@ -95,14 +95,14 @@ export default class BoxConnection extends EventTarget
         this.serverToClientKey,
       );
       increment(this.serverToClientNonce);
-      //log.debug("Read " + decodedBody);
+      //console.debug("Read " + decodedBody);
       return decodedBody;
     } catch (error) {
       if (!this.closed) {
         this.close();
       }
       if (error.message.startsWith("End of reader")) {
-        log.info("End of reader, closing.");
+        console.info("End of reader, closing.");
       }
       throw error;
     }
@@ -118,7 +118,7 @@ export default class BoxConnection extends EventTarget
   }
 
   async writeChunk(message: Uint8Array) {
-    //log.debug("Writing " + message);
+    //console.debug("Writing " + message);
     const headerNonce = new Uint8Array(this.clientToServerNonce);
     increment(this.clientToServerNonce);
     const bodyNonce = new Uint8Array(this.clientToServerNonce);
@@ -145,7 +145,7 @@ export default class BoxConnection extends EventTarget
   }
   async close() {
     if (this.closed) {
-      log.warning(`Connection closed already.`);
+      console.warn(`Connection closed already.`);
       return;
     }
     this.closed = true;
@@ -158,7 +158,7 @@ export default class BoxConnection extends EventTarget
     try {
       await this.conn.write(byeMessage);
     } catch (error) {
-      log.debug(`Failed at properly bidding goodbye: ${error}`);
+      console.debug(`Failed at properly bidding goodbye: ${error}`);
     }
     this.conn.close();
   }

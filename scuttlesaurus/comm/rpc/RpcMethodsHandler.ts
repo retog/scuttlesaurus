@@ -4,12 +4,14 @@ import {
   RpcContext,
   RpcFunction,
 } from "./types.ts";
-import { JSONValue, log } from "../../util.ts";
+import { JSONValue } from "../../util.ts";
 
 /** An RPC request handler providing default procedured based on FSStorage */
 export default class RpcMethodsHandler implements RequestHandler {
   constructor(public rcpContexts: RpcContext[]) {
-    log.debug(`creating request handler for ${JSON.stringify(rcpContexts)}`);
+    console.debug(
+      `creating request handler for ${JSON.stringify(rcpContexts)}`,
+    );
   }
 
   protected getFunction(

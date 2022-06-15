@@ -1,5 +1,4 @@
 import TransportServer from "../TransportServer.ts";
-import { log } from "../../../util.ts";
 import makeConnectionLike from "./makeConnectionLike.ts";
 import { Application, Context } from "https://deno.land/x/oak@v10.2.0/mod.ts";
 
@@ -18,9 +17,9 @@ export default class WsTransportServer implements TransportServer {
         if (listener) {
           listener(makeConnectionLike(ctx.upgrade()));
         } else {
-          log.warning("Got ws connection before listening");
+          console.warn("Got ws connection before listening");
         }
-        log.debug("ws response sent");
+        console.debug("ws response sent");
       } else {
         await next();
       }

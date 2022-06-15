@@ -12,7 +12,6 @@ import {
   fromBase64,
   JSONValue,
   KeyPair,
-  log,
   ObservableMap,
   ObservableSet,
   parseAddress,
@@ -112,9 +111,9 @@ export default abstract class ScuttlebuttHost {
   connectionManager: ConnectionManager | undefined;
 
   async start(signal?: AbortSignal) {
-    log.info(`Starting SSB Host`);
+    console.info(`Starting SSB Host`);
     if (this.transportClients.size + this.transportServers.size === 0) {
-      log.warning(
+      console.warn(
         "No transport set, this host is unable to communicate with peers.",
       );
     }
@@ -185,7 +184,7 @@ export default abstract class ScuttlebuttHost {
         try {
           await agent.run(this.connectionManager!, { signal });
         } catch (error) {
-          log.warning(
+          console.warn(
             `Error starting agent ${agent.constructor.name}: ${error}\n${error.stack}`,
           );
         }
@@ -201,7 +200,7 @@ export default abstract class ScuttlebuttHost {
             try {
               await agent.outgoingConnection(rpcConnection, { signal });
             } catch (error) {
-              log.warning(
+              console.warn(
                 `Error with agent ${agent.constructor.name} handling incoming connection: ${error}`,
               );
             }
@@ -216,7 +215,7 @@ export default abstract class ScuttlebuttHost {
           try {
             await agent.incomingConnection(rpcConnection, { signal });
           } catch (error) {
-            log.warning(
+            console.warn(
               `Error with agent ${agent.constructor.name} handling incoming connection: ${error}`,
             );
           }

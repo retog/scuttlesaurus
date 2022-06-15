@@ -4,7 +4,6 @@ import {
   concat,
   FeedId,
   fromBase64,
-  log,
   readBytes,
   sodium,
 } from "../../util.ts";
@@ -47,7 +46,7 @@ export default class BoxClientInterface
     }
     const conn = await Promise.any(matchingTransports.map((t) => {
       return t.connect(address).catch((e) => {
-        log.debug(
+        console.debug(
           `Error connecting with transport ${t.constructor.name}: ${e}`,
         );
         return Promise.reject(e);
@@ -190,7 +189,7 @@ export default class BoxClientInterface
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
-      log.debug(
+      console.debug(
         `closed outbound connection to ${connection.peer}, one of ${this.connections.length}`,
       );
       this.connections = this.connections.filter((c) => c !== connection);

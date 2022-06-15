@@ -2,7 +2,7 @@ import FeedsAgent, {
   Message,
 } from "../scuttlesaurus/agents/feeds/FeedsAgent.ts";
 import FeedsStorage from "../scuttlesaurus/storage/FeedsStorage.ts";
-import { delay, FeedId, JSONValue, log } from "../scuttlesaurus/util.ts";
+import { delay, FeedId, JSONValue } from "../scuttlesaurus/util.ts";
 
 import msgToSparql, { RichMessage } from "./msgToSparql.ts";
 
@@ -169,7 +169,7 @@ export default class SparqlStorer implements FeedsStorage {
       try {
         await this.runSparqlStatementSequential(sparqlStatement);
       } catch (error) {
-        log.error(
+        console.error(
           `Failed inserting message with sparql, ignoring: ${error}. Stack: ${error.stack}`,
         );
       }
@@ -195,7 +195,7 @@ export default class SparqlStorer implements FeedsStorage {
           try {
             await processFeed(subscription);
           } catch (e) {
-            log.info(`Processing subscription ${subscription}: ${e}`);
+            console.info(`Processing subscription ${subscription}: ${e}`);
           }
         }
         /*const promiseResults = await Promise.allSettled(
@@ -203,11 +203,11 @@ export default class SparqlStorer implements FeedsStorage {
         );
         promiseResults.forEach((result, i) => {
           if (result.status === "rejected") {
-            log.info(`Processing subscription ${subscriptions[i]}`);
+            console.info(`Processing subscription ${subscriptions[i]}`);
           }
         });*/
       } catch (e) {
-        log.error(`Processing subscriptions: ${e}`);
+        console.error(`Processing subscriptions: ${e}`);
       }
     })();
 

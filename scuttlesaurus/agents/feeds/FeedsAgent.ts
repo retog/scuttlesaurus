@@ -5,7 +5,6 @@ import {
   delay,
   FeedId,
   JSONValue,
-  log,
   NotFoundError,
   ObservableSet,
   parseFeedId,
@@ -225,11 +224,11 @@ export default class FeedsAgent extends Agent {
               this.syncFeed(feedsConnection, recommendation.followee, opts)
                 .catch(console.error);
             } catch (error) {
-              log.error(
+              console.error(
                 `In connection with ${pickedPeer}: ${error.stack}`,
               );
               if (error.errors) {
-                error.errors.forEach(log.info);
+                error.errors.forEach(console.info);
               }
               //TODO this shoul cause this peer to be attempted less frequently
             }
@@ -288,7 +287,7 @@ export default class FeedsAgent extends Agent {
           );
         } catch (error) {
           if (error instanceof NotFoundError) {
-            log.info(
+            console.info(
               `Message ${pos} of ${feedId} not found`,
             );
           }

@@ -1,6 +1,5 @@
 import { Message } from "../scuttlesaurus/agents/feeds/FeedsAgent.ts";
 import {
-  log,
   parseBlobId,
   parseFeedId,
   parseMsgKey,
@@ -72,7 +71,7 @@ export default function msgToSparql(msg: RichMessage): InsertDelete {
         try {
           return this.content;
         } catch (error) {
-          log.error(
+          console.error(
             `Failed converting ${JSON.stringify(content)} to sparql: ${error}.`,
           );
           return undefined;
@@ -279,7 +278,7 @@ export default function msgToSparql(msg: RichMessage): InsertDelete {
     try {
       return statementGenerator.insertDelete;
     } catch (e) {
-      log.info(`Caught ${e}, failing back to BasicMessage`);
+      console.info(`Caught ${e}, failing back to BasicMessage`);
     }
   }
   return new BasicMessage().insertDelete;

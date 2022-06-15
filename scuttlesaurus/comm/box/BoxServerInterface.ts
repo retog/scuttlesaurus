@@ -4,7 +4,6 @@ import {
   concat,
   FeedId,
   fromBase64,
-  log,
   readBytes,
   sodium,
 } from "../../util.ts";
@@ -153,7 +152,7 @@ export default class BoxServerInterface
     );
     this.connections.push(connection);
     connection.addEventListener("close", () => {
-      log.debug(
+      console.debug(
         `closed incoming connection, one of ${this.connections.length}`,
       );
       this.connections = this.connections.filter((c) => c !== connection);
@@ -178,7 +177,7 @@ export default class BoxServerInterface
           }, { once: true });
           yield boxConnection;
         } catch (error) {
-          log.warning(
+          console.warn(
             `Error with incoming connection with remote ${
               JSON.stringify(
                 (conn as unknown as { remoteAddr: unknown }).remoteAddr!,
@@ -188,7 +187,7 @@ export default class BoxServerInterface
         }
       }
     } catch (error) {
-      log.warning(`iterating over combined transports: ${error}`);
+      console.warn(`iterating over combined transports: ${error}`);
     }
   }
 }

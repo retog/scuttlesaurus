@@ -1,12 +1,12 @@
-import { concat, log } from "../../../util.ts";
+import { concat } from "../../../util.ts";
 
 export default function makeConnectionLike(
   socket: WebSocket,
 ): Deno.Reader & Deno.Writer & Deno.Closer {
-  log.debug(`making connection like`);
+  console.debug(`making connection like`);
   const open = new Promise((resolve, _reject) => {
     socket.onopen = () => {
-      log.debug("Connection opened");
+      console.debug("Connection opened");
       resolve(true);
     };
   });
@@ -18,7 +18,7 @@ export default function makeConnectionLike(
     } else {
       openDataPromises.push(m.data);
     }
-    /*log.info(`Received ${new Uint8Array(data).length}:
+    /*console.info(`Received ${new Uint8Array(data).length}:
                 ${new Uint8Array(data)}`);*/
   };
   const result: Deno.Reader & Deno.Writer & Deno.Closer = {

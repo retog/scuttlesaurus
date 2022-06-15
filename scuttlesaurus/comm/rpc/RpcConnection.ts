@@ -7,7 +7,6 @@ import {
   delay,
   isZero,
   JSONValue,
-  log,
   readBytes,
 } from "../../util.ts";
 
@@ -78,7 +77,7 @@ export default class RpcConnection {
           const headerBytes = await readBytes(boxConnection, 9);
           lastActivity = Date.now();
           if (isZero(headerBytes)) {
-            log.debug("They said godbye.");
+            console.debug("They said godbye.");
             break;
           }
           const header = parseHeader(headerBytes);
@@ -104,7 +103,7 @@ export default class RpcConnection {
               try {
                 return JSON.parse(decoded);
               } catch (error) {
-                log.error(
+                console.error(
                   `Parsing ${decoded} in request ${JSON.stringify(header)}`,
                 );
                 throw error;
@@ -120,14 +119,14 @@ export default class RpcConnection {
                     for await (
                       const value of responseIterable
                     ) {
-                      log.debug(() => `Sending back ${JSON.stringify(value)}`);
+                      console.debug(`Sending back ${JSON.stringify(value)}`);
                       try {
                         await this.sendRpcMessage(value, {
                           isStream: true,
                           inReplyTo: header.requestNumber,
                         });
                       } catch (error) {
-                        log.error(
+                        console.error(
                           `Error sending back response to request ${
                             JSON.stringify(request)
                           } by
@@ -137,7 +136,7 @@ export default class RpcConnection {
                         break;
                       }
                     }
-                    /*log.debug(
+                    /*console.debug(
                       `Closing response stream to their request ${header.requestNumber}`,
                     );*/
                     await this.sendRpcMessage("true", {
@@ -147,7 +146,7 @@ export default class RpcConnection {
                       inReplyTo: header.requestNumber,
                     });
                   } catch (error) {
-                    log.error(
+                    console.error(
                       `Error iterating on respone on ${request.name} (${
                         JSON.stringify(request.args)
                       }) request by ${this.boxConnection.peer}: ${error.stack}`,
@@ -159,11 +158,11 @@ export default class RpcConnection {
                 if (
                   header.endOrError && (textDecoder.decode(body) === "true")
                 ) {
-                  /*log.debug(
+                  /*console.debug(
                     `Remote confirms closing of our response stream ${header.requestNumber}.`,
                   );*/
                 } else {
-                  log.info(
+                  console.info(
                     `Request type ${request.type} not yet supported. Ignoring request number ${header.requestNumber}: ${
                       textDecoder.decode(body).substring(0, 1000)
                     }`,
@@ -171,7 +170,7 @@ export default class RpcConnection {
                 }
               }
             } else {
-              log.info(
+              console.info(
                 `No handler to handle request number ${header.requestNumber}: ${
                   textDecoder.decode(body)
                 }`,
@@ -181,11 +180,11 @@ export default class RpcConnection {
         }
       } catch (e) {
         if (boxConnection.closed) {
-          log.info("Connection closed");
+          console.info("Connection closed");
         } else {
           if ((e.name === "Interrupted") || (e.name === "ConnectionReset")) {
             // ignore
-            log.info(`RPCConnection ${e.name}`);
+            console.info(`RPCConnection ${e.name}`);
           } else {
             throw e;
           }
@@ -196,7 +195,7 @@ export default class RpcConnection {
       try {
         await monitorConnection();
       } catch (error) {
-        log.warning(`Caught error monitoring RPC connection: ${error}`);
+        console.warn(`Caught error monitoring RPC connection: ${error}`);
       }
     })();
     const checkTimeout = async () => {
@@ -204,7 +203,7 @@ export default class RpcConnection {
         await delay(500);
         const timeSinceRead = Date.now() - lastAnswer;
         if (timeSinceRead > answerTimeout * 1000) {
-          log.info(
+          console.info(
             `RPCConnection readTimeout: ${
               timeSinceRead /
               1000
@@ -215,7 +214,7 @@ export default class RpcConnection {
         }
         const timeSinceActivity = Date.now() - lastActivity;
         if (timeSinceActivity > activityTimeout * 1000) {
-          log.info(
+          console.info(
             `RPCConnection activityTimeout: ${
               timeSinceActivity /
               1000
@@ -249,7 +248,7 @@ export default class RpcConnection {
       buffer.push([message, header]);
     };
     this.responseStreamListeners.set(requestNumber, bufferer);
-    log.debug(
+    console.debug(
       `Ready to get response messages for ${request.name} nr ${requestNumber}`,
     );
     const responseStreamListeners = this.responseStreamListeners;
@@ -288,7 +287,7 @@ export default class RpcConnection {
                       } else {
                         const endMessage = textDecoder.decode(message);
                         if (endMessage === "true") {
-                          log.debug(
+                          console.debug(
                             `Got end-message on response on ${request.name} by ${boxConnection.peer}`,
                           );
                           reject(new EndOfStream());
@@ -387,7 +386,7 @@ export default class RpcConnection {
     const requestNumber = options.inReplyTo
       ? options.inReplyTo * -1
       : ++this.requestCounter;
-    //log.debug(`Sending RPC Message ${requestNumber}`);
+    //console.debug(`Sending RPC Message ${requestNumber}`);
     const header = new Uint8Array(9);
     header[0] = flags;
     header.set(

@@ -1,5 +1,5 @@
 import FSStorage from "./storage/FsStorage.ts";
-import { log, parseFeedId, path } from "./util.ts";
+import { parseFeedId, path } from "./util.ts";
 
 if (Deno.args.length < 1) {
   throw new Error("expecting at least one argument");
@@ -34,21 +34,21 @@ for (let i = 1; i < lastMessage; i++) {
     }
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      //log.info(`File ${fileName} not found, ending stream`);
+      //console.info(`File ${fileName} not found, ending stream`);
       continue;
     }
   }
 }
 
 /*for (const entry of subScriptions) {
-  log.info(entry);
+  console.info(entry);
 }*/
-log.info(JSON.stringify([...subScriptions]));
+console.info(JSON.stringify([...subScriptions]));
 if (follow) {
   const textEncoder = new TextEncoder();
   const followeesFile = path.join(baseDir, "followees.json");
 
-  log.info(`Adding feeds to ${followeesFile}`);
+  console.info(`Adding feeds to ${followeesFile}`);
 
   const getFollowees = () => {
     try {
@@ -69,5 +69,5 @@ if (follow) {
     followeesFile,
     textEncoder.encode(JSON.stringify(existing, undefined, 2)),
   );
-  log.info(`Now following ${existing.length} feeds`);
+  console.info(`Now following ${existing.length} feeds`);
 }
