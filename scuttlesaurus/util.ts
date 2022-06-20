@@ -430,7 +430,7 @@ export class TSEMap<T extends { toString: () => string }, V>
   [Symbol.iterator](): IterableIterator<[T, V]> {
     return this.entries();
   }
-  [Symbol.toStringTag]: string;
+  [Symbol.toStringTag]: string = "TSEMap";
 }
 /** toString-Equality Set */
 export class TSESet<T extends { toString: () => string }> implements Set<T> {
