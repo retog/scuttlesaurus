@@ -68,9 +68,10 @@ function getDefaultConfig(baseDir: string) {
 }
 
 async function getBaseConfig(options: Args) {
+  //the windows place would be Deno.env.get("LOCALAPPDATA"), using Deno.env.get("UserProfile") for consistency
   const baseDir = options.baseDir
     ? options.baseDir
-    : path.join(Deno.env.get("HOME")!, ".ssb/");
+    : path.join(Deno.env.get("HOME") ?? Deno.env.get("UserProfile")!, ".ssb/");
   const defaultConfig = getDefaultConfig(baseDir);
   const configFile = path.join(baseDir, "config.json");
   if (await exists(configFile)) {
