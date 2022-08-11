@@ -1,4 +1,4 @@
-import RankingTableStorage from "../../storage/RankingTableStorage.ts";
+import SubscriptionsAndPeersStorage from "../../storage/SubscriptionsAndPeersStorage.ts";
 import { Address, delay, FeedId, ObservableSet, TSESet } from "../../util.ts";
 
 /* Table followees/peers: every time we get feed contents from a peer the respective tuple gets points.
@@ -23,7 +23,7 @@ export default class RankingTable {
       peers: ObservableSet<Address>;
       followees: ObservableSet<FeedId>;
     },
-    private storage: RankingTableStorage,
+    private storage: SubscriptionsAndPeersStorage,
     public opts?: { signal?: AbortSignal },
   ) {
     const followees = [...host.followees];

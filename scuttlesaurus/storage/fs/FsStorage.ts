@@ -12,14 +12,14 @@ import {
 
 import BlobsStorage from "../BlobsStorage.ts";
 import FeedsStorage from "../FeedsStorage.ts";
-import RankingTableStorage from "../RankingTableStorage.ts";
+import SubscriptionsAndPeersStorage from "../SubscriptionsAndPeersStorage.ts";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 export default class FsStorage
-  implements BlobsStorage, FeedsStorage, RankingTableStorage {
-  rankingTableFile;
+  implements BlobsStorage, FeedsStorage, SubscriptionsAndPeersStorage {
+  
   constructor(public readonly dataDir: string) {
     this.rankingTableFile = path.join(dataDir, "ranking-table.bin");
     Deno.mkdirSync(dataDir, { recursive: true });
