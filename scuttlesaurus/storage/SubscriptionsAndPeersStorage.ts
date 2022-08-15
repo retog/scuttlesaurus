@@ -5,8 +5,9 @@ export default interface SubscriptionsAndPeersStorage {
   subscriptions: ObservableSet<FeedId>,
   peers: ObservableSet<Address>,
 
-  getRating(feedId: FeedId, addr: Address): Promise<number>
-  setRating(feedId: FeedId, addr: Address, rating: number): Promise<void>
-  getPeerRatings(feed: FeedId): Promise<[{addr: Address, rating: number}]>
+  getRating(subscription: FeedId, peer: Address): Promise<number>
+  setRating(subscription: FeedId, peer: Address, rating: number): Promise<void>
+  getPeerRatings(subscription: FeedId): Promise<{peer: Address, rating: number}[]>
+  getSubscriptionRatings(peer: Address): Promise<{subscription: FeedId, rating: number}[]>
 
 }
