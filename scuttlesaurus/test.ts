@@ -133,7 +133,7 @@ Deno.test("Client -> Server Message Flow via WS", async () => {
       },
     },
   });
-  server.followees.add(client.identity);
+  server.subscriptionsAndPeersStorage.subscriptions.add(client.identity);
   const clientP = client.start(controller.signal);
   client.publish({
     type: "test",

@@ -1,5 +1,5 @@
 import SubscriptionsAndPeersStorage from "../../storage/SubscriptionsAndPeersStorage.ts";
-import { Address, delay, FeedId, ObservableSet, TSESet } from "../../util.ts";
+import { Address, FeedId, ObservableSet, TSESet } from "../../util.ts";
 
 /* Table followees/peers: every time we get feed contents from a peer the respective tuple gets points.
   * Whenever we recommend a tuple this costs some points.

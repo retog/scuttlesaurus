@@ -68,7 +68,7 @@ export default abstract class ScuttlebuttHost {
     this.config.storeRankingTable ??= this.config.outgoingConnections;
     this.identity = new FeedId(this.getClientKeyPair().publicKey);
     this.subscriptionsAndPeersStorage = this
-      .createsubscriptionsAndPeersStorage();
+      .createSubscriptionsAndPeersStorage();
     this.subscriptionsAndPeersStorage.subscriptions.add(this.identity);
     if (this.config.follow) {
       this.config.follow.forEach((feedIdStr) =>
@@ -102,7 +102,7 @@ export default abstract class ScuttlebuttHost {
 
   protected abstract createFeedsStorage(): FeedsStorage | undefined;
 
-  protected abstract createsubscriptionsAndPeersStorage(): SubscriptionsAndPeersStorage;
+  protected abstract createSubscriptionsAndPeersStorage(): SubscriptionsAndPeersStorage;
 
   protected abstract createBlobsStorage(): BlobsStorage | undefined;
 

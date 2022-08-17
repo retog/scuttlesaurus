@@ -5,22 +5,11 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
   implements SubscriptionsAndPeersStorage {
   subscriptions = new ObservableSet<FeedId>();
   peers = new ObservableSet<Address>();
-  protected feedPeerRanking: Uint8Array[];
 
-  constructor(
-    initialSubscriptions: Iterable<FeedId>,
-    initialPeers: Iterable<Address>,
-  ) {
-    for (const subscription of initialSubscriptions) {
-      this.subscriptions.add(subscription);
-    }
-    for (const peer of initialPeers) {
-      this.peers.add(peer);
-    }
-    this.feedPeerRanking = this.loadFeedPeerRankings();
-    //observer:
+  constructor(protected feedPeerRatings: Uint8Array[]) {
+
     //new peer or subscription -> enlarge table
-    //remover peer or subscription -> how to know pos? -> overwrite delete, so that it removes row/column
+    //remove peer or subscription -> look up pos -> removes row/column
     const origPeerDelete = this.peers.delete;
     this.peers.delete = (address: Address) => {
       let pos = 0;
@@ -36,27 +25,35 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
         return false;
       }
       for (let i = 0; i < this.subscriptions.size; i++) {
-        this.feedPeerRanking[i].copyWithin(pos, pos + 1);
-        this.feedPeerRanking[i] = this.feedPeerRanking[i].subarray(
+        this.feedPeerRatings[i].copyWithin(pos, pos + 1);
+        this.feedPeerRatings[i] = this.feedPeerRatings[i].subarray(
           0,
           this.peers.size - 1,
         );
       }
+      this.storeFeedPeerRatings();
       return origPeerDelete.apply(this.peers, [address]);
     };
     const origPeerAdd = this.peers.add;
     this.peers.add = (address: Address) => {
-      for (let i = 0; i < this.subscriptions.size; i++) {
-        const newRow = new Uint8Array(this.feedPeerRanking[i].length + 1);
-        newRow.set(this.feedPeerRanking[i]);
-        this.feedPeerRanking[i] = newRow;
+      let i = 0;
+      for (const subscription of this.subscriptions) {
+        const newRow = new Uint8Array(this.feedPeerRatings[i].length + 1);
+        newRow.set(this.feedPeerRatings[i]);
+        newRow[this.feedPeerRatings[i].length] = this.initialValue(
+          subscription,
+          address,
+        );
+        this.feedPeerRatings[i++] = newRow;
       }
+      this.storeFeedPeerRatings();
       return origPeerAdd.apply(this.peers, [address]);
     };
     const origSubscriptionsDelete = this.subscriptions.delete;
     this.subscriptions.delete = (subscription: FeedId) => {
       const pos = findIn(this.subscriptions, subscription);
-      this.feedPeerRanking.splice(pos, 1);
+      this.feedPeerRatings.splice(pos, 1);
+      this.storeFeedPeerRatings();
       return origSubscriptionsDelete.apply(this.subscriptions, [subscription]);
     };
     const origSubscriptionsAdd = this.subscriptions.add;
@@ -66,7 +63,8 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
       for (const peer of this.peers) {
         newRow[colNr++] = this.initialValue(subscription, peer);
       }
-      this.feedPeerRanking.push(newRow);
+      this.feedPeerRatings.push(newRow);
+      this.storeFeedPeerRatings();
       return origSubscriptionsAdd.apply(this.subscriptions, [subscription]);
     };
   }
@@ -77,7 +75,7 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
   async getRating(subscription: FeedId, peer: Address): Promise<number> {
     const feedPos = await findIn(this.subscriptions, subscription);
     const addrPos = findIn(this.peers, peer);
-    return this.feedPeerRanking[feedPos][addrPos];
+    return this.feedPeerRatings[feedPos][addrPos];
   }
   async setRating(
     subscription: FeedId,
@@ -86,13 +84,13 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
   ): Promise<void> {
     const feedPos = await findIn(this.subscriptions, subscription);
     const addrPos = findIn(this.peers, peer);
-    this.feedPeerRanking[feedPos][addrPos] = rating;
+    this.feedPeerRatings[feedPos][addrPos] = rating;
   }
   async getPeerRatings(
     feed: FeedId,
   ): Promise<{ peer: Address; rating: number }[]> {
     const feedPos = await findIn(this.subscriptions, feed);
-    const feedRow = this.feedPeerRanking[feedPos];
+    const feedRow = this.feedPeerRatings[feedPos];
     const result = [];
     let rowPos = 0;
     for (const peer of this.peers) {
@@ -109,7 +107,7 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
     peer: Address,
   ): Promise<{ subscription: FeedId; rating: number }[]> {
     const peerPos = await findIn(this.peers, peer);
-    const peerCol = this.feedPeerRanking.map((ratings) => ratings[peerPos]);
+    const peerCol = this.feedPeerRatings.map((ratings) => ratings[peerPos]);
     const result = [];
     let colPos = 0;
     for (const subscription of this.subscriptions) {
@@ -122,13 +120,9 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
     return result;
   }
 
-  /** A table indicating how likely a peer has a feed: The rows are subscriptions, the cols peers*/
-  abstract storeFeedPeerRankings(table: Uint8Array[]): Promise<void>;
+  /** Invoked when feedPeerRatings has been modified: The rows are subscriptions, the cols peers*/
+  abstract storeFeedPeerRatings(): Promise<void>;
 
-  /**
-   * Loads a table indicating how likely a peer has a feed
-   */
-  abstract loadFeedPeerRankings(): Uint8Array[];
 }
 
 function findIn<T extends { toString: () => string }>(
