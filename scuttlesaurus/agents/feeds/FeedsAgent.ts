@@ -14,7 +14,7 @@ import Agent from "../Agent.ts";
 import type FeedsStorage from "../../storage/FeedsStorage.ts";
 import type ConnectionManager from "../ConnectionManager.ts";
 import RankingTable from "./RankingTable.ts";
-import type RankingTableStorage from "../../storage/RankingTableStorage.ts";
+import type SubscriptionsAndPeersStorage from "../../storage/SubscriptionsAndPeersStorage.ts";
 import { FeedsConnection } from "./FeedsConnection.ts";
 
 export type MessageValue = JSONValue & {
@@ -36,13 +36,15 @@ export type Message = {
  */
 export default class FeedsAgent extends Agent {
   rankingTable: RankingTable | undefined;
+  subscriptions: ObservableSet<FeedId>;
+  peers: ObservableSet<Address>;
   constructor(
     public feedsStorage: FeedsStorage,
-    public rankingTableStorage: RankingTableStorage,
-    public subscriptions: ObservableSet<FeedId>,
-    public peers: ObservableSet<Address>,
+    public subscriptionsAndPeersStorage: SubscriptionsAndPeersStorage,
   ) {
     super();
+    this.subscriptions = subscriptionsAndPeersStorage.subscriptions;
+    this.peers = subscriptionsAndPeersStorage.peers;
   }
 
   rpc2FeedsConnections = new WeakMap<RpcConnection, FeedsConnection>();
@@ -115,7 +117,7 @@ export default class FeedsAgent extends Agent {
     if (!this.rankingTable) {
       this.rankingTable = new RankingTable(
         { peers: this.peers, followees: this.subscriptions },
-        this.rankingTableStorage,
+        this.subscriptionsAndPeersStorage,
         opts,
       );
     }
@@ -153,7 +155,7 @@ export default class FeedsAgent extends Agent {
     if (!this.rankingTable) {
       this.rankingTable = new RankingTable(
         { peers: this.peers, followees: this.subscriptions },
-        this.rankingTableStorage,
+        this.subscriptionsAndPeersStorage,
         opts,
       );
     }
@@ -171,7 +173,7 @@ export default class FeedsAgent extends Agent {
     if (!this.rankingTable) {
       this.rankingTable = new RankingTable(
         { peers: this.peers, followees: this.subscriptions },
-        this.rankingTableStorage,
+        this.subscriptionsAndPeersStorage,
         opts,
       );
     }

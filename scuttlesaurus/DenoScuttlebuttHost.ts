@@ -18,9 +18,10 @@ import {
 import WsTransportClient from "./comm/transport/ws/WsTransportClient.ts";
 import WsTransportServer from "./comm/transport/ws/WsTransportServer.ts";
 import FsStorage from "./storage/fs/FsStorage.ts";
-import RankingTableStorage from "./storage/RankingTableStorage.ts";
+import SubscriptionsAndPeersStorage from "./storage/SubscriptionsAndPeersStorage.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
+import LazyFsSubscriptionsAndPeersStorage from "./storage/fs/LazyFsSubscriptionsAndPeersStorage.ts";
 
 /** A ScuttlebutHost with features avialable in a Deno enviornment such as File and Network access.
  *
@@ -51,28 +52,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     } & ParentConfig,
   ) {
     config.dataDir ??= path.join(config.baseDir, "data/");
-    const followeesFile = path.join(config.baseDir, "followees.json");
-    try {
-      const followStrings = JSON.parse(
-        Deno.readTextFileSync(followeesFile),
-      );
-      config.follow = config.follow
-        ? config.follow.concat(followStrings)
-        : followStrings;
-    } catch (error) {
-      console.debug(`Error reading ${followeesFile}: ${error}`);
-    }
 
-    const peersFile = path.join(config.baseDir, "peers.json");
-
-    try {
-      const peersFromFile = JSON.parse(Deno.readTextFileSync(peersFile));
-      config.peers = config.peers
-        ? config.peers.concat(peersFromFile)
-        : peersFromFile;
-    } catch (error) {
-      console.debug(`Error reading ${peersFile}: ${error}`);
-    }
     super(config);
     const exludedPeersFile = path.join(config.baseDir, "excluded-peers.json");
     try {
@@ -99,26 +79,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     } catch (error) {
       console.debug(`Error reading ${exludedPeersFile}: ${error}`);
     }
-    {
-      const writeFolloweesFile = () => {
-        Deno.writeTextFileSync(
-          followeesFile,
-          JSON.stringify([...this.followees], undefined, 2),
-        );
-      };
-      this.followees.addAddListener(writeFolloweesFile);
-      this.followees.addRemoveListener(writeFolloweesFile);
-    }
-    {
-      const writePeersFile = () => {
-        Deno.writeTextFileSync(
-          peersFile,
-          JSON.stringify([...this.peers], undefined, 2),
-        );
-      };
-      this.peers.addAddListener(writePeersFile);
-      this.peers.addRemoveListener(writePeersFile);
-    }
+
     {
       const writeExcludedPeersFile = () => {
         Deno.writeTextFileSync(
@@ -180,15 +141,17 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         const { value } = ctx.request.body({ type: "json" });
         const { address, action } = await value;
         if (action === "remove") {
-          this.peers.delete(parseAddress(address));
+          this.subscriptionsAndPeersStorage.peers.delete(parseAddress(address));
           ctx.response.body = "Removed peer";
         } else {
-          this.peers.add(parseAddress(address));
+          this.subscriptionsAndPeersStorage.peers.add(parseAddress(address));
           ctx.response.body = "Added peer";
         }
       });
       router.get("/peers", (ctx: Context) => {
-        ctx.response.body = JSON.stringify([...this.peers]);
+        ctx.response.body = JSON.stringify([
+          ...this.subscriptionsAndPeersStorage.peers,
+        ]);
       });
       router.get("/excluded-peers", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.excludedPeers]);
@@ -197,15 +160,19 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         const { value } = ctx.request.body({ type: "json" });
         const { id, action } = await value;
         if (action === "remove") {
-          this.followees.delete(parseFeedId(id));
+          this.subscriptionsAndPeersStorage.subscriptions.delete(
+            parseFeedId(id),
+          );
           ctx.response.body = "Removed followee";
         } else {
-          this.followees.add(parseFeedId(id));
+          this.subscriptionsAndPeersStorage.subscriptions.add(parseFeedId(id));
           ctx.response.body = "Added followee";
         }
       });
       router.get("/followees", (ctx: Context) => {
-        ctx.response.body = JSON.stringify([...this.followees]);
+        ctx.response.body = JSON.stringify([
+          ...this.subscriptionsAndPeersStorage.subscriptions,
+        ]);
       });
     };
     if (this.webEndpoints.control) {
@@ -250,8 +217,8 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     return new FsStorage(this.config.dataDir!);
   }
 
-  protected createRankingTableStorage(): RankingTableStorage {
-    return new FsStorage(this.config.dataDir!);
+  protected createSubscriptionsAndPeersStorage(): SubscriptionsAndPeersStorage {
+    return new LazyFsSubscriptionsAndPeersStorage(this.config.dataDir!);
   }
 
   protected createBlobsStorage(): BlobsStorage | undefined {

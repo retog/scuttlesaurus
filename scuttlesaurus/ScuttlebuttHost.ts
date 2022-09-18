@@ -25,15 +25,16 @@ import BlobsAgent from "./agents/blobs/BlobsAgent.ts";
 import FeedsStorage from "./storage/FeedsStorage.ts";
 import BlobsStorage from "./storage/BlobsStorage.ts";
 import ConnectionManager from "./agents/ConnectionManager.ts";
-import RankingTableStorage from "./storage/RankingTableStorage.ts";
+import SubscriptionsAndPeersStorage from "./storage/SubscriptionsAndPeersStorage.ts";
 
 const textEncoder = new TextEncoder();
 
 /** A host communicating to peers using the Secure Scuttlebutt protocol.
  *
- * By concrete implementations of this class provide storage layers for the `feeds` and the `blobs`
- * sub-protocols by implementing createFeedsStorage and createBlobsStorage. They also provide the
- * identity key-pair by implementing getClientKeyPair()
+ * By concrete implementations of this class provide the identity key-pair by implementing
+ * getClientKeyPair(). They also provide storage layers for the `feeds` and the `blobs`
+ * sub-protocols by implementing createFeedsStorage and createBlobsStorage, as well as a storage for the
+ * set of peers and subscriptionns by implementing createSubscriptionsAndPeersStorage
  *
  * Consumers can interact with the default agents via the fields `feedsAgent` and `blobsAgent`.
  *
@@ -45,9 +46,6 @@ export default abstract class ScuttlebuttHost {
 
   readonly agents = new Set<Agent>();
 
-  /** Maintained here as they might be used by several agents */
-  readonly followees = new ObservableSet<FeedId>();
-  readonly peers = new ObservableSet<Address>();
   /** peers excluded after failures */
   readonly excludedPeers = new ObservableSet<Address>();
   readonly failingPeers = new ObservableMap<Address, {
@@ -58,7 +56,7 @@ export default abstract class ScuttlebuttHost {
   feedsAgent: FeedsAgent | undefined;
   blobsAgent: BlobsAgent | undefined;
   feedsStorage: FeedsStorage | undefined;
-  rankingTableStorage: RankingTableStorage;
+  subscriptionsAndPeersStorage: SubscriptionsAndPeersStorage;
   blobsStorage: BlobsStorage | undefined;
   identity: FeedId;
 
@@ -69,40 +67,42 @@ export default abstract class ScuttlebuttHost {
     this.config.outgoingConnections ??= true;
     this.config.storeRankingTable ??= this.config.outgoingConnections;
     this.identity = new FeedId(this.getClientKeyPair().publicKey);
-    this.followees.add(this.identity);
-    if (this.config.follow) {
-      this.config.follow.forEach((feedIdStr) =>
-        this.followees.add(parseFeedId(feedIdStr))
+    this.subscriptionsAndPeersStorage = this
+      .createSubscriptionsAndPeersStorage();
+    this.subscriptionsAndPeersStorage.subscriptions.add(this.identity);
+    if (this.config.subscriptions) {
+      this.config.subscriptions.forEach((feedIdStr) =>
+        this.subscriptionsAndPeersStorage.subscriptions.add(
+          parseFeedId(feedIdStr),
+        )
       );
     }
     if (this.config.peers) {
       this.config.peers.forEach((addrStr) =>
-        this.peers.add(parseAddress(addrStr))
+        this.subscriptionsAndPeersStorage.peers.add(parseAddress(addrStr))
       );
     }
     this.feedsStorage = this.createFeedsStorage();
-    this.rankingTableStorage = this.config.storeRankingTable
-      ? this.createRankingTableStorage()
-      : new ReadOnlyStorage(this.createRankingTableStorage());
     this.blobsStorage = this.createBlobsStorage();
     if (this.feedsStorage) {
       this.feedsAgent = new FeedsAgent(
         this.feedsStorage,
-        this.rankingTableStorage,
-        this.followees,
-        this.peers,
+        this.subscriptionsAndPeersStorage,
       );
       this.agents.add(this.feedsAgent);
     }
     if (this.blobsStorage) {
-      this.blobsAgent = new BlobsAgent(this.blobsStorage, this.followees);
+      this.blobsAgent = new BlobsAgent(
+        this.blobsStorage,
+        this.subscriptionsAndPeersStorage.subscriptions,
+      );
       this.agents.add(this.blobsAgent);
     }
   }
 
   protected abstract createFeedsStorage(): FeedsStorage | undefined;
 
-  protected abstract createRankingTableStorage(): RankingTableStorage;
+  protected abstract createSubscriptionsAndPeersStorage(): SubscriptionsAndPeersStorage;
 
   protected abstract createBlobsStorage(): BlobsStorage | undefined;
 
@@ -160,7 +160,7 @@ export default abstract class ScuttlebuttHost {
                   this.config.failureRelevanceInterval! < Date.now()
             ) {
               if (failuresReport.failureCount > 4) {
-                this.peers.delete(address);
+                this.subscriptionsAndPeersStorage.peers.delete(address);
                 this.excludedPeers.add(address);
                 this.failingPeers.delete(address);
               } else {
@@ -274,7 +274,7 @@ export default abstract class ScuttlebuttHost {
 
 export type Config = {
   networkIdentifier?: string;
-  follow?: string[];
+  subscriptions?: string[];
   peers?: string[];
   /** minimum interval between two connection failures to count */
   failureRelevanceInterval?: number;
@@ -289,13 +289,3 @@ const DAY = 24 * HOUR;
 const WEEK = 7 * DAY;
 
 const DURATION = { SECOND, MINUTE, HOUR, DAY, WEEK };
-
-class ReadOnlyStorage implements RankingTableStorage {
-  constructor(private storage: RankingTableStorage) {}
-  storeFeedPeerRankings(_table: Uint8Array[]): Promise<void> {
-    return Promise.resolve();
-  }
-  getFeedPeerRankings(): Promise<Uint8Array[]> {
-    return this.storage.getFeedPeerRankings();
-  }
-}

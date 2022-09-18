@@ -1,6 +1,5 @@
 {
   "configurations": [
-
     {
       "name": "Main (verbose)",
       "type": "pwa-node",

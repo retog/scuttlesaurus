@@ -14,7 +14,8 @@
 
   // Add the IDs of extensions you want installed when the container is created.
   "extensions": [
-    "denoland.vscode-deno"
+    "denoland.vscode-deno",
+    "ms-vsliveshare.vsliveshare-pack"
   ],
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
