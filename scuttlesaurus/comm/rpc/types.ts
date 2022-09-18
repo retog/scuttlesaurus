@@ -15,5 +15,5 @@ export interface RequestHandler {
 export type ResultValue = JSONValue | Uint8Array;
 export type RpcFunction = (
   args: Record<string, string>[],
-) => (Promise<ResultValue> | AsyncIterable<ResultValue>);
-export type RpcContext = { [key: string]: (RpcFunction | RpcContext) };
+) => Promise<ResultValue> | AsyncIterable<ResultValue>;
+export type RpcContext = { [key: string]: RpcFunction | RpcContext };

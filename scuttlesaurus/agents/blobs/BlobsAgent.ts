@@ -26,7 +26,7 @@ class BlobWant implements Record<string, unknown> {
     return shortWant;
   }
 
-  [x: string]: unknown
+  [x: string]: unknown;
 }
 
 class PendingWant {
@@ -44,7 +44,7 @@ class PendingWant {
     }
   }
 
-  [x: string]: unknown
+  [x: string]: unknown;
 }
 /*
 class BlobHas {

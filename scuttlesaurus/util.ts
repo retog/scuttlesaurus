@@ -4,7 +4,7 @@ import importedSodium, {
 } from "https://deno.land/x/sodium@0.2.0/sumo.ts";
 export * as path from "https://deno.land/std@0.103.0/path/mod.ts";
 export { delay } from "https://deno.land/std@0.129.0/async/mod.ts";
-export { exists } from "https://deno.land/std@0.103.0/fs/exists.ts";
+export { exists, existsSync } from "https://deno.land/std@0.103.0/fs/mod.ts";
 export { writeAll } from "https://deno.land/std@0.116.0/streams/conversion.ts";
 export const sodium = importedSodium;
 export type KeyPair = importKeypair;

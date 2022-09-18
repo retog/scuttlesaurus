@@ -70,8 +70,8 @@ export default abstract class ScuttlebuttHost {
     this.subscriptionsAndPeersStorage = this
       .createSubscriptionsAndPeersStorage();
     this.subscriptionsAndPeersStorage.subscriptions.add(this.identity);
-    if (this.config.follow) {
-      this.config.follow.forEach((feedIdStr) =>
+    if (this.config.subscriptions) {
+      this.config.subscriptions.forEach((feedIdStr) =>
         this.subscriptionsAndPeersStorage.subscriptions.add(
           parseFeedId(feedIdStr),
         )
@@ -274,7 +274,7 @@ export default abstract class ScuttlebuttHost {
 
 export type Config = {
   networkIdentifier?: string;
-  follow?: string[];
+  subscriptions?: string[];
   peers?: string[];
   /** minimum interval between two connection failures to count */
   failureRelevanceInterval?: number;

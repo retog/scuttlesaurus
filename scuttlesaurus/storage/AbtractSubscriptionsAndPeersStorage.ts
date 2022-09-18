@@ -3,11 +3,11 @@ import { Address, FeedId, ObservableSet } from "../util.ts";
 
 export default abstract class AbstractSubscriptionsAndPeersStorage
   implements SubscriptionsAndPeersStorage {
-  subscriptions = new ObservableSet<FeedId>();
-  peers = new ObservableSet<Address>();
-
-  constructor(protected feedPeerRatings: Uint8Array[]) {
-
+  constructor(
+    public subscriptions: ObservableSet<FeedId>,
+    public peers: ObservableSet<Address>,
+    protected feedPeerRatings: Uint8Array[],
+  ) {
     //new peer or subscription -> enlarge table
     //remove peer or subscription -> look up pos -> removes row/column
     const origPeerDelete = this.peers.delete;
@@ -40,7 +40,7 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
       for (const subscription of this.subscriptions) {
         const newRow = new Uint8Array(this.feedPeerRatings[i].length + 1);
         newRow.set(this.feedPeerRatings[i]);
-        newRow[this.feedPeerRatings[i].length] = this.initialValue(
+        newRow[this.feedPeerRatings[i].length] = initialValue(
           subscription,
           address,
         );
@@ -58,18 +58,15 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
     };
     const origSubscriptionsAdd = this.subscriptions.add;
     this.subscriptions.add = (subscription: FeedId) => {
-      const newRow = new Uint8Array(this.peers.size + 1);
+      const newRow = new Uint8Array(this.peers.size);
       let colNr = 0;
       for (const peer of this.peers) {
-        newRow[colNr++] = this.initialValue(subscription, peer);
+        newRow[colNr++] = initialValue(subscription, peer);
       }
       this.feedPeerRatings.push(newRow);
       this.storeFeedPeerRatings();
       return origSubscriptionsAdd.apply(this.subscriptions, [subscription]);
     };
-  }
-  initialValue(subscription: FeedId, peer: Address): number {
-    return peer.key.toString() === subscription.toString() ? 255 : 3;
   }
 
   async getRating(subscription: FeedId, peer: Address): Promise<number> {
@@ -122,7 +119,10 @@ export default abstract class AbstractSubscriptionsAndPeersStorage
 
   /** Invoked when feedPeerRatings has been modified: The rows are subscriptions, the cols peers*/
   abstract storeFeedPeerRatings(): Promise<void>;
+}
 
+export function initialValue(subscription: FeedId, peer: Address): number {
+  return peer.key.toString() === subscription.toString() ? 255 : 3;
 }
 
 function findIn<T extends { toString: () => string }>(

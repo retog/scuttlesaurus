@@ -31,7 +31,6 @@ import LazyFsSubscriptionsAndPeersStorage from "./storage/fs/LazyFsSubscriptions
  * Additional agents or transports can be added to the respective fields before invokig `start`.
  */
 export default class DenoScuttlebuttHost extends ScuttlebuttHost {
-
   readonly transportClients = new Set<TransportClient>();
   readonly transportServers = new Set<TransportServer>();
   readonly webEndpoints: Record<
@@ -53,28 +52,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     } & ParentConfig,
   ) {
     config.dataDir ??= path.join(config.baseDir, "data/");
-    const followeesFile = path.join(config.baseDir, "followees.json");
-    try {
-      const followStrings = JSON.parse(
-        Deno.readTextFileSync(followeesFile),
-      );
-      config.follow = config.follow
-        ? config.follow.concat(followStrings)
-        : followStrings;
-    } catch (error) {
-      console.debug(`Error reading ${followeesFile}: ${error}`);
-    }
 
-    const peersFile = path.join(config.baseDir, "peers.json");
-
-    try {
-      const peersFromFile = JSON.parse(Deno.readTextFileSync(peersFile));
-      config.peers = config.peers
-        ? config.peers.concat(peersFromFile)
-        : peersFromFile;
-    } catch (error) {
-      console.debug(`Error reading ${peersFile}: ${error}`);
-    }
     super(config);
     const exludedPeersFile = path.join(config.baseDir, "excluded-peers.json");
     try {
@@ -101,26 +79,7 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
     } catch (error) {
       console.debug(`Error reading ${exludedPeersFile}: ${error}`);
     }
-    {
-      const writeFolloweesFile = () => {
-        Deno.writeTextFileSync(
-          followeesFile,
-          JSON.stringify([...this.subscriptionsAndPeersStorage.subscriptions], undefined, 2),
-        );
-      };
-      this.subscriptionsAndPeersStorage.subscriptions.addAddListener(writeFolloweesFile);
-      this.subscriptionsAndPeersStorage.subscriptions.addRemoveListener(writeFolloweesFile);
-    }
-    {
-      const writePeersFile = () => {
-        Deno.writeTextFileSync(
-          peersFile,
-          JSON.stringify([...this.subscriptionsAndPeersStorage.peers], undefined, 2),
-        );
-      };
-      this.subscriptionsAndPeersStorage.peers.addAddListener(writePeersFile);
-      this.subscriptionsAndPeersStorage.peers.addRemoveListener(writePeersFile);
-    }
+
     {
       const writeExcludedPeersFile = () => {
         Deno.writeTextFileSync(
@@ -190,7 +149,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         }
       });
       router.get("/peers", (ctx: Context) => {
-        ctx.response.body = JSON.stringify([...this.subscriptionsAndPeersStorage.peers]);
+        ctx.response.body = JSON.stringify([
+          ...this.subscriptionsAndPeersStorage.peers,
+        ]);
       });
       router.get("/excluded-peers", (ctx: Context) => {
         ctx.response.body = JSON.stringify([...this.excludedPeers]);
@@ -199,7 +160,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         const { value } = ctx.request.body({ type: "json" });
         const { id, action } = await value;
         if (action === "remove") {
-          this.subscriptionsAndPeersStorage.subscriptions.delete(parseFeedId(id));
+          this.subscriptionsAndPeersStorage.subscriptions.delete(
+            parseFeedId(id),
+          );
           ctx.response.body = "Removed followee";
         } else {
           this.subscriptionsAndPeersStorage.subscriptions.add(parseFeedId(id));
@@ -207,7 +170,9 @@ export default class DenoScuttlebuttHost extends ScuttlebuttHost {
         }
       });
       router.get("/followees", (ctx: Context) => {
-        ctx.response.body = JSON.stringify([...this.subscriptionsAndPeersStorage.subscriptions]);
+        ctx.response.body = JSON.stringify([
+          ...this.subscriptionsAndPeersStorage.subscriptions,
+        ]);
       });
     };
     if (this.webEndpoints.control) {

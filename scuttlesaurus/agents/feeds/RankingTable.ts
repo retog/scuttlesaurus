@@ -20,21 +20,23 @@ export default class RankingTable {
     private storage: SubscriptionsAndPeersStorage,
     public opts?: { signal?: AbortSignal },
   ) {
-    
   }
 
   async recordSuccess(peer: FeedId, subscription: FeedId) {
     //get all addresses with peer as key
     const peerAddresses: Address[] = [];
-    this.storage.peers.forEach(peerAddress => {
+    this.storage.peers.forEach((peerAddress) => {
       if (peerAddress.key.toString() === peer.toString()) {
         peerAddresses.push(peerAddress);
       }
     });
     for (const peerAddress of peerAddresses) {
-      const currentRating = await this.storage.getRating(subscription, peerAddress)
+      const currentRating = await this.storage.getRating(
+        subscription,
+        peerAddress,
+      );
       if (currentRating < 0xFF) {
-        this.storage.setRating(subscription, peerAddress, currentRating +1)
+        this.storage.setRating(subscription, peerAddress, currentRating + 1);
       }
     }
   }
@@ -72,9 +74,12 @@ export default class RankingTable {
         this.host.peers.addAddListener(listener);
       });
     }
-    
+
     const peerRatings = await this.storage.getPeerRatings(followee);
-    const peerRatingsSum = peerRatings.map(e => e.rating).reduce((sum, value) => sum + value + 1);
+    const peerRatingsSum = peerRatings.map((e) => e.rating).reduce((
+      sum,
+      value,
+    ) => sum + value + 1);
     const randomPointer = getRandomInt(0, peerRatingsSum);
     let partialSum = 0;
     for (let i = 0; i < peerRatings.length; i++) {
@@ -91,6 +96,9 @@ export default class RankingTable {
 
   async getFolloweesFor(peerKey: FeedId, amount: number) {
     const resultSet = new TSESet<FeedId>();
+    if (amount > this.storage.subscriptions.size) {
+      amount = this.storage.subscriptions.size;
+    }
     while (resultSet.size < amount) {
       const newOne = await this.getFolloweeFor(peerKey);
       resultSet.add(newOne);
@@ -112,19 +120,23 @@ export default class RankingTable {
     }
     //get all addresses with peer as key
     const peerAddresses: Address[] = [];
-    this.storage.peers.forEach(peerAddress => {
+    this.storage.peers.forEach((peerAddress) => {
       if (peerAddress.key.toString() === peerKey.toString()) {
         peerAddresses.push(peerAddress);
       }
     });
     if (peerAddresses.length === 0) {
-      return getPosIn(this.storage.subscriptions, getRandomInt(0, this.storage.subscriptions.size));
+      return getPosIn(
+        this.storage.subscriptions,
+        getRandomInt(0, this.storage.subscriptions.size),
+      );
     }
     const peerAddress = peerAddresses[getRandomInt(0, peerAddresses.length)];
-    const ratings = await this.storage.getSubscriptionRatings(peerAddress)
-    const followeeRatingsSum = ratings.map(e => e.rating).reduce((sum, value) =>
-      sum + value + 1
-    );
+    const ratings = await this.storage.getSubscriptionRatings(peerAddress);
+    const followeeRatingsSum = ratings.map((e) => e.rating).reduce((
+      sum,
+      value,
+    ) => sum + value + 1);
     const randomPointer = getRandomInt(0, followeeRatingsSum);
     let partialSum = 0;
     for (let i = 0; i < ratings.length; i++) {
@@ -144,6 +156,6 @@ function getPosIn<T>(iterable: Iterable<T>, position: number): T {
   let pos = 0;
   for (const entry of iterable) {
     if (pos++ === position) return entry;
-  } 
-  throw new Error("Out of bounds")
+  }
+  throw new Error("Out of bounds");
 }

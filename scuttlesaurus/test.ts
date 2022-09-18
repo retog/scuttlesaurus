@@ -26,7 +26,7 @@ Deno.test("Server -> Client Message Flow", async () => {
   const client = new DenoScuttlebuttHost({
     baseDir: clientDir,
     peers: [serverAddress],
-    follow: [server.identity.toString()],
+    subscriptions: [server.identity.toString()],
     transport: {
       net: {
         port: await getFreePort(9091), //TODO support client only interface
@@ -78,7 +78,7 @@ Deno.test("Server -> Client Message Flow via WS", async () => {
   const client = new DenoScuttlebuttHost({
     baseDir: clientDir,
     peers: [serverAddress],
-    follow: [server.identity.toString()],
+    subscriptions: [server.identity.toString()],
     transport: {
       ws: {
         web: [],

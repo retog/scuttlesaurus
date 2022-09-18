@@ -1,4 +1,4 @@
-  import type RpcConnection from "../../comm/rpc/RpcConnection.ts";
+import type RpcConnection from "../../comm/rpc/RpcConnection.ts";
 import type { RpcContext } from "../../comm/rpc/types.ts";
 import {
   Address,
@@ -36,15 +36,15 @@ export type Message = {
  */
 export default class FeedsAgent extends Agent {
   rankingTable: RankingTable | undefined;
-   subscriptions: ObservableSet<FeedId>;
-   peers: ObservableSet<Address>;
+  subscriptions: ObservableSet<FeedId>;
+  peers: ObservableSet<Address>;
   constructor(
     public feedsStorage: FeedsStorage,
     public subscriptionsAndPeersStorage: SubscriptionsAndPeersStorage,
   ) {
     super();
-    this.subscriptions = subscriptionsAndPeersStorage.subscriptions
-    this.peers = subscriptionsAndPeersStorage.peers
+    this.subscriptions = subscriptionsAndPeersStorage.subscriptions;
+    this.peers = subscriptionsAndPeersStorage.peers;
   }
 
   rpc2FeedsConnections = new WeakMap<RpcConnection, FeedsConnection>();
