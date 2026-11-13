@@ -1,0 +1,16 @@
+{
+  "imports": {
+    "preact": "npm:preact@^11.2.0",
+    "preact/": "npm:/preact@^11.2.0/",
+    "@preact/signals": "npm:@preact/signals@^2.11.4",
+    "lucide-preact": "npm:lucide-preact@^1.72.0",
+    "marked": "npm:marked@^18.2.0",
+    "dompurify": "npm:dompurify@^3.4.17"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "lib": ["dom", "dom.iterable", "dom.asynciterable", "esnext"]
+  }
+}

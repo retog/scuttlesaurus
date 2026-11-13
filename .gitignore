@@ -1,5 +1,9 @@
-compsoscuttly/js/scuttlebutt-host.js*
-tricerascuttler/static/common/js/ext/scuttlebutt-host.js
-tricerascuttler/static/common/js/ext/scuttlebutt-host.js.map
-tricerascuttler/ssb-base/
-*-data
+# Runtime data: the graph log, blobs, configuration and sync state
+/data/
+*-data/
+
+# Built web client (produced by `deno task build`)
+/web/dist/
+
+node_modules/
+.env

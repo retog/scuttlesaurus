@@ -1,7 +1,0 @@
-**/.devcontainer
-.git
-tricerascuttler/ssb-base
-blazegraph-data
-fuseki-data
-anzograph-data
-virtuoso-data
