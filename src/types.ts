@@ -99,8 +99,8 @@ export interface ConfigManager {
   /** The live configuration object. */
   readonly config: Config;
   /**
-   * Which top-level settings are fixed by environment variables and therefore
-   * cannot be changed through {@link update}.
+   * The settings fixed by environment variables, which {@link update} refuses
+   * to change, as dotted paths such as `owner` or `replication.hops`.
    */
   readonly locked: ReadonlySet<string>;
   /** Apply, persist to `config.json` and notify listeners. */
