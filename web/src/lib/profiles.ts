@@ -32,6 +32,8 @@ export interface Profile {
 
 const cache = new Map<string, Signal<Profile>>();
 const queue = new Set<string>();
+/** Pubkeys already queued or loaded; `cache` alone cannot tell, since a slot is created on first read. */
+const requested = new Set<string>();
 let scheduled = false;
 
 function slot(pubkey: string): Signal<Profile> {
@@ -83,7 +85,10 @@ async function flush(): Promise<void> {
       // Node unavailable: show fallbacks; a later request may succeed.
       for (const pubkey of chunk) {
         const s = cache.get(pubkey);
-        if (s && !s.peek().loaded) cache.delete(pubkey);
+        if (s && !s.peek().loaded) {
+          cache.delete(pubkey);
+          requested.delete(pubkey);
+        }
       }
       continue;
     }
@@ -95,7 +100,8 @@ async function flush(): Promise<void> {
 
 /** Ask for a profile to be loaded in the next batch (no-op if cached). */
 export function prefetchProfile(pubkey: string): void {
-  if (cache.has(pubkey)) return;
+  if (requested.has(pubkey)) return;
+  requested.add(pubkey);
   slot(pubkey);
   queue.add(pubkey);
   if (!scheduled) {
@@ -112,6 +118,7 @@ export function seedProfile(profile: Omit<Profile, "loaded">): void {
 /** Drop a cached profile so that the next use fetches it again. */
 export function invalidateProfile(pubkey: string): void {
   cache.delete(pubkey);
+  requested.delete(pubkey);
 }
 
 /**
