@@ -95,10 +95,10 @@ each other's implementations. Each module directory exports its factory from
   bookkeeping, then notifies subscribers.
 - Adds are committed in groups, on every backend. Adds issued in the same turn
   form one group, of at most 500 events and an estimated 4 MiB of N-Triples;
-  adds that arrive while a group is being stored wait for the next one. A group reads its bookkeeping in a few queries
-  and inserts its triples in one `insert`, with the same results as adding the
-  events one by one. Each `add` resolves once its group is stored and its
-  subscribers are told.
+  adds that arrive while a group is being stored wait for the next one. A group
+  reads its bookkeeping in a few queries and inserts its triples in one
+  `insert`, with the same results as adding the events one by one. Each `add`
+  resolves once its group is stored and its subscribers are told.
 - `query` translates NIP-01 filters to SPARQL and reconstructs events from their
   triples. Superseded and retracted events are never returned. Filters that are
   not selective (no `ids`, `authors` or tag condition) are evaluated over a
