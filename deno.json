@@ -18,6 +18,7 @@
     "check": "deno check main.ts web/src/main.tsx && deno lint && deno fmt --check"
   },
   "imports": {
+    "@noble/curves": "npm:@noble/curves@^2.0.1",
     "@nostr/tools": "jsr:@nostr/tools@^2.26.0",
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/async": "jsr:@std/async@^1.5.1",

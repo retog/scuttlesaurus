@@ -21,6 +21,7 @@
     "jsr:@std/streams@^1.2.0": "1.2.0",
     "npm:@noble/ciphers@2.1.1": "2.1.1",
     "npm:@noble/curves@2.0.1": "2.0.1",
+    "npm:@noble/curves@^2.0.1": "2.0.1",
     "npm:@noble/hashes@2.0.1": "2.0.1",
     "npm:@preact/signals@^2.11.4": "2.11.4_preact@11.2.0",
     "npm:@scure/base@2.0.0": "2.0.0",
@@ -38,7 +39,7 @@
       "integrity": "cd3f1a9bcad22529d92406edcb3a89dcf0da290212279194c0a744ce315508f1",
       "dependencies": [
         "npm:@noble/ciphers",
-        "npm:@noble/curves",
+        "npm:@noble/curves@2.0.1",
         "npm:@noble/hashes",
         "npm:@scure/base",
         "npm:@scure/bip32",
@@ -202,6 +203,7 @@
       "jsr:@std/http@^1.1.4",
       "jsr:@std/media-types@^1.1.0",
       "jsr:@std/path@^1.1.6",
+      "npm:@noble/curves@^2.0.1",
       "npm:oxigraph@~0.5.13"
     ],
     "members": {
