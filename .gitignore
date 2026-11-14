@@ -9,4 +9,4 @@ node_modules/
 .env
 
 # Agent worktrees
-/.claude/
+/.claude/worktrees/
