@@ -225,30 +225,30 @@ Defaults, overlaid by `<dataDir>/config.json` (written by the setup screen and
 the settings page), overlaid by environment variables. A setting given through
 the environment is locked: the settings page shows it but cannot change it.
 
-| Environment variable          | Setting                                         | Default                                                                                 |
-| ----------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `OWNER`                       | `owner` (npub or hex)                           | none: the web client asks on first run                                                  |
-| `PORT`                        | `port`                                          | `7777`                                                                                  |
-| `HOSTNAME`                    | `hostname`                                      | `127.0.0.1`                                                                             |
-| `DATA_DIR`                    | `dataDir`                                       | `./data`                                                                                |
-| `PUBLIC_URL`                  | `publicUrl`                                     | derived from each request                                                               |
-| `RELAY_NAME`                  | `name`                                          | `Scuttlesaurus`                                                                         |
-| `RELAY_DESCRIPTION`           | `description`                                   | a short default                                                                         |
-| `HOPS`                        | `replication.hops`                              | `2`                                                                                     |
-| `MAX_AUTHORS`                 | `replication.maxAuthors`                        | `1500`                                                                                  |
-| `HORIZON_DAYS`                | `replication.horizonDays`                       | `0,90,14`                                                                               |
-| `BOOTSTRAP_RELAYS`            | `replication.bootstrapRelays` (comma separated) | `wss://relay.damus.io`, `wss://nos.lol`, `wss://relay.primal.net`, `wss://purplepag.es` |
-| `MAX_RELAYS`                  | `replication.maxRelays`                         | `12`                                                                                    |
-| `FORWARD`                     | `replication.forward`                           | `all`                                                                                   |
-| `REPLICATION`                 | `replication.enabled` (`off` disables)          | on                                                                                      |
-| `ALLOW_PRIVATE_RELAYS`        | `replication.allowPrivateRelays`                | off                                                                                     |
-| `SPARQL_ENDPOINT_QUERY`       | `store.queryUrl`; selects the endpoint store    | embedded store                                                                          |
-| `SPARQL_ENDPOINT_UPDATE`      | `store.updateUrl`                               | the query URL                                                                           |
-| `SPARQL_ENDPOINT_CREDENTIALS` | `store.credentials`                             | none                                                                                    |
-| `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                  |
-| `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                      |
-| `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                    |
-| `MAX_LIMIT`                   | `maxLimit`                                      | `500`                                                                                   |
+| Environment variable          | Setting                                         | Default                                                                                     |
+| ----------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `OWNER`                       | `owner` (npub or hex)                           | none: the web client asks on first run                                                      |
+| `PORT`                        | `port`                                          | `7777`                                                                                      |
+| `HOSTNAME`                    | `hostname`                                      | `127.0.0.1`                                                                                 |
+| `DATA_DIR`                    | `dataDir`                                       | `./data`                                                                                    |
+| `PUBLIC_URL`                  | `publicUrl`                                     | derived from each request                                                                   |
+| `RELAY_NAME`                  | `name`                                          | `Scuttlesaurus`                                                                             |
+| `RELAY_DESCRIPTION`           | `description`                                   | a short default                                                                             |
+| `HOPS`                        | `replication.hops`                              | `2`                                                                                         |
+| `MAX_AUTHORS`                 | `replication.maxAuthors`                        | `1500`                                                                                      |
+| `HORIZON_DAYS`                | `replication.horizonDays`                       | `0,90,14`                                                                                   |
+| `BOOTSTRAP_RELAYS`            | `replication.bootstrapRelays` (comma separated) | `wss://relay.damus.io/`, `wss://nos.lol/`, `wss://relay.primal.net/`, `wss://purplepag.es/` |
+| `MAX_RELAYS`                  | `replication.maxRelays`                         | `12`                                                                                        |
+| `FORWARD`                     | `replication.forward`                           | `all`                                                                                       |
+| `REPLICATION`                 | `replication.enabled` (`off` disables)          | on                                                                                          |
+| `ALLOW_PRIVATE_RELAYS`        | `replication.allowPrivateRelays`                | off                                                                                         |
+| `SPARQL_ENDPOINT_QUERY`       | `store.queryUrl`; selects the endpoint store    | embedded store                                                                              |
+| `SPARQL_ENDPOINT_UPDATE`      | `store.updateUrl`                               | the query URL                                                                               |
+| `SPARQL_ENDPOINT_CREDENTIALS` | `store.credentials`                             | none                                                                                        |
+| `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                      |
+| `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                          |
+| `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                        |
+| `MAX_LIMIT`                   | `maxLimit`                                      | `500`                                                                                       |
 
 Files in `dataDir`: `graph.nt` (the graph), `blobs/`, `config.json`,
 `sync-state.json`.

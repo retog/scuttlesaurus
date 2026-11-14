@@ -1,0 +1,11 @@
+# Not part of the image: version control, local tool state, runtime data,
+# the built web client (the image builds its own) and installed dependencies.
+.git
+.claude
+.github
+data
+*-data
+web/dist
+node_modules
+*.log
+.env
