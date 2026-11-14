@@ -10,7 +10,13 @@ import {
   getPublicKey,
 } from "@nostr/tools/pure";
 import { MemoryTripleStore, testConfig } from "../testing/mod.ts";
-import type { Config, EventStore, NostrEvent } from "../types.ts";
+import type {
+  Config,
+  EventStore,
+  NostrEvent,
+  SparqlBinding,
+  TripleStore,
+} from "../types.ts";
 import { createEventStore } from "./event_store.ts";
 
 /** A key pair for signing test events. */
@@ -84,4 +90,50 @@ export const DAY = 86400;
 export function plain(event: NostrEvent): NostrEvent {
   const { id, pubkey, created_at, kind, tags, content, sig } = event;
   return { id, pubkey, created_at, kind, tags, content, sig };
+}
+
+/** A {@link TripleStore} wrapper that counts calls and can fail inserts. */
+export class CountingStore implements TripleStore {
+  readonly inner: TripleStore;
+  selects = 0;
+  asks = 0;
+  inserts = 0;
+  /** When set, the next insert rejects with it (once). */
+  failNextInsert?: Error;
+
+  constructor(inner: TripleStore) {
+    this.inner = inner;
+  }
+
+  /** Reads plus writes issued so far. */
+  get calls(): number {
+    return this.selects + this.asks + this.inserts;
+  }
+
+  insert(ntriples: string): Promise<void> {
+    this.inserts++;
+    const error = this.failNextInsert;
+    if (error) {
+      this.failNextInsert = undefined;
+      return Promise.reject(error);
+    }
+    return this.inner.insert(ntriples);
+  }
+  select(sparql: string): Promise<SparqlBinding[]> {
+    this.selects++;
+    return this.inner.select(sparql);
+  }
+  ask(sparql: string): Promise<boolean> {
+    this.asks++;
+    return this.inner.ask(sparql);
+  }
+  query(sparql: string) {
+    return this.inner.query(sparql);
+  }
+  size(): Promise<number> {
+    return this.inner.size();
+  }
+  close(): Promise<void> {
+    return this.inner.close();
+  }
 }

@@ -705,7 +705,7 @@ export async function fetchNotifications(
             FILTER(?a != ${me} && ?at <= ${int(bound)})
             ${notDeleted("?e")}
             {
-              ?e nostr:mentions ${me} . FILTER(?kind = 1)
+              ?e nostr:mentions ${me} ; nostr:kind 1 .
             } UNION {
               ?e nostr:replyTo|nostr:reactsTo|nostr:reposts ?hit .
               ?hit nostr:author ${me} .
@@ -803,7 +803,7 @@ export async function hasNotificationsAfter(
       FILTER(?a != ${me} && ?at > ${int(since)})
       ${notDeleted("?e")}
       {
-        ?e nostr:mentions ${me} . FILTER(?kind = 1)
+        ?e nostr:mentions ${me} ; nostr:kind 1 .
       } UNION {
         ?e nostr:replyTo|nostr:reactsTo|nostr:reposts ?hit .
         ?hit nostr:author ${me} .

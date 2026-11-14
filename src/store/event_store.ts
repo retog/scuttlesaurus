@@ -22,7 +22,6 @@ import type {
   TripleStore,
 } from "../types.ts";
 import {
-  eventIdFromIri,
   eventIri,
   PREFIXES,
   pubkeyFromIri,
@@ -30,33 +29,22 @@ import {
   term,
 } from "../vocab.ts";
 import {
-  coordinateIri,
-  eventCoordinate,
-  eventFromBinding,
-  eventToTriples,
-  isAddressable,
-  isEphemeral,
-  isHex64,
-  parseCoordinate,
-} from "./event_triples.ts";
+  chunks,
+  type GroupItem,
+  planGroup,
+  VALUES_CHUNK,
+} from "./commit_plan.ts";
+import { eventFromBinding, isEphemeral, isHex64 } from "./event_triples.ts";
 import {
   buildQuery,
   isSelective,
   type ParsedFilter,
   parseFilter,
 } from "./filter_sparql.ts";
-import {
-  dateLiteral,
-  dayNumberToIso,
-  integer,
-  iri,
-  Triples,
-} from "./ntriples.ts";
+import { dateLiteral, dayNumberToIso, iri } from "./ntriples.ts";
 
 /** Events may be at most this far ahead of the clock (seconds). */
 const MAX_FUTURE_SECONDS = 15 * 60;
-/** Terms per `VALUES` clause in lookups by author. */
-const VALUES_CHUNK = 300;
 /** Distinct days loaded per query when reading the id set at start. */
 const LOAD_DAYS_PER_QUERY = 16;
 /** Widest window, in days, of the widening search for unselective filters. */
@@ -64,26 +52,31 @@ const MAX_WINDOW_DAYS = 256;
 /** Window used when counting, where no early exit is possible. */
 const COUNT_WINDOW_DAYS = 31;
 const SECONDS_PER_DAY = 86400;
+/** Default largest group: events, and estimated N-Triples bytes. */
+const DEFAULT_GROUP_EVENTS = 500;
+const DEFAULT_GROUP_BYTES = 4 * 1024 * 1024;
+/** Estimated size of an event's triples apart from content and tags. */
+const SIZE_OVERHEAD = 1200;
+
+/** Limits of one group commit. */
+export interface GroupOptions {
+  /** Most events committed together (default 500). */
+  maxEvents?: number;
+  /** Largest estimated size of a group's N-Triples (default 4 MiB). */
+  maxBytes?: number;
+}
+
+interface Pending {
+  item: GroupItem;
+  size: number;
+  resolve: (result: AddResult) => void;
+  reject: (error: unknown) => void;
+}
 
 const N = (name: Parameters<typeof term>[0]) => `<${term(name)}>`;
 
 const dayOf = (seconds: number) => Math.floor(seconds / SECONDS_PER_DAY);
 const dayOfIso = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86400_000;
-
-function chunks<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(items.slice(i, i + size));
-  }
-  return out;
-}
-
-/** Whether `a` is the newer event: later `created_at`, then the lower id (NIP-01). */
-function wins(a: { id: string; created_at: number }, b: typeof a): boolean {
-  return a.created_at !== b.created_at
-    ? a.created_at > b.created_at
-    : a.id < b.id;
-}
 
 /** Order of query results: newest first, ties by ascending id. */
 function byNewest(a: NostrEvent, b: NostrEvent): number {
@@ -137,12 +130,19 @@ class Store implements EventStore {
   >();
   #earliestDay?: number;
   #latestDay?: number;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #pending: Pending[] = [];
+  readonly #group: Required<GroupOptions>;
+  #committing = false;
+  #committer: Promise<void> = Promise.resolve();
   #closed = false;
 
-  constructor(triples: TripleStore, config: Config) {
+  constructor(triples: TripleStore, config: Config, group: GroupOptions) {
     this.triples = triples;
     this.#config = config;
+    this.#group = {
+      maxEvents: group.maxEvents ?? DEFAULT_GROUP_EVENTS,
+      maxBytes: group.maxBytes ?? DEFAULT_GROUP_BYTES,
+    };
   }
 
   /** Read the id set and the day range from the graph. */
@@ -199,141 +199,68 @@ class Store implements EventStore {
       this.#notify(event, { seenOn: options.seenOn, stored: false });
       return Promise.resolve({ status: "ephemeral" });
     }
-    const run = this.#queue.then(() => this.#store(event, options));
-    this.#queue = run.catch(() => {});
-    return run;
+    return new Promise((resolve, reject) => {
+      this.#pending.push({
+        item: { event, seenOn: options.seenOn },
+        size: SIZE_OVERHEAD + event.content.length * 2 +
+          JSON.stringify(event.tags).length * 2,
+        resolve,
+        reject,
+      });
+      if (!this.#committing) {
+        this.#committing = true;
+        // Deferred so that adds issued in the same turn form one group.
+        this.#committer = Promise.resolve().then(() => this.#commitLoop());
+      }
+    });
   }
 
-  async #store(event: NostrEvent, options: AddOptions): Promise<AddResult> {
-    if (this.has(event.id)) return { status: "duplicate" };
-    if (await this.#isRetracted(event)) {
-      return { status: "rejected", reason: "deleted: retracted by its author" };
-    }
-    const bookkeeping = new Triples();
-    await this.#supersession(event, bookkeeping);
-    if (event.kind === 5) await this.#deletions(event, bookkeeping);
-
-    await this.triples.insert(
-      eventToTriples(event, { seenOn: options.seenOn }) + bookkeeping,
-    );
-
-    this.#ids.add(eventIri(event.id));
-    const day = dayOf(event.created_at);
-    this.#earliestDay = Math.min(this.#earliestDay ?? day, day);
-    this.#latestDay = Math.max(this.#latestDay ?? day, day);
-    this.#notify(event, { seenOn: options.seenOn, stored: true });
-    return { status: "stored" };
-  }
-
-  /** NIP-09: a deletion by the same author names the event or its address. */
-  async #isRetracted(event: NostrEvent): Promise<boolean> {
-    const coordinate = eventCoordinate(event);
-    const address = coordinate && coordinateIri(coordinate);
-    const byAddress = address
-      ? `UNION { ?d nostr:deletesAddress ${iri(address)} ; nostr:createdAt ?c .
-           FILTER(?c >= ${event.created_at}) }`
-      : "";
-    return await this.triples.ask(
-      `${PREFIXES}ASK {
-        ?d nostr:author ${iri(pubkeyIri(event.pubkey))} ; nostr:kind 5 .
-        { ?d nostr:deletes ${iri(eventIri(event.id))} } ${byAddress}
-      }`,
-    );
-  }
-
-  /** Mark the loser among the new event and the current heads of its key. */
-  async #supersession(event: NostrEvent, out: Triples): Promise<void> {
-    const coordinate = eventCoordinate(event);
-    if (!coordinate) return;
-    const address = coordinateIri(coordinate);
-    if (!address) return;
-    const match = isAddressable(event.kind)
-      ? `?e nostr:address ${iri(address)} .`
-      : `?e nostr:author ${
-        iri(pubkeyIri(event.pubkey))
-      } ; nostr:kind ${event.kind} .`;
-    const rows = await this.triples.select(
-      `${PREFIXES}SELECT ?e ?createdAt WHERE {
-        ${match} ?e nostr:createdAt ?createdAt .
-        FILTER NOT EXISTS { ?e nostr:supersededBy ?newer }
-      }`,
-    );
-    const heads = rows.map((row) => ({
-      id: eventIdFromIri(row.e.value),
-      created_at: Number(row.createdAt.value),
-    }));
-    let best: { id: string; created_at: number } = event;
-    for (const head of heads) if (wins(head, best)) best = head;
-    const superseded = [event, ...heads].filter((e) => e.id !== best.id);
-    for (const old of superseded) {
-      out.add(
-        iri(eventIri(old.id)),
-        N("supersededBy"),
-        iri(eventIri(best.id)),
-      );
-    }
-  }
-
-  /** NIP-09: mark the events and address versions a kind 5 event names. */
-  async #deletions(event: NostrEvent, out: Triples): Promise<void> {
-    const author = iri(pubkeyIri(event.pubkey));
-    const deletion = iri(eventIri(event.id));
-    const targets = new Set<string>();
-
-    const ids = event.tags
-      .filter((t) => t[0] === "e" && isHex64(t[1]))
-      .map((t) => iri(eventIri(t[1])));
-    for (const group of chunks([...new Set(ids)], VALUES_CHUNK)) {
-      const rows = await this.triples.select(
-        `${PREFIXES}SELECT ?t WHERE {
-          VALUES ?t { ${group.join(" ")} }
-          ?t nostr:author ${author} ; nostr:kind ?k . FILTER(?k != 5)
-        }`,
-      );
-      for (const row of rows) targets.add(row.t.value);
-    }
-
-    const addresses = new Set<string>();
-    const replaceableKinds = new Set<number>();
-    for (const tag of event.tags) {
-      if (tag[0] !== "a") continue;
-      const coordinate = parseCoordinate(tag[1]);
-      if (!coordinate || coordinate.pubkey !== event.pubkey) continue;
-      if (isAddressable(coordinate.kind)) {
-        const address = coordinateIri(coordinate);
-        if (address) addresses.add(iri(address));
-      } else if (
-        eventCoordinate({
-          ...event,
-          kind: coordinate.kind,
-          tags: [],
-        }) && coordinate.identifier === ""
-      ) {
-        replaceableKinds.add(coordinate.kind);
+  /** The committer: takes everything pending, one group at a time. */
+  async #commitLoop(): Promise<void> {
+    for (;;) {
+      const group = this.#takeGroup();
+      if (group.length === 0) break;
+      try {
+        const plan = await planGroup(
+          this.triples,
+          (id) => this.has(id),
+          group.map((p) => p.item),
+        );
+        if (plan.ntriples) await this.triples.insert(plan.ntriples);
+        for (const item of plan.stored) {
+          const day = dayOf(item.event.created_at);
+          this.#ids.add(eventIri(item.event.id));
+          this.#earliestDay = Math.min(this.#earliestDay ?? day, day);
+          this.#latestDay = Math.max(this.#latestDay ?? day, day);
+        }
+        // Subscribers hear of events in arrival order; a result is settled
+        // only after its notification.
+        group.forEach((pending, i) => {
+          if (plan.outcomes[i].status === "stored") {
+            this.#notify(pending.item.event, {
+              seenOn: pending.item.seenOn,
+              stored: true,
+            });
+          }
+          pending.resolve(plan.outcomes[i]);
+        });
+      } catch (error) {
+        for (const pending of group) pending.reject(error);
       }
     }
-    const notNewer =
-      `?t nostr:createdAt ?c . FILTER(?c <= ${event.created_at})`;
-    for (const group of chunks([...addresses], VALUES_CHUNK)) {
-      const rows = await this.triples.select(
-        `${PREFIXES}SELECT ?t WHERE {
-          VALUES ?a { ${group.join(" ")} } ?t nostr:address ?a . ${notNewer}
-        }`,
-      );
-      for (const row of rows) targets.add(row.t.value);
+    this.#committing = false;
+  }
+
+  /** Up to the configured number of events and size from the queue. */
+  #takeGroup(): Pending[] {
+    let size = 0;
+    let count = 0;
+    while (count < this.#pending.length && count < this.#group.maxEvents) {
+      size += this.#pending[count].size;
+      if (count > 0 && size > this.#group.maxBytes) break;
+      count++;
     }
-    for (const group of chunks([...replaceableKinds], VALUES_CHUNK)) {
-      const rows = await this.triples.select(
-        `${PREFIXES}SELECT ?t WHERE {
-          VALUES ?k { ${group.map(integer).join(" ")} }
-          ?t nostr:author ${author} ; nostr:kind ?k . ${notNewer}
-        }`,
-      );
-      for (const row of rows) targets.add(row.t.value);
-    }
-    for (const target of targets) {
-      out.add(iri(target), N("deletedBy"), deletion);
-    }
+    return this.#pending.splice(0, count);
   }
 
   // --- queries --------------------------------------------------------------
@@ -563,7 +490,7 @@ class Store implements EventStore {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    await this.#queue;
+    await this.#committer;
     await this.triples.close();
   }
 }
@@ -582,8 +509,9 @@ function daysBetween(from: number, to: number): string[] {
 export async function createEventStore(
   triples: TripleStore,
   config: Config,
+  group: GroupOptions = {},
 ): Promise<EventStore> {
-  const store = new Store(triples, config);
+  const store = new Store(triples, config, group);
   await store.load();
   return store;
 }

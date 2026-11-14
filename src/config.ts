@@ -30,6 +30,9 @@ type Listener = (config: Config) => void;
 
 const MEGABYTE = 1024 * 1024;
 
+/** qlever-dir's own default `BASE_URI`, which matches a graph directory mounted as `/data`. */
+const DEFAULT_QLEVER_BASE_URI = "https://example.org/data/";
+
 const DEFAULT_DESCRIPTION =
   "A personal Nostr relay that replicates its owner's social neighbourhood.";
 
@@ -133,6 +136,17 @@ const ENV_SETTINGS: readonly EnvSetting[] = [
     key: "store.credentials",
     parse: parseText,
   },
+  { variable: "QLEVER_DIR_URL", key: "store.qleverUrl", parse: parseText },
+  {
+    variable: "QLEVER_DIR_GRAPH_DIR",
+    key: "store.qleverGraphDir",
+    parse: parseText,
+  },
+  {
+    variable: "QLEVER_DIR_BASE_URI",
+    key: "store.qleverBaseUri",
+    parse: parseText,
+  },
   { variable: "SPARQL_PUBLIC", key: "publicSparql", parse: parseToggle },
   { variable: "BLOSSOM", key: "blossom.enabled", parse: parseToggle },
   {
@@ -162,6 +176,9 @@ const CHECKS: Record<string, Check> = {
   "store.queryUrl": checkHttpUrl,
   "store.updateUrl": checkHttpUrl,
   "store.credentials": checkCredentials,
+  "store.qleverUrl": checkHttpUrl,
+  "store.qleverGraphDir": checkNonEmptyText,
+  "store.qleverBaseUri": checkBaseUri,
   publicSparql: checkBoolean,
   "blossom.enabled": checkBoolean,
   "blossom.maxBlobSize": checkRange(1, Number.MAX_SAFE_INTEGER),
@@ -319,6 +336,19 @@ function readEnvironment(
   }
 
   const queryUrl = getIn(layer, "store.queryUrl");
+  if (getIn(layer, "store.qleverUrl") !== undefined) {
+    if (queryUrl !== undefined) {
+      throw new Error(
+        "QLEVER_DIR_URL and SPARQL_ENDPOINT_QUERY select different stores; set only one",
+      );
+    }
+  } else {
+    for (const variable of ["QLEVER_DIR_GRAPH_DIR", "QLEVER_DIR_BASE_URI"]) {
+      if (env[variable]?.trim()) {
+        throw new Error(`${variable} is set without QLEVER_DIR_URL`);
+      }
+    }
+  }
   if (queryUrl === undefined) {
     for (
       const variable of [
@@ -387,7 +417,7 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
       forward: at("replication.forward"),
       allowPrivateRelays: at("replication.allowPrivateRelays"),
     },
-    store: buildStore(env),
+    store: buildStore(dataDir, env),
     blossom: {
       enabled: at("blossom.enabled"),
       maxBlobSize: at("blossom.maxBlobSize"),
@@ -397,8 +427,24 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
   };
 }
 
-/** The graph store: the SPARQL endpoint when one is configured, else embedded. */
-function buildStore(env: Raw): StoreConfig {
+/**
+ * The graph store: qlever-dir or a SPARQL endpoint when one is configured,
+ * else embedded.
+ */
+function buildStore(dataDir: string, env: Raw): StoreConfig {
+  const qleverUrl = getIn(env, "store.qleverUrl");
+  if (typeof qleverUrl === "string") {
+    const graphDir = getIn(env, "store.qleverGraphDir");
+    const baseUri = getIn(env, "store.qleverBaseUri");
+    return {
+      kind: "qlever-dir",
+      queryUrl: qleverUrl,
+      graphDir: typeof graphDir === "string"
+        ? graphDir
+        : join(dataDir, "graph"),
+      baseUri: typeof baseUri === "string" ? baseUri : DEFAULT_QLEVER_BASE_URI,
+    };
+  }
   const queryUrl = getIn(env, "store.queryUrl");
   if (typeof queryUrl !== "string") return { kind: "embedded" };
 
@@ -473,6 +519,32 @@ function parseToggle(raw: string): boolean {
 function checkText(value: unknown): string {
   if (typeof value !== "string") throw new Error("must be a string");
   return value;
+}
+
+function checkNonEmptyText(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error("must not be empty");
+  }
+  return value.trim();
+}
+
+/** The graph IRI prefix of qlever-dir: an absolute http(s) URL ending in `/`. */
+function checkBaseUri(value: unknown): string {
+  if (typeof value !== "string") throw new Error("must be a string");
+  const text = value.trim();
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error("must be an absolute http or https URI ending with /");
+  }
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    !text.endsWith("/")
+  ) {
+    throw new Error("must be an absolute http or https URI ending with /");
+  }
+  return text;
 }
 
 function checkBoolean(value: unknown): boolean {

@@ -29,6 +29,22 @@ export type StoreConfig =
     updateUrl: string;
     /** `user:password` for HTTP Basic authentication. */
     credentials?: string;
+  }
+  /**
+   * A directory of N-Triples files indexed by qlever-dir: batches are written
+   * as files and queried through qlever-dir's read-only endpoint.
+   */
+  | {
+    kind: "qlever-dir";
+    /** qlever-dir's SPARQL endpoint. */
+    queryUrl: string;
+    /** The directory Scuttlesaurus writes to and qlever-dir watches. */
+    graphDir: string;
+    /**
+     * qlever-dir's `BASE_URI` plus the path of `graphDir` inside its `/data`;
+     * ends with `/`. Graph IRIs are this followed by a file's relative path.
+     */
+    baseUri: string;
   };
 
 export interface ReplicationConfig {

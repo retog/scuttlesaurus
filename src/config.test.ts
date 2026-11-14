@@ -201,6 +201,8 @@ Deno.test("invalid environment values throw, naming the variable", async () => {
     ["MAX_LIMIT", "0"],
     ["SPARQL_ENDPOINT_QUERY", "ftp://example.org/query"],
     ["SPARQL_ENDPOINT_CREDENTIALS", "nocolon"],
+    ["QLEVER_DIR_URL", "ftp://qlever:7001/"],
+    ["QLEVER_DIR_URL", "qlever"],
   ];
   for (const [variable, value] of invalid) {
     await withDataDir((dir) =>
@@ -486,3 +488,58 @@ Deno.test("bootstrap relay defaults are not locked and keep their order", () =>
     );
     assertEquals(manager.locked.has("replication.bootstrapRelays"), false);
   }));
+
+Deno.test("qlever-dir store: selected by QLEVER_DIR_URL, with defaults", () =>
+  withDataDir(async (dir) => {
+    const plain = await loadConfig({
+      DATA_DIR: dir,
+      QLEVER_DIR_URL: "http://qlever:7001/",
+    });
+    assertEquals(plain.config.store, {
+      kind: "qlever-dir",
+      queryUrl: "http://qlever:7001",
+      graphDir: join(dir, "graph"),
+      baseUri: "https://example.org/data/",
+    });
+
+    const full = await loadConfig({
+      DATA_DIR: dir,
+      QLEVER_DIR_URL: "http://qlever:7001",
+      QLEVER_DIR_GRAPH_DIR: "/srv/graph",
+      QLEVER_DIR_BASE_URI: "https://scuttlesaurus.test/graph/",
+    });
+    assertEquals(full.config.store, {
+      kind: "qlever-dir",
+      queryUrl: "http://qlever:7001",
+      graphDir: "/srv/graph",
+      baseUri: "https://scuttlesaurus.test/graph/",
+    });
+  }));
+
+Deno.test("qlever-dir store: invalid and conflicting settings throw", async () => {
+  const cases: [Record<string, string>, string][] = [
+    [{
+      QLEVER_DIR_URL: "http://q:1",
+      QLEVER_DIR_BASE_URI: "https://x.org/data",
+    }, "QLEVER_DIR_BASE_URI="],
+    [
+      { QLEVER_DIR_URL: "http://q:1", QLEVER_DIR_BASE_URI: "relative/" },
+      "QLEVER_DIR_BASE_URI=",
+    ],
+    [
+      { QLEVER_DIR_URL: "http://q:1", QLEVER_DIR_BASE_URI: "ftp://x.org/" },
+      "QLEVER_DIR_BASE_URI=",
+    ],
+    [{
+      QLEVER_DIR_URL: "http://q:1",
+      SPARQL_ENDPOINT_QUERY: "http://s:2/query",
+    }, "different stores"],
+    [{ QLEVER_DIR_GRAPH_DIR: "/srv/graph" }, "without QLEVER_DIR_URL"],
+    [{ QLEVER_DIR_BASE_URI: "https://x.org/" }, "without QLEVER_DIR_URL"],
+  ];
+  for (const [env, message] of cases) {
+    await withDataDir((dir) =>
+      assertRejects(() => loadConfig({ DATA_DIR: dir, ...env }), Error, message)
+    );
+  }
+});

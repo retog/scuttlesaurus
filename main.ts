@@ -37,9 +37,7 @@ function printBanner(running: RunningNode): void {
   const owner = config.owner === undefined
     ? "none yet: the first visitor sets up the node"
     : nip19.npubEncode(config.owner);
-  const store = config.store.kind === "embedded"
-    ? `embedded graph in ${config.dataDir}`
-    : `SPARQL endpoint ${config.store.queryUrl}`;
+  const store = describeStore(config);
   const lines = [
     "Scuttlesaurus is running.",
     `  open:        ${running.url}/`,
@@ -53,4 +51,16 @@ function printBanner(running: RunningNode): void {
     `  replication: ${config.replication.enabled ? "on" : "off"}`,
   ];
   console.log(lines.join("\n"));
+}
+
+/** One line saying where the graph is kept. */
+function describeStore(config: Config): string {
+  switch (config.store.kind) {
+    case "embedded":
+      return `embedded graph in ${config.dataDir}`;
+    case "sparql":
+      return `SPARQL endpoint ${config.store.queryUrl}`;
+    case "qlever-dir":
+      return `QLever through qlever-dir at ${config.store.queryUrl}, files in ${config.store.graphDir}`;
+  }
 }
