@@ -142,7 +142,9 @@ until the horizon is reached; afterwards a live subscription stays open. The
 time up to which each author is covered is kept in `<dataDir>/sync-state.json`,
 so a restart only fetches what was missed. Connections reconnect with backoff; a
 relay that keeps failing is dropped from the plan for a while. Events already in
-the store are skipped before their signature is verified.
+the store are skipped before their signature is verified. Relay lists are data
+from strangers: relays they name must be public `wss://` hosts unless
+`replication.allowPrivateRelays` is on (bootstrap relays are always allowed).
 
 **Publishing.** Events that clients publish to this node's relay are forwarded
 to the author's write relays, or to the bootstrap relays when the author has no
@@ -239,6 +241,7 @@ the environment is locked: the settings page shows it but cannot change it.
 | `MAX_RELAYS`                  | `replication.maxRelays`                         | `12`                                                                                    |
 | `FORWARD`                     | `replication.forward`                           | `all`                                                                                   |
 | `REPLICATION`                 | `replication.enabled` (`off` disables)          | on                                                                                      |
+| `ALLOW_PRIVATE_RELAYS`        | `replication.allowPrivateRelays`                | off                                                                                     |
 | `SPARQL_ENDPOINT_QUERY`       | `store.queryUrl`; selects the endpoint store    | embedded store                                                                          |
 | `SPARQL_ENDPOINT_UPDATE`      | `store.updateUrl`                               | the query URL                                                                           |
 | `SPARQL_ENDPOINT_CREDENTIALS` | `store.credentials`                             | none                                                                                    |

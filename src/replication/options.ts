@@ -34,6 +34,13 @@ export interface ReplicatorOptions {
    * late. Default 60.
    */
   overlapSeconds?: number;
+  /**
+   * Silence from a relay after which it is probed with a request that matches
+   * nothing; detects half-open connections. Default 120000 ms.
+   */
+  idleProbeMs?: number;
+  /** A probe unanswered for this long drops the connection. Default 20000 ms. */
+  probeTimeoutMs?: number;
   /** Debounce for writing `sync-state.json`. Default 5000 ms. */
   stateFlushMs?: number;
   /** Per-relay timeout of `publish`, connecting included. Default 5000 ms. */
@@ -60,6 +67,8 @@ export function resolveOptions(
     connectTimeoutMs: options.connectTimeoutMs ?? 10000,
     stableMs: options.stableMs ?? 30000,
     overlapSeconds: options.overlapSeconds ?? 60,
+    idleProbeMs: options.idleProbeMs ?? 120000,
+    probeTimeoutMs: options.probeTimeoutMs ?? 20000,
     stateFlushMs: options.stateFlushMs ?? 5000,
     publishTimeoutMs: options.publishTimeoutMs ?? 5000,
   };

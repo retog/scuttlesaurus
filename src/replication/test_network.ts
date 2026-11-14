@@ -92,6 +92,8 @@ export interface Upstream {
   store: EventStore;
   /** Every filter of every REQ, in order of arrival. */
   requests: Filter[];
+  /** How many WebSocket connections were accepted so far. */
+  accepted: number;
   /** Add events directly to the store, as if they had been published. */
   add(...events: NostrEvent[]): Promise<void>;
   close(): Promise<void>;
@@ -119,14 +121,21 @@ export async function startUpstream(allowed: Person[] = []): Promise<Upstream> {
     Object.fromEntries(allowed.map((p) => [p.pubkey, 1])),
   );
   const relay = createRelayServer({ events: recording, graph, config });
+  let accepted = 0;
   const server = Deno.serve(
     { port: 0, hostname: "127.0.0.1", onListen() {} },
-    (request) => relay.handleUpgrade(request),
+    (request) => {
+      accepted++;
+      return relay.handleUpgrade(request);
+    },
   );
   return {
     url: `ws://127.0.0.1:${server.addr.port}/`,
     store,
     requests,
+    get accepted() {
+      return accepted;
+    },
     async add(...events) {
       for (const event of events) {
         const result = await store.add(event);
@@ -195,6 +204,8 @@ export async function startDownstream(
     replication: {
       ...testConfig().replication,
       enabled: true,
+      // The test relays listen on 127.0.0.1, which relay lists may not name by default.
+      allowPrivateRelays: true,
       bootstrapRelays,
       ...options.replication,
     },

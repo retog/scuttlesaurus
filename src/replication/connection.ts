@@ -24,6 +24,10 @@ export interface ConnectionSettings {
   stableMs: number;
   /** False for a connection that is used once and not repaired. */
   reconnect: boolean;
+  /** Silence after which the relay is probed to see whether it is alive. */
+  idleProbeMs: number;
+  /** How long a probe may go unanswered before the connection is dropped. */
+  probeTimeoutMs: number;
 }
 
 /** Callbacks about the connection as a whole. */
@@ -57,6 +61,9 @@ interface PendingPublish {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** A filter that matches nothing and is cheap for any relay to answer. */
+const PROBE_FILTER: Filter = { ids: ["0".repeat(64)], limit: 1 };
+
 /** Wait this long for a close handshake before letting go of a socket. */
 const CLOSE_GRACE_MS = 2000;
 
@@ -75,6 +82,10 @@ export class RelayConnection {
   #lastError: string | undefined;
   #socketError: string | undefined;
   #counter = 0;
+  #lastReceived = 0;
+  #idleTimer: ReturnType<typeof setTimeout> | undefined;
+  #probeTimer: ReturnType<typeof setTimeout> | undefined;
+  #probeId: string | undefined;
   #stopped = false;
   #started = false;
   #socketClosed: Promise<void> = Promise.resolve();
@@ -168,6 +179,7 @@ export class RelayConnection {
     this.#state = "closed";
     clearTimeout(this.#timer);
     this.#timer = undefined;
+    this.#stopLiveness();
     this.#failPending("connection closed");
     const socket = this.#socket;
     this.#socket = undefined;
@@ -217,7 +229,9 @@ export class RelayConnection {
       clearTimeout(this.#timer);
       this.#timer = undefined;
       this.#openedAt = Date.now();
+      this.#lastReceived = this.#openedAt;
       this.#state = "connected";
+      this.#armIdleTimer(this.#settings.idleProbeMs);
       this.#call(() => this.#handlers.onOpen());
     };
     socket.onmessage = (message) => {
@@ -251,6 +265,7 @@ export class RelayConnection {
     if (socket !== undefined && this.#socket !== socket) return;
     clearTimeout(this.#timer);
     this.#timer = undefined;
+    this.#stopLiveness();
     const wasOpen = this.#state === "connected";
     this.#socket = undefined;
     this.#lastError = error;
@@ -281,6 +296,53 @@ export class RelayConnection {
     }, delay);
   }
 
+  #stopLiveness(): void {
+    clearTimeout(this.#idleTimer);
+    clearTimeout(this.#probeTimer);
+    this.#idleTimer = undefined;
+    this.#probeTimer = undefined;
+    this.#probeId = undefined;
+  }
+
+  #armIdleTimer(delay: number): void {
+    clearTimeout(this.#idleTimer);
+    this.#idleTimer = setTimeout(() => this.#onIdle(), delay);
+  }
+
+  /** Nothing was heard for a while? If so, ask the relay something trivial. */
+  #onIdle(): void {
+    this.#idleTimer = undefined;
+    if (this.#state !== "connected") return;
+    const quiet = Date.now() - this.#lastReceived;
+    if (quiet < this.#settings.idleProbeMs) {
+      // Traffic came in meanwhile; look again when the silence could be long enough.
+      this.#armIdleTimer(this.#settings.idleProbeMs - quiet);
+      return;
+    }
+    const id = `probe${++this.#counter}`;
+    if (!this.#send(["REQ", id, PROBE_FILTER])) {
+      this.#probeFailed("could not send a liveness probe");
+      return;
+    }
+    this.#probeId = id;
+    this.#probeTimer = setTimeout(
+      () => this.#probeFailed("no answer to the liveness probe"),
+      this.#settings.probeTimeoutMs,
+    );
+  }
+
+  /** A half-open connection: drop it and let the normal reconnect take over. */
+  #probeFailed(error: string): void {
+    const socket = this.#socket;
+    this.#socketError = error;
+    try {
+      socket?.close();
+    } catch {
+      // The socket is unusable anyway.
+    }
+    this.#lost(socket, error);
+  }
+
   #failPending(reason: string): void {
     const subscriptions = [...this.#subscriptions.values()];
     this.#subscriptions.clear();
@@ -296,10 +358,22 @@ export class RelayConnection {
   }
 
   #message(data: unknown): void {
+    // Any frame proves the relay is alive.
+    this.#lastReceived = Date.now();
+    if (this.#probeTimer !== undefined) {
+      clearTimeout(this.#probeTimer);
+      this.#probeTimer = undefined;
+      this.#armIdleTimer(this.#settings.idleProbeMs);
+    }
     if (typeof data !== "string") return;
     const frame: unknown = JSON.parse(data);
     if (!Array.isArray(frame) || typeof frame[0] !== "string") return;
     const [type, first, second, third] = frame;
+    if (first === this.#probeId && (type === "EOSE" || type === "CLOSED")) {
+      this.#probeId = undefined;
+      if (type === "EOSE") this.#send(["CLOSE", first]);
+      return;
+    }
     switch (type) {
       case "EVENT": {
         const handlers = this.#subscriptions.get(first);

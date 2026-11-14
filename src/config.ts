@@ -53,6 +53,7 @@ const DEFAULTS: Raw = {
     ],
     maxRelays: 12,
     forward: "all",
+    allowPrivateRelays: false,
   },
   blossom: { enabled: true, maxBlobSize: 50 * MEGABYTE },
   publicSparql: true,
@@ -72,6 +73,7 @@ const CHANGEABLE = [
   "replication.bootstrapRelays",
   "replication.maxRelays",
   "replication.forward",
+  "replication.allowPrivateRelays",
 ] as const;
 
 /** Converts a raw environment string into a value for a setting. */
@@ -112,6 +114,11 @@ const ENV_SETTINGS: readonly EnvSetting[] = [
   { variable: "FORWARD", key: "replication.forward", parse: parseText },
   { variable: "REPLICATION", key: "replication.enabled", parse: parseToggle },
   {
+    variable: "ALLOW_PRIVATE_RELAYS",
+    key: "replication.allowPrivateRelays",
+    parse: parseToggle,
+  },
+  {
     variable: "SPARQL_ENDPOINT_QUERY",
     key: "store.queryUrl",
     parse: parseText,
@@ -151,6 +158,7 @@ const CHECKS: Record<string, Check> = {
   "replication.bootstrapRelays": checkRelayUrls,
   "replication.maxRelays": checkRange(1, 100),
   "replication.forward": checkOneOf(["none", "owner", "all"]),
+  "replication.allowPrivateRelays": checkBoolean,
   "store.queryUrl": checkHttpUrl,
   "store.updateUrl": checkHttpUrl,
   "store.credentials": checkCredentials,
@@ -377,6 +385,7 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
       bootstrapRelays: at("replication.bootstrapRelays"),
       maxRelays: at("replication.maxRelays"),
       forward: at("replication.forward"),
+      allowPrivateRelays: at("replication.allowPrivateRelays"),
     },
     store: buildStore(env),
     blossom: {

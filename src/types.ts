@@ -52,6 +52,15 @@ export interface ReplicationConfig {
    * forwarded to the author's write relays.
    */
   forward: "none" | "owner" | "all";
+  /**
+   * Whether relays named in *other people's* relay lists (NIP-65) may use
+   * unencrypted `ws://` or point at loopback, private, link-local or otherwise
+   * non-public hosts. Off by default because a relay list is data from
+   * strangers: allowing it lets any followed author make this server connect
+   * to its internal network. Relays the owner configured as bootstrap relays
+   * are always allowed.
+   */
+  allowPrivateRelays: boolean;
 }
 
 export interface BlossomConfig {

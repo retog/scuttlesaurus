@@ -606,3 +606,114 @@ Deno.test("a relay that closes the subscription is retried and reported", async 
     assertNotEquals(node.replicator.status().relays[0]?.lastError, undefined);
   });
 });
+
+Deno.test("relay lists cannot point the node at private or plain ws relays by default", async () => {
+  await scenario(async (cleanup) => {
+    const [owner, a] = people(2);
+    const bootstrap = await startUpstream();
+    const private_ = await startUpstream();
+    cleanup(() => bootstrap.close());
+    cleanup(() => private_.close());
+    const onBootstrap = sign(a, 1, { content: "on the bootstrap relay" });
+    const onPrivate = sign(a, 1, { content: "on the private relay" });
+    await bootstrap.add(
+      follows(owner, [a]),
+      writeRelays(a, [private_.url, "ws://example.com/"]),
+      onBootstrap,
+    );
+    await private_.add(onPrivate);
+
+    // The bootstrap relay itself is on localhost and keeps working.
+    const node = await startDownstream(owner, [bootstrap.url], {
+      replication: { allowPrivateRelays: false },
+    });
+    cleanup(() => node.close());
+    await eventually(
+      () => node.events.has(onBootstrap.id),
+      "the fallback fetch",
+    );
+    await waitIdle(node);
+    await delay(150);
+    assertEquals(node.events.has(onPrivate.id), false);
+    assertEquals(private_.accepted, 0, "no connection to the private relay");
+    assertEquals(
+      node.replicator.status().relays.map((r) => r.url),
+      [bootstrap.url],
+    );
+  });
+});
+
+Deno.test("publish ignores private relays of a relay list by default", async () => {
+  await scenario(async (cleanup) => {
+    const [owner, a] = people(2);
+    const bootstrap = await startUpstream([a]);
+    const private_ = await startUpstream([a]);
+    cleanup(() => bootstrap.close());
+    cleanup(() => private_.close());
+    const node = await startDownstream(owner, [bootstrap.url], {
+      start: false,
+      replication: { allowPrivateRelays: false },
+    });
+    cleanup(() => node.close());
+    await node.events.add(writeRelays(a, [private_.url]));
+    const note = sign(a, 1, {});
+    const results = await node.replicator.publish(note);
+    assertEquals(results.map((r) => r.relay), [bootstrap.url]);
+    assertEquals(private_.accepted, 0);
+
+    node.config.replication.allowPrivateRelays = true;
+    const again = await node.replicator.publish(sign(a, 1, { content: "2" }));
+    assertEquals(again.map((r) => r.relay), [private_.url]);
+  });
+});
+
+Deno.test("a relay that goes silent is probed, dropped and reconnected", async () => {
+  await scenario(async (cleanup) => {
+    const [owner] = people(1);
+    let connections = 0;
+    const sockets: WebSocket[] = [];
+    // Accepts the WebSocket and never answers anything.
+    const silent = Deno.serve(
+      { port: 0, hostname: "127.0.0.1", onListen() {} },
+      (request) => {
+        connections++;
+        const { socket, response } = Deno.upgradeWebSocket(request);
+        sockets.push(socket);
+        return response;
+      },
+    );
+    cleanup(() => silent.shutdown());
+    const url = `ws://127.0.0.1:${silent.addr.port}/`;
+    const node = await startDownstream(owner, [url], {
+      tuning: { idleProbeMs: 30, probeTimeoutMs: 30, maxFailures: 100 },
+    });
+    cleanup(() => node.close());
+    await eventually(() => connections >= 3, "reconnects after dropped probes");
+    const status = node.replicator.status().relays[0];
+    assert(status.lastError?.includes("probe"), status.lastError);
+  });
+});
+
+Deno.test("a healthy idle relay answers the probe and is left alone", async () => {
+  await scenario(async (cleanup) => {
+    const [owner, a] = people(2);
+    const upstream = await startUpstream();
+    cleanup(() => upstream.close());
+    await upstream.add(follows(owner, [a]));
+    const node = await startDownstream(owner, [upstream.url], {
+      tuning: { idleProbeMs: 40, probeTimeoutMs: 500 },
+    });
+    cleanup(() => node.close());
+    await eventually(() => node.graph.distance(a.pubkey) === 1, "the graph");
+    await waitIdle(node);
+    const probes = () =>
+      upstream.requests.filter((f) => f.ids?.[0] === "0".repeat(64)).length;
+    await eventually(() => probes() >= 3, "several probes");
+    assertEquals(upstream.accepted, 1, "never reconnected");
+    assertEquals(node.replicator.status().relays[0].lastError, undefined);
+
+    const later = sign(a, 1, { content: "after the probes" });
+    await upstream.add(later);
+    await eventually(() => node.events.has(later.id), "live event");
+  });
+});

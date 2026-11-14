@@ -23,6 +23,7 @@ function input(overrides: Partial<PlanInput> = {}): PlanInput {
     bootstrapRelays: [BOOT],
     maxRelays: 12,
     excluded: new Set(),
+    allowPrivateRelays: true,
     ...overrides,
   };
 }
@@ -168,4 +169,30 @@ Deno.test("a plan is deterministic", () => {
     maxRelays: 3,
   });
   assertEquals(summary(planRelays(args)), summary(planRelays(args)));
+});
+
+Deno.test("relays from relay lists must be public unless private relays are allowed", () => {
+  const strict = input({
+    authors: new Map([[A, 1], [B, 1]]),
+    relayLists: lists({
+      [A]: ["ws://127.0.0.1:9/", "wss://10.0.0.5/", X],
+      [B]: ["ws://plain.example/", "wss://localhost/"],
+    }),
+    allowPrivateRelays: false,
+  });
+  // A keeps only the public relay; B has nothing usable and falls back.
+  assertEquals(summary(planRelays(strict)), { [BOOT]: [B], [X]: [A] });
+  const lax = planRelays({ ...strict, allowPrivateRelays: true });
+  assertEquals(lax.has("ws://127.0.0.1:9/"), true);
+});
+
+Deno.test("bootstrap relays on private addresses are always allowed", () => {
+  const local = "ws://127.0.0.1:7000/";
+  const plan = planRelays(input({
+    authors: new Map([[A, 1]]),
+    relayLists: lists({ [A]: [local] }),
+    bootstrapRelays: [local],
+    allowPrivateRelays: false,
+  }));
+  assertEquals(summary(plan), { [local]: [A] });
 });

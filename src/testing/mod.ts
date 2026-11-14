@@ -79,6 +79,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
       bootstrapRelays: [],
       maxRelays: 12,
       forward: "all",
+      allowPrivateRelays: false,
     },
     store: { kind: "embedded" },
     blossom: { enabled: true, maxBlobSize: 50 * 1024 * 1024 },

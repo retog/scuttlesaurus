@@ -14,6 +14,7 @@ import {
   RelayConnection,
 } from "./connection.ts";
 import type { ResolvedOptions } from "./options.ts";
+import { isPublicRelayUrl } from "./public_relay.ts";
 import { relayUrls } from "./urls.ts";
 
 /** An event is sent to at most this many relays. */
@@ -38,10 +39,12 @@ export async function publishTargets(
   pubkey: string,
 ): Promise<string[]> {
   const lists = await events.relayLists([pubkey]);
-  const written = relayUrls(lists.get(pubkey)?.write ?? []);
-  const targets = written.length > 0
-    ? written
-    : relayUrls(config.replication.bootstrapRelays);
+  const bootstrap = relayUrls(config.replication.bootstrapRelays);
+  const written = relayUrls(lists.get(pubkey)?.write ?? []).filter((url) =>
+    config.replication.allowPrivateRelays || bootstrap.includes(url) ||
+    isPublicRelayUrl(url)
+  );
+  const targets = written.length > 0 ? written : bootstrap;
   return targets.slice(0, MAX_PUBLISH_RELAYS);
 }
 
@@ -89,6 +92,8 @@ async function publishOnce(
     connectTimeoutMs: options.publishTimeoutMs,
     stableMs: options.stableMs,
     reconnect: false,
+    idleProbeMs: options.idleProbeMs,
+    probeTimeoutMs: options.probeTimeoutMs,
   };
   const opened = Promise.withResolvers<string | undefined>();
   const connection = new RelayConnection(url, settings, {

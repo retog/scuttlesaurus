@@ -4,6 +4,7 @@
  * covers everybody. Contract: `docs/ARCHITECTURE.md`, "Planning".
  * @module
  */
+import { isPublicRelayUrl } from "./public_relay.ts";
 import { relayUrls } from "./urls.ts";
 
 /** At most this many of an author's write relays are considered. */
@@ -25,6 +26,11 @@ export interface PlanInput {
   maxRelays: number;
   /** Relays that must not be used now, for example after repeated failures. */
   excluded: ReadonlySet<string>;
+  /**
+   * Whether relays from relay lists may be non-public (see
+   * {@link isPublicRelayUrl}). Bootstrap relays are always allowed.
+   */
+  allowPrivateRelays: boolean;
 }
 
 /** What one chosen relay is asked for. */
@@ -50,7 +56,12 @@ export interface PlannedRelay {
  */
 export function planRelays(input: PlanInput): Map<string, PlannedRelay> {
   const maxRelays = Math.max(0, Math.floor(input.maxRelays));
-  const bootstrap = relayUrls(input.bootstrapRelays)
+  const configured = new Set(relayUrls(input.bootstrapRelays));
+  // A relay list is written by strangers; only the owner's own configuration
+  // may point us at a private address.
+  const mayUse = (url: string) =>
+    input.allowPrivateRelays || configured.has(url) || isPublicRelayUrl(url);
+  const bootstrap = [...configured]
     .filter((url) => !input.excluded.has(url))
     .slice(0, maxRelays);
 
@@ -58,6 +69,7 @@ export function planRelays(input: PlanInput): Map<string, PlannedRelay> {
   const authorsOf = new Map<string, string[]>();
   for (const author of input.authors.keys()) {
     const written = relayUrls(input.relayLists.get(author)?.write ?? [])
+      .filter(mayUse)
       .slice(0, WRITE_RELAYS_CONSIDERED);
     const candidates = written.length > 0
       ? written.filter((url) => !input.excluded.has(url))

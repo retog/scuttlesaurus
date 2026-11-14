@@ -162,6 +162,7 @@ export class Run {
         bootstrapRelays: config.replication.bootstrapRelays,
         maxRelays: config.replication.maxRelays,
         excluded: new Set(this.#givenUp.keys()),
+        allowPrivateRelays: config.replication.allowPrivateRelays,
       });
 
       const assignments = new Map<string, Map<string, Wanted>>();

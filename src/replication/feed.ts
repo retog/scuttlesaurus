@@ -109,6 +109,8 @@ export class RelayFeed {
       connectTimeoutMs: options.connectTimeoutMs,
       stableMs: options.stableMs,
       reconnect: true,
+      idleProbeMs: options.idleProbeMs,
+      probeTimeoutMs: options.probeTimeoutMs,
     };
     this.#connection = new RelayConnection(url, settings, {
       onOpen: () => this.#sync(),

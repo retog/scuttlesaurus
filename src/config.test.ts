@@ -68,6 +68,7 @@ Deno.test("defaults with an empty environment", () =>
       ],
       maxRelays: 12,
       forward: "all",
+      allowPrivateRelays: false,
     });
     assertEquals(config.store, { kind: "embedded" });
     assertEquals(config.blossom, {
@@ -104,6 +105,7 @@ Deno.test("each environment variable sets its setting", () =>
       MAX_RELAYS: "4",
       FORWARD: "owner",
       REPLICATION: "off",
+      ALLOW_PRIVATE_RELAYS: "on",
       SPARQL_PUBLIC: "0",
       BLOSSOM: "false",
       BLOSSOM_MAX_SIZE_MB: "10",
@@ -128,6 +130,7 @@ Deno.test("each environment variable sets its setting", () =>
       ],
       maxRelays: 4,
       forward: "owner",
+      allowPrivateRelays: true,
     });
     assertEquals(c.publicSparql, false);
     assertEquals(c.blossom, { enabled: false, maxBlobSize: 10 * 1024 * 1024 });
@@ -191,6 +194,7 @@ Deno.test("invalid environment values throw, naming the variable", async () => {
     ["PUBLIC_URL", "ftp://example.org"],
     ["PUBLIC_URL", "not a url"],
     ["REPLICATION", "maybe"],
+    ["ALLOW_PRIVATE_RELAYS", "maybe"],
     ["BLOSSOM", "maybe"],
     ["SPARQL_PUBLIC", "maybe"],
     ["BLOSSOM_MAX_SIZE_MB", "1.5"],
@@ -288,6 +292,7 @@ Deno.test("locked lists exactly the changeable settings given by the environment
       MAX_RELAYS: "2",
       FORWARD: "none",
       REPLICATION: "on",
+      ALLOW_PRIVATE_RELAYS: "off",
       // Not changeable through update, so not locked.
       PORT: "9000",
       BLOSSOM: "off",
@@ -307,6 +312,7 @@ Deno.test("locked lists exactly the changeable settings given by the environment
         "replication.bootstrapRelays",
         "replication.maxRelays",
         "replication.forward",
+        "replication.allowPrivateRelays",
       ].sort(),
     );
   }));
