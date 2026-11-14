@@ -12,6 +12,10 @@ import { storedBlob } from "./triples.ts";
 
 const UNKNOWN_BLOB = "unknown blob";
 
+/** Sandboxes a blob that a browser renders as a document. */
+export const BLOB_CONTENT_SECURITY_POLICY =
+  "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+
 /**
  * Serve a blob. The file extension in the URL is ignored. The stored media
  * type is sent; `serveFile` supplies ranges, validators and the length.
@@ -37,6 +41,11 @@ export async function serveBlob(
   headers.set("Content-Type", stored?.type ?? DEFAULT_MEDIA_TYPE);
   headers.set("Accept-Ranges", "bytes");
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  // Blobs are uploaded by others and share the web client's origin, where a
+  // signing key may be kept. A blob opened as a document (HTML, SVG) must
+  // therefore run no script and get no access to that origin.
+  headers.set("Content-Security-Policy", BLOB_CONTENT_SECURITY_POLICY);
+  headers.set("X-Content-Type-Options", "nosniff");
   const { status, statusText } = served;
   if (request.method === "HEAD") {
     await served.body?.cancel();

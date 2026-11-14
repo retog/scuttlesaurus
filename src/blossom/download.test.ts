@@ -44,6 +44,12 @@ Deno.test("GET returns the bytes with the stored type and cache headers", () =>
       response?.headers.get("Cache-Control"),
       "public, max-age=31536000, immutable",
     );
+    // A blob opened as a document is sandboxed and never content-sniffed.
+    assertEquals(
+      response?.headers.get("Content-Security-Policy"),
+      "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    );
+    assertEquals(response?.headers.get("X-Content-Type-Options"), "nosniff");
     assertEquals(new Uint8Array(await response!.arrayBuffer()), BYTES);
   }));
 
