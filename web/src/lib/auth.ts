@@ -10,23 +10,8 @@
  */
 import * as nip98 from "@nostr/tools/nip98";
 import type { EventTemplate } from "@nostr/tools/core";
+import { sha256Hex } from "./hash.ts";
 import { canSign, signEvent } from "./session.ts";
-
-/** Lower-case hex SHA-256 of a string's UTF-8 bytes. */
-async function sha256Hex(text: string): Promise<string> {
-  if (!globalThis.crypto?.subtle) {
-    throw new Error(
-      "This page needs a secure connection (https or localhost) to sign requests",
-    );
-  }
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 /**
  * An `Authorization` header value (`Nostr <base64>`) for `method` on `path`,
@@ -42,7 +27,7 @@ export async function getAuthorization(
 ): Promise<string | undefined> {
   if (!canSign.value) return undefined;
   const url = new URL(path, globalThis.location.origin).href;
-  const payload = body ? await sha256Hex(body) : undefined;
+  const payload = body ? sha256Hex(body) : undefined;
   const sign = (template: EventTemplate) =>
     signEvent(
       payload

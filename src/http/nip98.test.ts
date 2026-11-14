@@ -197,7 +197,7 @@ Deno.test("the payload tag must match a body that is sent", async () => {
   try {
     const body = JSON.stringify({ name: "renamed" });
     const url = CONFIG_URL;
-    const put = (payload: string) =>
+    const put = (payload?: string) =>
       fixture.handler(
         new Request(url, {
           method: "PUT",
@@ -214,6 +214,11 @@ Deno.test("the payload tag must match a body that is sent", async () => {
     const wrong = await put(await sha256Hex(new TextEncoder().encode("other")));
     assertEquals(wrong.status, 401);
     await wrong.text();
+
+    // A token that does not cover the body could be replayed with another.
+    const uncovered = await put();
+    assertEquals(uncovered.status, 401);
+    await uncovered.text();
 
     const right = await put(await sha256Hex(new TextEncoder().encode(body)));
     assertEquals(right.status, 200);

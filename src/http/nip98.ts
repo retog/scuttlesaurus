@@ -116,8 +116,13 @@ async function checkRequest(
     throw new HttpError(401, "authorization is for another method");
   }
 
-  const payload = tagValue(event, "payload");
-  if (payload !== undefined && body.byteLength > 0) {
+  // A request with a body must be signed together with it; otherwise a token
+  // seen in transit could be replayed with different content.
+  if (body.byteLength > 0) {
+    const payload = tagValue(event, "payload");
+    if (payload === undefined) {
+      throw new HttpError(401, "authorization does not cover the body");
+    }
     if (payload.toLowerCase() !== await sha256Hex(body)) {
       throw new HttpError(401, "authorization does not match the body");
     }

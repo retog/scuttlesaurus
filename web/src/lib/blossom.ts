@@ -3,6 +3,7 @@
  *
  * @module
  */
+import { sha256Hex } from "./hash.ts";
 import { signEvent } from "./session.ts";
 
 /** What the server reports for a stored blob. */
@@ -11,18 +12,6 @@ export interface UploadedBlob {
   sha256: string;
   size: number;
   type: string;
-}
-
-async function sha256Hex(file: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    await file.arrayBuffer(),
-  );
-  return Array.from(
-    new Uint8Array(digest),
-    (b) => b.toString(16).padStart(2, "0"),
-  )
-    .join("");
 }
 
 function base64(text: string): string {
@@ -37,7 +26,7 @@ function base64(text: string): string {
  * (`t=upload`, `x=<sha256>`, expiration five minutes ahead).
  */
 export async function uploadBlob(file: File): Promise<UploadedBlob> {
-  const sha256 = await sha256Hex(file);
+  const sha256 = sha256Hex(new Uint8Array(await file.arrayBuffer()));
   const now = Math.floor(Date.now() / 1000);
   const auth = await signEvent({
     kind: 24242,
