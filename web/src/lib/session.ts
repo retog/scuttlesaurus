@@ -152,6 +152,17 @@ export function loginReadOnly(npubOrHex: string): Session {
   return next;
 }
 
+/**
+ * The `nsec` of a key kept in this browser, for the person to copy. `undefined`
+ * unless the current identity is a local key.
+ */
+export function revealSecretKey(): string | undefined {
+  if (session.value?.mode !== "local") return undefined;
+  const secret = read(SECRET_KEY);
+  if (!secret) return undefined;
+  return nip19.nsecEncode(hexToBytes(secret));
+}
+
 /** Forget the identity (and a locally stored secret key). */
 export function logout(): void {
   write(SECRET_KEY, null);

@@ -18,6 +18,7 @@ import {
   Settings,
   User,
 } from "lucide-preact";
+import { setupRequired } from "../lib/node.ts";
 import { displayNameOf, useProfile } from "../lib/profiles.ts";
 import { profilePath } from "../lib/nostr.ts";
 import { isActive, Link, useRoute } from "../lib/router.tsx";
@@ -29,6 +30,7 @@ import { ComposeDialog } from "./ComposeDialog.tsx";
 import { HabitatCard } from "./HabitatCard.tsx";
 import { GlobalLoginDialog } from "./LoginDialog.tsx";
 import { Logo, LogoMark } from "./Logo.tsx";
+import { setupFinished, SetupFlow } from "./SetupFlow.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { ToastHost } from "./Toast.tsx";
 
@@ -97,6 +99,15 @@ export interface ShellProps {
 /** The frame around every view. */
 export function Shell({ children }: ShellProps) {
   const { pathname } = useRoute();
+  if (setupRequired.value || setupFinished.value) {
+    // A node without an owner has one screen only: the first-run setup.
+    return (
+      <>
+        <SetupFlow />
+        <ToastHost />
+      </>
+    );
+  }
   const me = session.value?.pubkey;
   const nav: NavEntry[] = [
     { to: "/", label: "Home", icon: <House size={22} /> },

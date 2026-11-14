@@ -267,11 +267,16 @@ export const STATUS: NodeStatus = {
   publicUrl: "http://localhost:7777",
   hops: 3,
   publicSparql: true,
-  blossom: true,
-  stats: { events: 48213, triples: 512940 },
-  authorsByHop: { "0": 1, "1": 142, "2": 1180, "3": 640 },
-  replication: { enabled: true },
-  connections: { relays: 9, clients: 1 },
+  blossom: { enabled: true, maxBlobSize: 52428800 },
+  stats: { events: 48213, triples: 512940, authors: 1963 },
+  authorsByHop: [1, 142, 1180, 640],
+  replication: {
+    enabled: true,
+    running: true,
+    authorsByHop: [1, 142, 1180, 640],
+    relays: [],
+  },
+  connections: 1,
 };
 
 /** The social graph of the fixture world. */

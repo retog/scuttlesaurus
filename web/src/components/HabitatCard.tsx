@@ -1,5 +1,7 @@
 /**
- * "Your habitat": the node at a glance, shown in the right rail.
+ * "Your habitat": the node at a glance, shown in the right rail. Name, owner,
+ * authors per distance as a stacked bar, event count and one quiet line on
+ * what replication is doing.
  *
  * @module
  */
@@ -14,9 +16,30 @@ import {
   status,
 } from "../lib/node.ts";
 import { Link } from "../lib/router.tsx";
+import type { NodeStatus } from "../lib/api.ts";
 import { AuthorName } from "./AuthorName.tsx";
 import { hopLabel } from "./HopBadge.tsx";
 import { Skeleton } from "./Spinner.tsx";
+
+/**
+ * The one-line replication state: what the node is doing about the network.
+ * Exported for the Network view, which uses the same wording.
+ */
+export function replicationSummary(s: NodeStatus): string {
+  const replication = s.replication;
+  if (!replication.enabled) return "Replication is off";
+  if (replication.relays.length === 0) return "Nothing to replicate yet";
+  const connected =
+    replication.relays.filter((r) => r.state === "connected").length;
+  if (connected === 0) {
+    const pending = replication.relays.some((r) => r.state === "connecting");
+    return pending ? "Connecting to relays…" : "No relay reachable";
+  }
+  if (replication.relays.some((r) => r.backfilling)) {
+    return "Fetching history…";
+  }
+  return `Listening to ${connected} ${connected === 1 ? "relay" : "relays"}`;
+}
 
 /** Node name, owner, authors per hop as a stacked bar, event count. */
 export function HabitatCard() {
@@ -67,11 +90,7 @@ export function HabitatCard() {
             </div>
             <div>
               <dt>Events</dt>
-              <dd>
-                {s.stats?.events !== undefined
-                  ? formatCount(s.stats.events)
-                  : "–"}
-              </dd>
+              <dd>{formatCount(s.stats.events)}</dd>
             </div>
           </dl>
           {total > 0 && (
@@ -105,6 +124,9 @@ export function HabitatCard() {
               </ul>
             </div>
           )}
+          <p class="habitat__state muted">
+            <Link to="/network">{replicationSummary(s)}</Link>
+          </p>
         </>
       )}
     </section>

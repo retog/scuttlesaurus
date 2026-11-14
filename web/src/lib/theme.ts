@@ -43,6 +43,17 @@ export function setTheme(next: Theme): void {
   }
 }
 
+/** Forget the explicit choice: follow the system again. */
+export function followSystem(): void {
+  themeChoice.value = undefined;
+  delete document.documentElement.dataset.theme;
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // storage unavailable: nothing stored to forget
+  }
+}
+
 /** Switch to the opposite of the theme currently in effect. */
 export function toggleTheme(): void {
   setTheme(theme.value === "dark" ? "light" : "dark");

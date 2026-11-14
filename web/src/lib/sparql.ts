@@ -35,7 +35,7 @@ async function post(query: string, authorized: boolean): Promise<Response> {
     accept: "application/sparql-results+json",
   };
   if (authorized) {
-    const auth = await getAuthorization("/sparql", "POST");
+    const auth = await getAuthorization("/sparql", "POST", query);
     if (auth) headers.authorization = auth;
   }
   return fetch("/sparql", { method: "POST", headers, body: query });
