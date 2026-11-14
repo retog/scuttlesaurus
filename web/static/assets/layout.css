@@ -107,6 +107,25 @@
   text-align: center;
 }
 
+/* Unread notifications: a dot on the icon of the Notifications item. */
+.nav__icon,
+.tab__icon {
+  position: relative;
+}
+.tab__icon {
+  display: inline-flex;
+}
+.unread-dot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
 .rail__spacer {
   flex: 1;
 }

@@ -8,11 +8,17 @@
 import { computed, type Signal, signal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { toast } from "../components/Toast.tsx";
-import { fetchCounts, type NoteCounts } from "./feed.ts";
+import {
+  fetchCounts,
+  hasNotificationsAfter,
+  type NoteCounts,
+  readNotificationsSeen,
+} from "./feed.ts";
 import { ownerPubkey } from "./node.ts";
 import type { NoteEvent } from "./nostr.ts";
 import { postNote } from "./notes.ts";
-import { type Event, fetchEvents } from "./relay.ts";
+import { type Event, fetchEvents, subscribe } from "./relay.ts";
+import { route } from "./router.tsx";
 import { canSign, publish, session } from "./session.ts";
 import { openLogin } from "./ui.ts";
 
@@ -296,4 +302,68 @@ export async function deleteNote(note: NoteEvent): Promise<boolean> {
     toast(explainRefusal(error), "error");
     return false;
   }
+}
+
+// --- Unread notifications ---------------------------------------------------------
+
+/**
+ * Whether the signed-in person has notifications newer than their last visit
+ * to the Notifications view. The navigation shows it as a dot.
+ */
+export const unreadNotifications = signal(false);
+
+let unreadCheck = 0;
+
+/**
+ * Look again whether there are unread notifications. Never shows the dot while
+ * the Notifications view is open, and clears it when signed out. Errors keep
+ * the previous answer.
+ */
+export async function refreshUnreadNotifications(): Promise<void> {
+  const me = session.value?.pubkey;
+  if (!me || route.value.name === "notifications") {
+    unreadCheck++;
+    unreadNotifications.value = false;
+    return;
+  }
+  const check = ++unreadCheck;
+  try {
+    const found = await hasNotificationsAfter(
+      me,
+      readNotificationsSeen(me),
+    );
+    if (check === unreadCheck) unreadNotifications.value = found;
+  } catch {
+    // the dot keeps its previous state
+  }
+}
+
+/** Hide the dot now (the Notifications view is open). */
+export function clearUnreadNotifications(): void {
+  unreadCheck++;
+  unreadNotifications.value = false;
+}
+
+/**
+ * Re-check for unread notifications when something that may notify the
+ * viewer arrives (a reply, mention, reaction or repost tagging them), at most
+ * once every 1.5 seconds. Returns the function that stops watching.
+ */
+export function watchUnreadNotifications(viewer: string): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = subscribe(
+    [{
+      kinds: [1, 6, 7],
+      "#p": [viewer],
+      since: Math.floor(Date.now() / 1000),
+    }],
+    () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void refreshUnreadNotifications(), 1500);
+    },
+  );
+  return () => {
+    clearTimeout(timer);
+    stop();
+  };
 }

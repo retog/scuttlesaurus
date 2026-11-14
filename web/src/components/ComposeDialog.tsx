@@ -4,7 +4,7 @@
  *
  * @module
  */
-import { postNote } from "../lib/notes.ts";
+import { submitNote } from "../lib/actions.ts";
 import { closeCompose, composeState } from "../lib/ui.ts";
 import { AuthorName } from "./AuthorName.tsx";
 import { Composer } from "./Composer.tsx";
@@ -35,7 +35,7 @@ export function ComposeDialog() {
         submitLabel={parent ? "Reply" : "Post"}
         onCancel={closeCompose}
         onSubmit={async (content) => {
-          await postNote(content, parent);
+          await submitNote(content, parent);
           closeCompose();
           toast(parent ? "Reply sent" : "Note published", "success");
         }}

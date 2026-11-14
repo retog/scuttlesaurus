@@ -26,6 +26,7 @@ import {
   notDeleted,
   notSuperseded,
   pubkeyTerm,
+  recentDates,
   type Row,
   select,
   str,
@@ -748,6 +749,67 @@ export async function fetchNotifications(
     }
     return out;
   });
+}
+
+function seenKey(pubkey: string): string {
+  return `scuttlesaurus.notifications.seen.${pubkey}`;
+}
+
+/**
+ * When the viewer last opened the notifications (unix seconds), or 0 when
+ * never. Kept in this browser; the Notifications view writes it.
+ */
+export function readNotificationsSeen(pubkey: string): number {
+  try {
+    return Number(localStorage.getItem(seenKey(pubkey))) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Record that the viewer has seen the notifications up to now. */
+export function writeNotificationsSeen(pubkey: string): void {
+  try {
+    localStorage.setItem(
+      seenKey(pubkey),
+      String(Math.floor(Date.now() / 1000)),
+    );
+  } catch {
+    // marks just will not survive a reload
+  }
+}
+
+/**
+ * Whether any notification for `viewer` is newer than `since` (unix seconds).
+ * The same conditions as {@link fetchNotifications}, answered with one query
+ * that stops at the first match and only looks at the days since `since`
+ * (at most 60).
+ */
+export async function hasNotificationsAfter(
+  viewer: string,
+  since: number,
+): Promise<boolean> {
+  const me = pubkeyTerm(viewer);
+  const days = Math.min(
+    60,
+    Math.max(1, Math.ceil((Date.now() / 1000 - since) / 86_400) + 1),
+  );
+  const rows = await select(`
+    SELECT ?e WHERE {
+      ${values("date", recentDates(days))}
+      VALUES ?kind { 1 6 7 }
+      ?e nostr:date ?date ; nostr:kind ?kind ; nostr:author ?a ;
+         nostr:createdAt ?at .
+      FILTER(?a != ${me} && ?at > ${int(since)})
+      ${notDeleted("?e")}
+      {
+        ?e nostr:mentions ${me} . FILTER(?kind = 1)
+      } UNION {
+        ?e nostr:replyTo|nostr:reactsTo|nostr:reposts ?hit .
+        ?hit nostr:author ${me} .
+      }
+    } LIMIT 1`);
+  return rows.length > 0;
 }
 
 // --- Search --------------------------------------------------------------------------

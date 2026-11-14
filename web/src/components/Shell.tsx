@@ -5,6 +5,7 @@
  * @module
  */
 import type { ComponentChildren } from "preact";
+import { useEffect } from "preact/hooks";
 import {
   Bell,
   BookOpen,
@@ -18,6 +19,11 @@ import {
   Settings,
   User,
 } from "lucide-preact";
+import {
+  refreshUnreadNotifications,
+  unreadNotifications,
+  watchUnreadNotifications,
+} from "../lib/actions.ts";
 import { setupRequired } from "../lib/node.ts";
 import { displayNameOf, useProfile } from "../lib/profiles.ts";
 import { profilePath } from "../lib/nostr.ts";
@@ -38,6 +44,8 @@ interface NavEntry {
   to: string;
   label: string;
   icon: ComponentChildren;
+  /** Shows the unread dot. */
+  alert?: boolean;
 }
 
 function IdentityChip() {
@@ -99,6 +107,15 @@ export interface ShellProps {
 /** The frame around every view. */
 export function Shell({ children }: ShellProps) {
   const { pathname } = useRoute();
+  const viewer = session.value?.pubkey ?? null;
+  const unread = unreadNotifications.value;
+  useEffect(() => {
+    void refreshUnreadNotifications();
+  }, [pathname, viewer]);
+  useEffect(
+    () => (viewer ? watchUnreadNotifications(viewer) : undefined),
+    [viewer],
+  );
   if (setupRequired.value || setupFinished.value) {
     // A node without an owner has one screen only: the first-run setup.
     return (
@@ -112,7 +129,12 @@ export function Shell({ children }: ShellProps) {
   const nav: NavEntry[] = [
     { to: "/", label: "Home", icon: <House size={22} /> },
     { to: "/reads", label: "Reads", icon: <BookOpen size={22} /> },
-    { to: "/notifications", label: "Notifications", icon: <Bell size={22} /> },
+    {
+      to: "/notifications",
+      label: "Notifications",
+      icon: <Bell size={22} />,
+      alert: unread,
+    },
     { to: "/search", label: "Search", icon: <Search size={22} /> },
     { to: "/network", label: "Network", icon: <Network size={22} /> },
     {
@@ -144,10 +166,15 @@ export function Shell({ children }: ShellProps) {
               key={entry.to + entry.label}
               class="nav__item"
               to={entry.to}
-              aria-label={entry.label}
+              aria-label={entry.alert
+                ? `${entry.label}, new activity`
+                : entry.label}
               aria-current={isActive(entry.to, pathname) ? "page" : undefined}
             >
-              <span class="nav__icon" aria-hidden="true">{entry.icon}</span>
+              <span class="nav__icon" aria-hidden="true">
+                {entry.icon}
+                {entry.alert && <span class="unread-dot" />}
+              </span>
               <span class="nav__label">{entry.label}</span>
             </Link>
           ))}
@@ -231,11 +258,15 @@ export function Shell({ children }: ShellProps) {
         <Link
           class="tab"
           to="/notifications"
+          aria-label={unread ? "Alerts, new activity" : undefined}
           aria-current={isActive("/notifications", pathname)
             ? "page"
             : undefined}
         >
-          <Bell size={22} aria-hidden="true" />
+          <span class="tab__icon">
+            <Bell size={22} aria-hidden="true" />
+            {unread && <span class="unread-dot" />}
+          </span>
           Alerts
         </Link>
         <Link

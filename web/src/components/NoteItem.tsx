@@ -13,6 +13,7 @@ import {
   hiddenNotes,
   toggleLike,
   toggleRepost,
+  unrepost,
   useNoteStats,
 } from "../lib/actions.ts";
 import { type NoteRow, toEvent } from "../lib/feed.ts";
@@ -40,8 +41,13 @@ export function NoteItem(
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   if (hiddenNotes.value.has(note.id)) return null;
+  if (note.repostedBy && hiddenNotes.value.has(note.repostedBy.id)) return null;
   const event = toEvent(note);
-  const own = session.value?.pubkey === note.pubkey;
+  const me = session.value?.pubkey;
+  // A repost card offers to take back the viewer's own repost, never the
+  // original; the original's delete button is only on the viewer's own notes.
+  const myRepost = note.repostedBy?.pubkey === me ? note.repostedBy : undefined;
+  const ownNote = !note.repostedBy && me === note.pubkey;
   const count = (n: number) => stats.loaded ? n : undefined;
   const line = note.repostedBy
     ? (
@@ -70,10 +76,10 @@ export function NoteItem(
         onRepost={() => void toggleRepost(event)}
         onLike={() => void toggleLike(event)}
       />
-      {own && (
+      {(myRepost || ownNote) && (
         <div class="note-item__delete">
           <IconButton
-            label="Delete note"
+            label={myRepost ? "Remove repost" : "Delete note"}
             size="sm"
             variant="danger"
             icon={<Trash2 size={16} />}
@@ -84,12 +90,13 @@ export function NoteItem(
       <Modal
         open={confirming}
         onClose={() => setConfirming(false)}
-        title="Delete this note?"
+        title={myRepost ? "Remove your repost?" : "Delete this note?"}
         size="sm"
       >
         <p class="muted">
-          This asks every relay that has the note to remove it. Copies that
-          other people already saved may remain.
+          {myRepost
+            ? "Your repost is taken back. The note itself stays where it is."
+            : "This asks every relay that has the note to remove it. Copies that other people already saved may remain."}
         </p>
         <div class="note-item__confirm">
           <Button variant="ghost" onClick={() => setConfirming(false)}>
@@ -100,12 +107,13 @@ export function NoteItem(
             loading={deleting}
             onClick={async () => {
               setDeleting(true);
-              await deleteNote(event);
+              if (myRepost) await unrepost(myRepost.id, note.id);
+              else await deleteNote(event);
               setDeleting(false);
               setConfirming(false);
             }}
           >
-            Delete
+            {myRepost ? "Remove repost" : "Delete"}
           </Button>
         </div>
       </Modal>

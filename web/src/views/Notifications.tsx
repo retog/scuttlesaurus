@@ -7,7 +7,7 @@
  */
 import { AtSign, Bell, Heart, MessageCircle, Repeat2 } from "lucide-preact";
 import type { ComponentChildren } from "preact";
-import { useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { AuthorName } from "../components/AuthorName.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import { Button } from "../components/Button.tsx";
@@ -19,12 +19,15 @@ import {
   fetchNotifications,
   type NotificationRow,
   type NotificationType,
+  readNotificationsSeen,
+  writeNotificationsSeen,
 } from "../lib/feed.ts";
 import { useDocumentTitle } from "../lib/hooks.ts";
 import { notePath } from "../lib/nostr.ts";
 import { Link, navigate } from "../lib/router.tsx";
 import { session } from "../lib/session.ts";
 import { openLogin } from "../lib/ui.ts";
+import { clearUnreadNotifications } from "../lib/actions.ts";
 
 const WHAT: Record<NotificationType, string> = {
   reply: "replied to your note",
@@ -39,29 +42,6 @@ const ICON: Record<NotificationType, ComponentChildren> = {
   like: <Heart size={12} />,
   repost: <Repeat2 size={12} />,
 };
-
-function seenKey(pubkey: string): string {
-  return `scuttlesaurus.notifications.seen.${pubkey}`;
-}
-
-function readSeen(pubkey: string): number {
-  try {
-    return Number(localStorage.getItem(seenKey(pubkey))) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function writeSeen(pubkey: string): void {
-  try {
-    localStorage.setItem(
-      seenKey(pubkey),
-      String(Math.floor(Date.now() / 1000)),
-    );
-  } catch {
-    // marks just will not survive a reload
-  }
-}
 
 /** A short plain-text piece of a note: links dropped, whitespace collapsed. */
 function excerptOf(text: string): string {
@@ -115,14 +95,14 @@ function Notification(
 
 function Feed({ pubkey }: { pubkey: string }) {
   // The time of the previous visit, kept for as long as the page is open.
-  const before = useRef<number>(readSeen(pubkey));
+  const before = useRef<number>(readNotificationsSeen(pubkey));
   return (
     <PagedList<NotificationRow>
       resetKey={pubkey}
       load={(until) => fetchNotifications(pubkey, { until })}
       keyOf={(n) => `${n.id}:${n.type}`}
       cursorOf={(n) => n.createdAt}
-      onPage={() => writeSeen(pubkey)}
+      onPage={() => writeNotificationsSeen(pubkey)}
       render={(n) => (
         <Notification item={n} fresh={n.createdAt > before.current} />
       )}
@@ -140,6 +120,7 @@ function Feed({ pubkey }: { pubkey: string }) {
 export default function NotificationsView() {
   useDocumentTitle("Notifications");
   const me = session.value?.pubkey;
+  useEffect(() => clearUnreadNotifications(), []);
   return (
     <div class="page">
       <PageHeader title="Notifications" />
