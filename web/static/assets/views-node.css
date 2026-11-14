@@ -687,6 +687,20 @@ fieldset {
   font-size: 1.05rem;
 }
 
+.settings-signer {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s-1) var(--s-4);
+  font-size: 0.875rem;
+}
+.settings-signer dt {
+  color: var(--text-muted);
+}
+.settings-signer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .settings-reveal {
   display: flex;
   flex-direction: column;

@@ -20,6 +20,11 @@ export const MAX_SUBID_LENGTH = 64;
 /** Bytes queued on a socket beyond which the client is dropped as too slow. */
 export const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
 
+/** Kind of the NIP-46 (Nostr Connect) request and response events. */
+export const NOSTR_CONNECT_KIND = 24133;
+/** Largest accepted Nostr Connect event, serialized, in bytes. */
+export const MAX_NOSTR_CONNECT_BYTES = 64 * 1024;
+
 const MACHINE_PREFIXES = [
   "duplicate:",
   "blocked:",
@@ -153,6 +158,31 @@ export function parseSignedEvent(
     valid = false;
   }
   return valid ? { event } : { error: "id or signature does not verify" };
+}
+
+/**
+ * Why `event` cannot be relayed as a NIP-46 Nostr Connect message from an
+ * arbitrary author, or `undefined` when it can: it must be of kind 24133,
+ * carry at least one `p` tag with a valid hex pubkey (the recipient) and be at
+ * most {@link MAX_NOSTR_CONNECT_BYTES} serialized. The text is for the client.
+ * Signature and shape are checked elsewhere ({@link parseSignedEvent}).
+ */
+export function nostrConnectProblem(event: NostrEvent): string | undefined {
+  if (event.kind !== NOSTR_CONNECT_KIND) return "not a Nostr Connect event";
+  const addressed = event.tags.some((tag) =>
+    tag[0] === "p" && typeof tag[1] === "string" &&
+    /^[0-9a-f]{64}$/.test(tag[1])
+  );
+  if (!addressed) {
+    return "a Nostr Connect event needs a p tag with the recipient's pubkey";
+  }
+  if (
+    new TextEncoder().encode(JSON.stringify(event)).byteLength >
+      MAX_NOSTR_CONNECT_BYTES
+  ) {
+    return "a Nostr Connect event must be at most 64 KiB";
+  }
+  return undefined;
 }
 
 /** The message of an unknown thrown value. */

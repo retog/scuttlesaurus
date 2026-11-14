@@ -30,6 +30,7 @@ import {
   revealSecretKey,
   session,
 } from "../lib/session.ts";
+import { remoteInfo, signerState } from "../lib/remote_signer.ts";
 import { isOwner, ownerPubkey } from "../lib/node.ts";
 import { displayNameOf, useProfile } from "../lib/profiles.ts";
 import { toNpub } from "../lib/nostr.ts";
@@ -204,12 +205,39 @@ function IdentitySection() {
   return <SignedIn pubkey={current.pubkey} mode={current.mode} />;
 }
 
+const SIGNER_STATE_TEXT = {
+  idle: "not contacted yet",
+  connecting: "connecting…",
+  ready: "answering",
+  unreachable: "not answering; signing will try again",
+} as const;
+
+/** The relay and state of a signer app connection (NIP-46). */
+function SignerDetails() {
+  const info = remoteInfo.value;
+  if (!info) return null;
+  return (
+    <dl class="settings-signer">
+      <dt>Way of signing</dt>
+      <dd>signer app (NIP-46 Nostr Connect)</dd>
+      <dt>Relay</dt>
+      <dd class="mono" data-testid="signer-relay">
+        {info.relays.join(", ")}
+      </dd>
+      <dt>Signer</dt>
+      <dd>{SIGNER_STATE_TEXT[signerState.value]}</dd>
+    </dl>
+  );
+}
+
 function SignedIn({ pubkey, mode }: { pubkey: string; mode: string }) {
   const profile = useProfile(pubkey);
   const [nsec, setNsec] = useState<string>();
   const npub = toNpub(pubkey);
   const how = mode === "extension"
     ? "You sign with a browser extension. The key stays in the extension."
+    : mode === "remote"
+    ? "You sign with a signer app. Your key stays in the app; this browser only holds a connection key."
     : mode === "local"
     ? "You sign with a key kept in this browser. Anyone with access to this browser can use it."
     : "You are looking around with a public key. You cannot sign or post as this identity.";
@@ -230,6 +258,7 @@ function SignedIn({ pubkey, mode }: { pubkey: string; mode: string }) {
         value={npub}
         hint="Share it so that people can find and follow you."
       />
+      {mode === "remote" && <SignerDetails />}
       {mode === "local" && !nsec && (
         <div class="settings-reveal">
           <p class="muted">

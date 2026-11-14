@@ -1,9 +1,17 @@
 /**
  * Identity: who is using the client and how events get signed.
  *
- * Three modes: `extension` (NIP-07 `window.nostr`), `local` (a secret key kept
- * in this browser's localStorage, readable by any script on this origin) and
- * `readonly` (a public key only).
+ * Four modes: `extension` (NIP-07 `window.nostr`), `remote` (a signer app
+ * reached over NIP-46 "Nostr Connect"; see `remote_signer.ts`), `local` (a
+ * secret key kept in this browser's localStorage, readable by any script on
+ * this origin) and `readonly` (a public key only).
+ *
+ * In `remote` mode the user's secret key is not in the browser at all. What
+ * is stored next to the session (localStorage, unencrypted, like a local key)
+ * is only what reconnects to the signer: this browser's own client secret key,
+ * the signer's pubkey and the relays. The session is restored from it at once
+ * on a reload; the connection is re-established in the background and on the
+ * first signature.
  *
  * @module
  */
@@ -18,9 +26,16 @@ import * as nip19 from "@nostr/tools/nip19";
 import { bytesToHex, hexToBytes } from "@nostr/tools/utils";
 import { parsePubkey } from "./nostr.ts";
 import { publish as publishToRelay } from "./relay.ts";
+import {
+  disconnectRemote,
+  type RemoteConnectionData,
+  restoreRemote,
+  signRemote,
+  warmUpRemote,
+} from "./remote_signer.ts";
 
 /** How the current identity signs. */
-export type SessionMode = "extension" | "local" | "readonly";
+export type SessionMode = "extension" | "remote" | "local" | "readonly";
 
 /** The logged-in identity. */
 export interface Session {
@@ -43,6 +58,8 @@ declare global {
 
 const SESSION_KEY = "scuttlesaurus.session";
 const SECRET_KEY = "scuttlesaurus.secretKey";
+/** NIP-46 reconnect data: the client key (not the user's), signer and relays. */
+const REMOTE_KEY = "scuttlesaurus.remote";
 
 function read(key: string): string | null {
   try {
@@ -61,12 +78,39 @@ function write(key: string, value: string | null): void {
   }
 }
 
+function loadRemote(): RemoteConnectionData | null {
+  try {
+    const data = JSON.parse(read(REMOTE_KEY) ?? "null") as
+      | Partial<RemoteConnectionData>
+      | null;
+    const hex = /^[0-9a-f]{64}$/;
+    if (
+      !data || !hex.test(data.clientSecretKey ?? "") ||
+      !hex.test(data.signerPubkey ?? "") || !hex.test(data.userPubkey ?? "") ||
+      !Array.isArray(data.relays) || data.relays.length === 0 ||
+      !data.relays.every((r) => typeof r === "string")
+    ) return null;
+    return data as RemoteConnectionData;
+  } catch {
+    return null;
+  }
+}
+
 function load(): Session | null {
   try {
     const parsed = JSON.parse(read(SESSION_KEY) ?? "null") as Session | null;
     if (!parsed || !/^[0-9a-f]{64}$/.test(parsed.pubkey)) return null;
     if (parsed.mode === "local" && !read(SECRET_KEY)) return null;
-    if (!["extension", "local", "readonly"].includes(parsed.mode)) return null;
+    if (!["extension", "remote", "local", "readonly"].includes(parsed.mode)) {
+      return null;
+    }
+    if (parsed.mode === "remote") {
+      const remote = loadRemote();
+      if (!remote || remote.userPubkey !== parsed.pubkey) return null;
+      // Restored at once; the signer is contacted in the background.
+      restoreRemote(remote);
+      queueMicrotask(() => void warmUpRemote());
+    }
     return { pubkey: parsed.pubkey, mode: parsed.mode };
   } catch {
     return null;
@@ -97,10 +141,30 @@ export async function loginWithExtension(): Promise<Session> {
   const provider = globalThis.window?.nostr;
   if (!provider) throw new Error("No Nostr extension found in this browser");
   const pubkey = await provider.getPublicKey();
-  write(SECRET_KEY, null);
+  forgetKeys();
   const next: Session = { pubkey, mode: "extension" };
   setSession(next);
   return next;
+}
+
+/**
+ * Sign in with a signer app that has just connected (NIP-46, see
+ * `remote_signer.ts`). Stores what is needed to reconnect after a reload.
+ */
+export function loginWithRemote(data: RemoteConnectionData): Session {
+  // The connection is already the active one: do not tear it down here.
+  write(SECRET_KEY, null);
+  write(REMOTE_KEY, JSON.stringify(data));
+  const next: Session = { pubkey: data.userPubkey, mode: "remote" };
+  setSession(next);
+  return next;
+}
+
+/** Drop everything stored for a previous identity, ending a remote session. */
+function forgetKeys(): void {
+  write(SECRET_KEY, null);
+  write(REMOTE_KEY, null);
+  disconnectRemote();
 }
 
 function parseSecretKey(input: string): Uint8Array {
@@ -119,6 +183,7 @@ function parseSecretKey(input: string): Uint8Array {
 export function loginWithSecretKey(nsecOrHex: string): Session {
   const secret = parseSecretKey(nsecOrHex);
   const next: Session = { pubkey: getPublicKey(secret), mode: "local" };
+  forgetKeys();
   write(SECRET_KEY, bytesToHex(secret));
   setSession(next);
   return next;
@@ -146,7 +211,7 @@ export function createIdentity(): {
 export function loginReadOnly(npubOrHex: string): Session {
   const pubkey = parsePubkey(npubOrHex);
   if (!pubkey) throw new Error("That is not a valid npub or public key");
-  write(SECRET_KEY, null);
+  forgetKeys();
   const next: Session = { pubkey, mode: "readonly" };
   setSession(next);
   return next;
@@ -163,9 +228,13 @@ export function revealSecretKey(): string | undefined {
   return nip19.nsecEncode(hexToBytes(secret));
 }
 
-/** Forget the identity (and a locally stored secret key). */
+/**
+ * Forget the identity: a locally stored secret key, or a signer app
+ * connection (the signer is told with NIP-46 `logout` in the background and
+ * this browser's client key is discarded).
+ */
 export function logout(): void {
-  write(SECRET_KEY, null);
+  forgetKeys();
   setSession(null);
 }
 
@@ -183,6 +252,9 @@ export async function signEvent(template: EventTemplate): Promise<Event> {
       throw new Error("The extension signed with a different key");
     }
     return event;
+  }
+  if (current.mode === "remote") {
+    return await signRemote(template, current.pubkey);
   }
   const secret = read(SECRET_KEY);
   if (!secret) throw new Error("The stored secret key is missing");

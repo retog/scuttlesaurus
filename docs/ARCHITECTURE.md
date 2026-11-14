@@ -25,21 +25,21 @@ browser (web client) ─▶│  GET /…             web client     │         
 
 ## Decisions
 
-| Decision            | Choice                                                                                             | Why                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Runtime             | Deno 2, dependencies from JSR and npm, no build step for the server                                | One tool to install                                                      |
-| Nostr primitives    | `@nostr/tools` (JSR)                                                                               | Signatures, NIP-19, filters and relay connections in one audited library |
-| Storage             | One RDF graph, insert-only; see [DATA-MODEL.md](DATA-MODEL.md)                                     | Queryable with SPARQL, trivially persisted and replicated                |
-| Default store       | Oxigraph (WebAssembly) inside the process, in a worker, persisted as an append-only N-Triples log  | Installation needs no database                                           |
-| Larger stores       | Any SPARQL 1.1 endpoint through `SPARQL_ENDPOINT_QUERY` / `SPARQL_ENDPOINT_UPDATE`                 | The embedded store keeps the graph in memory                             |
-| QLever store        | QLever through qlever-dir (`QLEVER_DIR_URL`): the node writes N-Triples files                      | No update endpoint to run; the graph is a directory of plain files       |
-| What is replicated  | Authors within `hops` follow hops of the owner, capped at `maxAuthors` by proximity                | Scuttlebutt's social-distance replication                                |
-| Where it is fetched | Each author's NIP-65 write relays (outbox model), chosen to cover all authors with few connections | Nostr's replacement for Scuttlebutt pubs                                 |
-| Who may write       | Authors within range; everybody may read                                                           | The social graph is the spam filter                                      |
-| Client reads        | SPARQL over `/sparql`                                                                              | Joins (profile + note + counts) in one request                           |
-| Client writes       | Signed events over WebSocket to the node's own relay                                               | The node is a normal relay; nothing client-specific                      |
-| Signing             | In the browser: NIP-07 extension, or a key held in the browser                                     | The server never sees a private key                                      |
-| Web client          | Preact + TypeScript, bundled with `deno bundle`, no external requests                              | No third-party CDN, works offline on a LAN                               |
+| Decision            | Choice                                                                                             | Why                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Runtime             | Deno 2, dependencies from JSR and npm, no build step for the server                                | One tool to install                                                         |
+| Nostr primitives    | `@nostr/tools` (JSR)                                                                               | Signatures, NIP-19, filters and relay connections in one audited library    |
+| Storage             | One RDF graph, insert-only; see [DATA-MODEL.md](DATA-MODEL.md)                                     | Queryable with SPARQL, trivially persisted and replicated                   |
+| Default store       | Oxigraph (WebAssembly) inside the process, in a worker, persisted as an append-only N-Triples log  | Installation needs no database                                              |
+| Larger stores       | Any SPARQL 1.1 endpoint through `SPARQL_ENDPOINT_QUERY` / `SPARQL_ENDPOINT_UPDATE`                 | The embedded store keeps the graph in memory                                |
+| QLever store        | QLever through qlever-dir (`QLEVER_DIR_URL`): the node writes N-Triples files                      | No update endpoint to run; the graph is a directory of plain files          |
+| What is replicated  | Authors within `hops` follow hops of the owner, capped at `maxAuthors` by proximity                | Scuttlebutt's social-distance replication                                   |
+| Where it is fetched | Each author's NIP-65 write relays (outbox model), chosen to cover all authors with few connections | Nostr's replacement for Scuttlebutt pubs                                    |
+| Who may write       | Authors within range; everybody may read                                                           | The social graph is the spam filter                                         |
+| Client reads        | SPARQL over `/sparql`                                                                              | Joins (profile + note + counts) in one request                              |
+| Client writes       | Signed events over WebSocket to the node's own relay                                               | The node is a normal relay; nothing client-specific                         |
+| Signing             | NIP-07 extension, a NIP-46 signer app (Amber and others), or a key held in the browser             | The server never sees a private key; with a signer app the browser has none |
+| Web client          | Preact + TypeScript, bundled with `deno bundle`, no external requests                              | No third-party CDN, works offline on a LAN                                  |
 
 ## Source layout
 
@@ -180,14 +180,24 @@ A NIP-01 relay on the WebSocket endpoint `/`.
 
 - `EVENT`: accepted when the author is in the social graph, otherwise answered
   with `["OK", id, false, "blocked: …"]`. Ephemeral events are relayed to
-  matching subscriptions without being stored.
+  matching subscriptions without being stored. One exception to the rule on
+  authors: a kind 24133 event (NIP-46 Nostr Connect) is accepted from any author
+  when it has at least one `p` tag with a valid pubkey and is at most 64 KiB. A
+  signer app's key and a client's connection key are outside the graph, so
+  without the exception remote signing could not use this relay. The event is
+  ephemeral, so it is relayed and never stored, and it is accepted even before
+  the node has an owner (so the first-run setup can use a signer app). Any other
+  event, and a 24133 event that does not meet the condition and whose author is
+  outside the graph, is refused as before. `NOSTR_CONNECT=off` removes the
+  exception and the NIP-11 entry.
 - `REQ`: stored events, `EOSE`, then live events matching the filters.
 - `CLOSE`, and `COUNT` (NIP-45).
 - Limits: number of subscriptions and filters per connection, `limit` capped at
   `maxLimit`, message size. Exceeding one is answered with `CLOSED` or `NOTICE`.
 - NIP-11: `GET /` with `Accept: application/nostr+json`.
 
-Supported NIPs: 01, 02, 09, 10, 11, 18, 22, 23, 25, 45, 50, 65.
+Supported NIPs: 01, 02, 09, 10, 11, 18, 22, 23, 25, 45, 46 (unless
+`NOSTR_CONNECT` is off), 50, 65.
 
 ## Blossom (`src/blossom/`)
 
@@ -273,6 +283,7 @@ the environment is locked: the settings page shows it but cannot change it.
 | `QLEVER_DIR_GRAPH_DIR`        | `store.qleverGraphDir`                          | `<DATA_DIR>/graph`                                                                          |
 | `QLEVER_DIR_BASE_URI`         | `store.qleverBaseUri`                           | `https://example.org/data/`                                                                 |
 | `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                      |
+| `NOSTR_CONNECT`               | `nostrConnect` (`off` disables)                 | on                                                                                          |
 | `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                          |
 | `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                        |
 | `MAX_LIMIT`                   | `maxLimit`                                      | `500`                                                                                       |
@@ -300,7 +311,37 @@ events to the node's relay, and listens on the same relay for new events.
 | `/network`                 | The node: social graph, relays, replication, SPARQL console        |
 | `/settings`                | Owner settings                                                     |
 
-Identity is one of: a NIP-07 browser extension, a private key kept in the
-browser's local storage, or a public key only (read-only). On a node without an
-owner the first screen is the setup: choose or create an identity, which becomes
-the owner.
+Identity is one of: a NIP-07 browser extension, a signer app over NIP-46, a
+private key kept in the browser's local storage, or a public key only
+(read-only). On a node without an owner the first screen is the setup: choose or
+create an identity, which becomes the owner.
+
+**Signer app (NIP-46, `lib/remote_signer.ts`).** The user's key stays in a
+signer app such as Amber. The browser has a connection key of its own and
+exchanges NIP-44-encrypted kind 24133 events with the signer over a relay.
+
+- _Client-initiated._ The sign-in dialog shows a `nostrconnect://` link (on
+  Android tapping it opens the signer app) and the same link as a QR code (a
+  signer on another device). The link asks for `sign_event` for the kinds the
+  client signs, so that a signer can remember approvals per kind. The relay in
+  the link is this node's own (`relayUrl` of `/api/status`), because a phone
+  that opened the page by that address can reach it. On `localhost` or a
+  loopback address it cannot, so the person must enter a relay, with
+  `wss://relay.nsec.app/` offered as a suggestion; nothing connects to it unless
+  they choose it.
+- _Signer-initiated._ The person pastes a `bunker://` address or a
+  `name@domain`; the browser connects directly to the relays named in it.
+- The signer's pubkey is not necessarily the user's, so the client asks
+  `get_public_key`. In `localStorage`, next to the session, it keeps the
+  connection key, the signer's pubkey, the relays and the user's pubkey, and
+  nothing of the user's secret. After a reload the session is restored at once
+  and the connection is rebuilt in the background (a `ping`) and on the first
+  signature. Signing out sends `logout`, closes the connection and discards the
+  connection key.
+- Every signature may need a tap on the phone, so `signEvent` itself shows a
+  "waiting for approval" indicator (any caller gets it), a request waits up to
+  60 seconds (5 minutes after an `auth_url`, which is shown as a link) and the
+  errors say whether the signer refused, did not answer, or the relay could not
+  be reached.
+- `scripts/fake_signer.ts` stands in for a signer app in development; see
+  [DEVELOPMENT.md](DEVELOPMENT.md#testing-remote-signing).

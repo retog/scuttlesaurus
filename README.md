@@ -56,6 +56,9 @@ Then open <http://localhost:7777>. See
 - **Web client.** Notes with threads, reactions and reposts; long-form articles
   with an editor and comments; profiles, search, notifications, a page on the
   node itself, and the owner's settings.
+- **Remote signing.** Sign in with a signer app such as Amber (NIP-46): the key
+  stays in the app, the browser holds a connection key only. The relay carries
+  the encrypted requests, from any author, without storing them.
 - **Blossom media server.** Upload, fetch, list and delete media for authors in
   the graph.
 - **SPARQL endpoint.** Read-only SPARQL 1.1 over everything the node holds, so a
@@ -101,24 +104,25 @@ events become triples.
 
 ### Supported NIPs and BUDs
 
-| Spec           | What the node does with it                                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| NIP-01         | The basic protocol: events, subscriptions and the relay's messages on `/`.                                                               |
-| NIP-02         | Follow lists (kind 3). They define the social graph.                                                                                     |
-| NIP-09         | Deletion requests (kind 5). The event stops being served; it stays in the log.                                                           |
-| NIP-10         | Reply threads of notes, from the `e` and `p` tags.                                                                                       |
-| NIP-11         | The relay information document, at `/` with `Accept: application/nostr+json`.                                                            |
-| NIP-18         | Reposts (kind 6), stored and shown.                                                                                                      |
-| NIP-22         | Comments (kind 1111) on articles.                                                                                                        |
-| NIP-23         | Long-form articles (kind 30023), with the editor.                                                                                        |
-| NIP-25         | Reactions (kind 7), stored and counted.                                                                                                  |
-| NIP-45         | `COUNT` requests on the relay.                                                                                                           |
-| NIP-50         | Search, as a case-insensitive substring match.                                                                                           |
-| NIP-65         | Relay lists (kind 10002). They tell the replicator where each author publishes.                                                          |
-| NIP-05, NIP-98 | Not on the list above, but used: the owner's NIP-05 identity at `/.well-known/nostr.json`, and NIP-98 authorization for the owner's API. |
-| BUD-01         | Fetching blobs by hash: `GET` and `HEAD` on `/<sha256>`.                                                                                 |
-| BUD-02         | Uploading, listing and deleting blobs: `PUT /upload`, `GET /list/<pubkey>`, `DELETE /<sha256>`.                                          |
-| BUD-06         | Asking whether an upload would be accepted: `HEAD /upload`.                                                                              |
+| Spec           | What the node does with it                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NIP-01         | The basic protocol: events, subscriptions and the relay's messages on `/`.                                                                                    |
+| NIP-02         | Follow lists (kind 3). They define the social graph.                                                                                                          |
+| NIP-09         | Deletion requests (kind 5). The event stops being served; it stays in the log.                                                                                |
+| NIP-10         | Reply threads of notes, from the `e` and `p` tags.                                                                                                            |
+| NIP-11         | The relay information document, at `/` with `Accept: application/nostr+json`.                                                                                 |
+| NIP-18         | Reposts (kind 6), stored and shown.                                                                                                                           |
+| NIP-22         | Comments (kind 1111) on articles.                                                                                                                             |
+| NIP-23         | Long-form articles (kind 30023), with the editor.                                                                                                             |
+| NIP-25         | Reactions (kind 7), stored and counted.                                                                                                                       |
+| NIP-45         | `COUNT` requests on the relay.                                                                                                                                |
+| NIP-46         | Nostr Connect: the relay carries kind 24133 events from any author, unstored, and the web client signs through a signer app. `NOSTR_CONNECT=off` disables it. |
+| NIP-50         | Search, as a case-insensitive substring match.                                                                                                                |
+| NIP-65         | Relay lists (kind 10002). They tell the replicator where each author publishes.                                                                               |
+| NIP-05, NIP-98 | Not on the list above, but used: the owner's NIP-05 identity at `/.well-known/nostr.json`, and NIP-98 authorization for the owner's API.                      |
+| BUD-01         | Fetching blobs by hash: `GET` and `HEAD` on `/<sha256>`.                                                                                                      |
+| BUD-02         | Uploading, listing and deleting blobs: `PUT /upload`, `GET /list/<pubkey>`, `DELETE /<sha256>`.                                                               |
+| BUD-06         | Asking whether an upload would be accepted: `HEAD /upload`.                                                                                                   |
 
 ## Configuration
 
@@ -171,6 +175,9 @@ graph in QLever through qlever-dir, set `QLEVER_DIR_URL`; see
 - A deletion request stops an event being served, and deleted blob files are
   removed. The event itself stays in the append-only log.
 - There is no NIP-42 authentication, no direct messages and no zaps.
+- Signing in with a signer app (NIP-46) has been tested only against the
+  stand-in signer in `scripts/fake_signer.ts`, not against Amber or another real
+  app. Each signature may wait for a tap on the phone.
 - A key created in the browser is kept in that browser's local storage. Anybody
   who can read that storage can use the key.
 

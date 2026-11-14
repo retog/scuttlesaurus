@@ -164,6 +164,9 @@
 .rail-identity__sub {
   font-size: 0.8125rem;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Page scaffolding inside the main column */

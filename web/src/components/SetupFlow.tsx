@@ -10,7 +10,7 @@
  */
 import type { Event, EventTemplate } from "@nostr/tools/core";
 import { signal } from "@preact/signals";
-import { ArrowRight, Users } from "lucide-preact";
+import { ArrowRight, Smartphone, Users } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { ApiError, type NodeStatus, setup } from "../lib/api.ts";
 import { refreshStatus, status } from "../lib/node.ts";
@@ -31,6 +31,7 @@ import {
   PublicKeyForm,
   SecretKeyForm,
   SecretKeyReveal,
+  SignerLogin,
 } from "./LoginDialog.tsx";
 import { Logo } from "./Logo.tsx";
 
@@ -40,7 +41,15 @@ import { Logo } from "./Logo.tsx";
  */
 export const setupFinished = signal(false);
 
-type Path = "start" | "have" | "nsec" | "npub" | "new" | "reveal" | "done";
+type Path =
+  | "start"
+  | "have"
+  | "signer"
+  | "nsec"
+  | "npub"
+  | "new"
+  | "reveal"
+  | "done";
 
 /** How many times a publish is retried: the node's graph updates after setup. */
 const PUBLISH_ATTEMPTS = 6;
@@ -206,6 +215,21 @@ export function SetupFlow() {
                 type="button"
                 class="login__option"
                 onClick={() =>
+                  setPath("signer")}
+              >
+                <Smartphone size={22} aria-hidden="true" />
+                <span>
+                  <strong>Signer app (Amber and others)</strong>
+                  <small>
+                    Your key stays in the app on your phone. You can post as the
+                    owner.
+                  </small>
+                </span>
+              </button>
+              <button
+                type="button"
+                class="login__option"
+                onClick={() =>
                   setPath("nsec")}
               >
                 <span>
@@ -218,8 +242,7 @@ export function SetupFlow() {
               <button
                 type="button"
                 class="login__option"
-                onClick={() =>
-                  setPath("npub")}
+                onClick={() => setPath("npub")}
               >
                 <span>
                   <strong>Paste a public key</strong>
@@ -236,6 +259,21 @@ export function SetupFlow() {
                 Back
               </Button>
             </div>
+          </section>
+        )}
+
+        {path === "signer" && (
+          <section class="setup__step" aria-labelledby="setup-signer">
+            <h2 id="setup-signer" class="setup__heading">
+              Sign in with your signer app
+            </h2>
+            <SignerLogin
+              onBack={() =>
+                setPath("have")}
+              onLogin={async () => {
+                await claim(session.value!.pubkey);
+              }}
+            />
           </section>
         )}
 

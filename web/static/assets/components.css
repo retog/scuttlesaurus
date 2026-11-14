@@ -827,6 +827,145 @@ a.author-name__name:hover {
   accent-color: var(--primary);
 }
 
+/* --- Signer app sign-in (NIP-46) ---------------------------------------------------------------- */
+.signer {
+  min-width: 0;
+}
+.signer p {
+  overflow-wrap: anywhere;
+}
+.signer__open {
+  width: 100%;
+  min-height: 56px;
+  font-size: 1.0625rem;
+  white-space: normal;
+  text-align: center;
+}
+.signer__open:hover {
+  text-decoration: none;
+}
+.signer__actions {
+  justify-content: center;
+}
+.signer__wait {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.signer__wait .spinner {
+  flex: none;
+  margin-top: 2px;
+}
+.signer__qr,
+.signer__advanced {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--s-3);
+}
+.signer__qr[open],
+.signer__advanced[open] {
+  padding-bottom: var(--s-3);
+}
+.signer__qr summary,
+.signer__advanced summary {
+  min-height: 44px;
+  padding: var(--s-2) 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.signer__qr > :not(summary),
+.signer__advanced > :not(summary) {
+  margin-top: var(--s-2);
+}
+.signer__relay,
+.signer__bunker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.signer__bunker {
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+}
+.signer__relay-line {
+  font-size: 0.8125rem;
+}
+.form-note {
+  padding: var(--s-3);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.875rem;
+}
+/* A QR code must be dark on light in both themes, so its plate is white and
+   its modules black whatever the theme: the only hard-coded colours here. */
+.qr {
+  width: min(100%, 288px);
+  margin-inline: auto;
+  background: #ffffff;
+  color: #000000;
+  border-radius: var(--radius-sm);
+  line-height: 0;
+}
+.qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The wait for a signer's approval, shown over the page or inside a dialog. */
+.signer-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+}
+.signer-status--page {
+  position: fixed;
+  z-index: 101;
+  top: var(--s-3);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+/* A dialog covers the page indicator; the dialog carries its own. */
+body:has(dialog[open]) .signer-status--page {
+  display: none;
+}
+.signer-status--modal {
+  margin: 0 var(--s-5) var(--s-5);
+  box-shadow: none;
+  background: var(--surface-2);
+}
+.signer-status__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.signer-status__text small {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.signer-status > svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
 .compose-dialog__parent {
   margin-bottom: var(--s-3);
   font-size: 0.875rem;

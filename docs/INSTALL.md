@@ -506,6 +506,15 @@ event only when its author is in the node's social graph, which is the owner and
 the people within `HOPS` of the owner. Other events get `OK false` with the
 reason `blocked`.
 
+**Signer apps.** The web client can sign in with a signer app such as Amber
+(NIP-46). The link it shows names this node's relay, built from the address the
+page was opened with (or `PUBLIC_URL`), so the node must be reachable from the
+phone under that address, and the page must not be opened as `localhost`. The
+relay carries these messages (kind 24133, never stored) for any author, which is
+the one exception to the rule that only the social graph may write. Set
+`NOSTR_CONNECT=off` to remove the exception; the signer link then needs a relay
+that is not this node.
+
 **Blossom.** Use the base URL `https://your.host`, without a path. Uploads go to
 `/upload`, and the same rule applies: only authors in the graph may upload.
 Uploads and deletions are authorized with signed kind 24242 events.

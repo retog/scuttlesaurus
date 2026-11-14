@@ -107,6 +107,11 @@ export interface Config {
   blossom: BlossomConfig;
   /** Whether `/sparql` is open to everyone (the web client needs it). */
   publicSparql: boolean;
+  /**
+   * Whether kind 24133 events (NIP-46 Nostr Connect) are relayed for any
+   * author. Off: they get the normal write policy.
+   */
+  nostrConnect: boolean;
   /** Largest number of events returned for a single filter. */
   maxLimit: number;
 }

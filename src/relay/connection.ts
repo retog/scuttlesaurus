@@ -15,6 +15,8 @@ import {
   isSubscriptionId,
   MAX_BUFFERED_BYTES,
   MAX_SUBSCRIPTIONS,
+  NOSTR_CONNECT_KIND,
+  nostrConnectProblem,
   parseFilters,
   parseFrame,
   parseSignedEvent,
@@ -146,21 +148,29 @@ export class ClientConnection {
     }
     const { event } = parsed;
     const { config, events, graph } = this.#options;
-    if (config.owner === undefined) {
-      return this.#send([
-        "OK",
-        id,
-        false,
-        "blocked: this relay has no owner yet",
-      ]);
-    }
-    if (graph.distance(event.pubkey) === undefined) {
-      return this.#send([
-        "OK",
-        id,
-        false,
-        `blocked: author is not within ${config.replication.hops} hops of this relay's owner`,
-      ]);
+    // NIP-46: a signer's key and a client's throwaway key are outside the
+    // owner's graph, so a well-formed Nostr Connect event is let through for
+    // any author, even before the node has an owner (first-run setup with a
+    // signer app). It is ephemeral: relayed, never stored. Anything else, and
+    // a malformed 24133 from a member, takes the normal policy below.
+    const connectProblem = config.nostrConnect
+      ? nostrConnectProblem(event)
+      : "disabled";
+    if (connectProblem !== undefined) {
+      if (config.owner === undefined) {
+        return this.#send([
+          "OK",
+          id,
+          false,
+          "blocked: this relay has no owner yet",
+        ]);
+      }
+      if (graph.distance(event.pubkey) === undefined) {
+        const reason = event.kind === NOSTR_CONNECT_KIND && config.nostrConnect
+          ? `invalid: ${connectProblem}`
+          : `blocked: author is not within ${config.replication.hops} hops of this relay's owner`;
+        return this.#send(["OK", id, false, reason]);
+      }
     }
 
     let result: AddResult;

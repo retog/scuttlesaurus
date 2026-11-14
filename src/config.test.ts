@@ -76,6 +76,7 @@ Deno.test("defaults with an empty environment", () =>
       maxBlobSize: 50 * 1024 * 1024,
     });
     assertEquals(config.publicSparql, true);
+    assertEquals(config.nostrConnect, true);
     assertEquals(config.maxLimit, 500);
     assertEquals(manager.locked.size, 0);
     assert((await Deno.stat(dir)).isDirectory);
@@ -107,6 +108,7 @@ Deno.test("each environment variable sets its setting", () =>
       REPLICATION: "off",
       ALLOW_PRIVATE_RELAYS: "on",
       SPARQL_PUBLIC: "0",
+      NOSTR_CONNECT: "off",
       BLOSSOM: "false",
       BLOSSOM_MAX_SIZE_MB: "10",
       MAX_LIMIT: "100",
@@ -133,6 +135,7 @@ Deno.test("each environment variable sets its setting", () =>
       allowPrivateRelays: true,
     });
     assertEquals(c.publicSparql, false);
+    assertEquals(c.nostrConnect, false);
     assertEquals(c.blossom, { enabled: false, maxBlobSize: 10 * 1024 * 1024 });
     assertEquals(c.maxLimit, 100);
   }));
@@ -145,10 +148,12 @@ Deno.test("toggles accept on, true and 1 as enabled", () =>
         REPLICATION: word,
         BLOSSOM: word,
         SPARQL_PUBLIC: word,
+        NOSTR_CONNECT: word,
       });
       assertEquals(manager.config.replication.enabled, true);
       assertEquals(manager.config.blossom.enabled, true);
       assertEquals(manager.config.publicSparql, true);
+      assertEquals(manager.config.nostrConnect, true);
     }
   }));
 
@@ -197,6 +202,7 @@ Deno.test("invalid environment values throw, naming the variable", async () => {
     ["ALLOW_PRIVATE_RELAYS", "maybe"],
     ["BLOSSOM", "maybe"],
     ["SPARQL_PUBLIC", "maybe"],
+    ["NOSTR_CONNECT", "maybe"],
     ["BLOSSOM_MAX_SIZE_MB", "1.5"],
     ["MAX_LIMIT", "0"],
     ["SPARQL_ENDPOINT_QUERY", "ftp://example.org/query"],

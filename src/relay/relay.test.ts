@@ -6,7 +6,7 @@ import { assert, assertEquals, assertFalse } from "@std/assert";
 import { delay } from "@std/async";
 import denoJson from "../../deno.json" with { type: "json" };
 import type { NostrEvent } from "../types.ts";
-import { MAX_MESSAGE_BYTES } from "./protocol.ts";
+import { MAX_MESSAGE_BYTES, MAX_NOSTR_CONNECT_BYTES } from "./protocol.ts";
 import { signedEvent, withRelay } from "./test_helpers.ts";
 
 const NOW = () => Math.floor(Date.now() / 1000);
@@ -429,6 +429,7 @@ Deno.test("NIP-11 information document", () =>
       23,
       25,
       45,
+      46,
       50,
       65,
     ]);
@@ -461,3 +462,134 @@ Deno.test("handleUpgrade answers a request that is not a WebSocket upgrade with 
     assertEquals(response.status, 400);
     await response.text();
   }));
+
+// NIP-46 (Nostr Connect): kind 24133 from any author, narrowly.
+
+const hex = (n: number) => n.toString(16).padStart(64, "0");
+
+Deno.test("Nostr Connect: a stranger's event reaches a #p subscriber and is not stored", () =>
+  withRelay(async ({ outsider, friend, store, connect, accepted }) => {
+    const signer = await connect();
+    signer.send(["REQ", "nc", { kinds: [24133], "#p": [friend.pubkey] }]);
+    await signer.until("EOSE");
+
+    const sender = await connect();
+    const request = signedEvent(outsider, {
+      kind: 24133,
+      tags: [["p", friend.pubkey]],
+    });
+    sender.send(["EVENT", request]);
+    assertEquals(await sender.next(), ["OK", request.id, true, ""]);
+
+    const delivered = await signer.next();
+    assertEquals(delivered[0], "EVENT");
+    assertEquals(delivered[1], "nc");
+    assertEquals(eventOf(delivered).id, request.id);
+    assertFalse(store.has(request.id));
+    assertEquals(accepted.map((e) => e.id), [request.id]);
+
+    // A subscription for another recipient is not told.
+    sender.send(["COUNT", "barrier", { kinds: [1] }]);
+    assertEquals((await sender.until("COUNT")).length, 1);
+  }));
+
+Deno.test("Nostr Connect: works before the node has an owner", () =>
+  withRelay(async ({ outsider, connect }) => {
+    const client = await connect();
+    const event = signedEvent(outsider, {
+      kind: 24133,
+      tags: [["p", hex(7)]],
+    });
+    client.send(["EVENT", event]);
+    assertEquals(await client.next(), ["OK", event.id, true, ""]);
+    const note = signedEvent(outsider);
+    client.send(["EVENT", note]);
+    assertEquals(await client.next(), [
+      "OK",
+      note.id,
+      false,
+      "blocked: this relay has no owner yet",
+    ]);
+  }, { owner: false }));
+
+Deno.test("Nostr Connect: refused without a valid p tag", () =>
+  withRelay(async ({ outsider, friend, connect }) => {
+    const client = await connect();
+    for (
+      const tags of [
+        [],
+        [["e", hex(1)]],
+        [["p"]],
+        [["p", "not-a-pubkey"]],
+        [["p", hex(1).toUpperCase().replace(/0/g, "A")]],
+        [["p", hex(1).slice(2)]],
+      ]
+    ) {
+      const event = signedEvent(outsider, { kind: 24133, tags });
+      client.send(["EVENT", event]);
+      const reply = await client.next();
+      assertEquals(reply.slice(0, 3), ["OK", event.id, false]);
+      assert(String(reply[3]).startsWith("invalid:"), String(reply[3]));
+    }
+    // A graph member's malformed event takes the normal policy: accepted
+    // (ephemeral), as any event from a member.
+    const member = signedEvent(friend, { kind: 24133 });
+    client.send(["EVENT", member]);
+    assertEquals(await client.next(), ["OK", member.id, true, ""]);
+  }));
+
+Deno.test("Nostr Connect: the size limit is 64 KiB for the whole event", () =>
+  withRelay(async ({ outsider, connect }) => {
+    const client = await connect();
+    const build = (content: string) =>
+      signedEvent(outsider, {
+        kind: 24133,
+        tags: [["p", hex(3)]],
+        content,
+      });
+    const overhead = new TextEncoder().encode(JSON.stringify(build(""))).length;
+    const fits = build("a".repeat(MAX_NOSTR_CONNECT_BYTES - overhead));
+    client.send(["EVENT", fits]);
+    assertEquals(await client.next(), ["OK", fits.id, true, ""]);
+
+    const tooBig = build("a".repeat(MAX_NOSTR_CONNECT_BYTES - overhead + 1));
+    client.send(["EVENT", tooBig]);
+    const reply = await client.next();
+    assertEquals(reply.slice(0, 3), ["OK", tooBig.id, false]);
+    assert(String(reply[3]).startsWith("invalid:"));
+  }));
+
+Deno.test("Nostr Connect: switched off, a stranger's event gets the normal policy", () =>
+  withRelay(async ({ outsider, connect }) => {
+    const client = await connect();
+    const event = signedEvent(outsider, {
+      kind: 24133,
+      tags: [["p", hex(5)]],
+    });
+    client.send(["EVENT", event]);
+    const reply = await client.next();
+    assertEquals(reply.slice(0, 3), ["OK", event.id, false]);
+    assert(String(reply[3]).startsWith("blocked:"), String(reply[3]));
+  }, { configOverrides: { nostrConnect: false } }));
+
+Deno.test("Nostr Connect: does not widen anything else for strangers", () =>
+  withRelay(async ({ outsider, connect }) => {
+    const client = await connect();
+    for (const kind of [1, 4, 23194, 24132, 24134, 20001, 22242, 27235]) {
+      const event = signedEvent(outsider, { kind, tags: [["p", hex(9)]] });
+      client.send(["EVENT", event]);
+      const reply = await client.next();
+      assertEquals(reply.slice(0, 3), ["OK", event.id, false], `kind ${kind}`);
+      assert(String(reply[3]).startsWith("blocked:"), String(reply[3]));
+    }
+  }));
+
+Deno.test("NIP-11 lists 46 only when Nostr Connect is on", () =>
+  withRelay(async ({ relay }) => {
+    const document = await relay.info(
+      new Request("http://127.0.0.1/", {
+        headers: { Accept: "application/nostr+json" },
+      }),
+    ).json();
+    assertFalse(document.supported_nips.includes(46));
+  }, { configOverrides: { nostrConnect: false } }));

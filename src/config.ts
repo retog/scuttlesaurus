@@ -60,6 +60,7 @@ const DEFAULTS: Raw = {
   },
   blossom: { enabled: true, maxBlobSize: 50 * MEGABYTE },
   publicSparql: true,
+  nostrConnect: true,
   maxLimit: 500,
 };
 
@@ -148,6 +149,7 @@ const ENV_SETTINGS: readonly EnvSetting[] = [
     parse: parseText,
   },
   { variable: "SPARQL_PUBLIC", key: "publicSparql", parse: parseToggle },
+  { variable: "NOSTR_CONNECT", key: "nostrConnect", parse: parseToggle },
   { variable: "BLOSSOM", key: "blossom.enabled", parse: parseToggle },
   {
     variable: "BLOSSOM_MAX_SIZE_MB",
@@ -180,6 +182,7 @@ const CHECKS: Record<string, Check> = {
   "store.qleverGraphDir": checkNonEmptyText,
   "store.qleverBaseUri": checkBaseUri,
   publicSparql: checkBoolean,
+  nostrConnect: checkBoolean,
   "blossom.enabled": checkBoolean,
   "blossom.maxBlobSize": checkRange(1, Number.MAX_SAFE_INTEGER),
   maxLimit: checkRange(1, Number.MAX_SAFE_INTEGER),
@@ -423,6 +426,7 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
       maxBlobSize: at("blossom.maxBlobSize"),
     },
     publicSparql: at("publicSparql"),
+    nostrConnect: at("nostrConnect"),
     maxLimit: at("maxLimit"),
   };
 }

@@ -28,6 +28,7 @@ import { setupRequired } from "../lib/node.ts";
 import { displayNameOf, useProfile } from "../lib/profiles.ts";
 import { profilePath } from "../lib/nostr.ts";
 import { isActive, Link, useRoute } from "../lib/router.tsx";
+import { remoteInfo } from "../lib/remote_signer.ts";
 import { logout, session } from "../lib/session.ts";
 import { openCompose, openLogin } from "../lib/ui.ts";
 import { Avatar } from "./Avatar.tsx";
@@ -37,6 +38,7 @@ import { HabitatCard } from "./HabitatCard.tsx";
 import { GlobalLoginDialog } from "./LoginDialog.tsx";
 import { Logo, LogoMark } from "./Logo.tsx";
 import { setupFinished, SetupFlow } from "./SetupFlow.tsx";
+import { SignerStatus } from "./SignerStatus.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { ToastHost } from "./Toast.tsx";
 
@@ -74,7 +76,14 @@ function SignedInChip({ pubkey, mode }: { pubkey: string; mode: string }) {
     ? "read-only"
     : mode === "extension"
     ? "extension"
+    : mode === "remote"
+    ? "signer app"
     : "local key";
+  const relays = mode === "remote" ? remoteInfo.value?.relays : undefined;
+  const relayText = relays?.map((r) =>
+    r.replace(/^wss?:\/\//, "").replace(/\/$/, "")
+  )
+    .join(", ");
   return (
     <div class="rail-identity">
       <Link
@@ -86,7 +95,12 @@ function SignedInChip({ pubkey, mode }: { pubkey: string; mode: string }) {
       </Link>
       <Link class="rail-identity__body" to={profilePath(pubkey)}>
         <span class="rail-identity__name">{name}</span>
-        <span class="rail-identity__sub">{sub}</span>
+        <span
+          class="rail-identity__sub"
+          title={relayText ? `Signs through ${relayText}` : undefined}
+        >
+          {relayText ? `${sub} · ${relayText}` : sub}
+        </span>
       </Link>
       <span class="rail-identity__action">
         <IconButton
@@ -121,6 +135,7 @@ export function Shell({ children }: ShellProps) {
     return (
       <>
         <SetupFlow />
+        <SignerStatus where="page" />
         <ToastHost />
       </>
     );
@@ -283,6 +298,7 @@ export function Shell({ children }: ShellProps) {
 
       <ComposeDialog />
       <GlobalLoginDialog />
+      <SignerStatus where="page" />
       <ToastHost />
     </div>
   );

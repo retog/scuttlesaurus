@@ -7,6 +7,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { X } from "lucide-preact";
 import { IconButton } from "./Button.tsx";
+import { SignerStatus } from "./SignerStatus.tsx";
 
 /** Props of {@link Modal}. */
 export interface ModalProps {
@@ -54,6 +55,7 @@ export function Modal(
             />
           </header>
           <div class="modal__body">{children}</div>
+          <SignerStatus where="modal" />
         </div>
       )}
     </dialog>

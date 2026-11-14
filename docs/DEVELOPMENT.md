@@ -107,6 +107,39 @@ anything real.
 
 Run the seed again and the events are already present, so it is safe to repeat.
 
+### Testing remote signing
+
+There is no phone in a development setup, so `scripts/fake_signer.ts` stands in
+for a signer app that speaks NIP-46 over one relay. It signs whatever it is
+asked to, without asking anybody: it is a development tool.
+
+```bash
+# The web client shows a nostrconnect:// link in Sign in > Signer app.
+# Copy it (Copy link) and give it to the signer:
+deno run -A scripts/fake_signer.ts --nsec nsec1… --connect 'nostrconnect://…'
+
+# Or have the signer print a bunker:// address to paste into the dialog:
+deno run -A scripts/fake_signer.ts --nsec nsec1… --bunker --relay ws://127.0.0.1:7777/
+```
+
+On `localhost` the dialog asks for a relay, since a phone could not reach it:
+enter the node's own `ws://127.0.0.1:7777/`, which the fake signer can reach.
+Use the owner's `nsec` from `deno task seed` to sign as the owner.
+
+| Option             | Meaning                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `--nsec <key>`     | The user's key (nsec or hex). Generated, with its npub printed, when omitted.                              |
+| `--signer-key <k>` | The key that signs the NIP-46 messages. Random by default, so it differs from the user's, as in real apps. |
+| `--connect <uri>`  | Answer a `nostrconnect://` link (client-initiated flow).                                                   |
+| `--bunker`         | Print a `bunker://` address and wait (signer-initiated flow). Needs `--relay <url>`.                       |
+| `--reject`         | Answer every `sign_event` with an error, to see the refusal message.                                       |
+| `--delay <ms>`     | Answer every request except `connect` after this delay, to see the waiting state.                          |
+| `--auth-url <url>` | Answer a client's first `sign_event` with an `auth_url` challenge, then complete it two seconds later.     |
+
+It answers `connect`, `get_public_key`, `ping`, `sign_event` and `logout`, and
+prints each request (for `sign_event` the kind and the content). To see a lost
+connection, stop it while the page is signed in and sign something.
+
 ### Two nodes replicating
 
 This recipe starts two nodes on one machine. Node A holds the demo world as
