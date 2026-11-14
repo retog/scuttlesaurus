@@ -6,6 +6,10 @@ and nothing else. One program provides a relay that replicates that
 neighbourhood, a web client for short notes and long-form articles, and a
 Blossom media server, all on one port and one RDF graph.
 
+| Home                                                      | An article                                                    | The node                                                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| ![Notes from the people you follow](docs/images/home.png) | ![A long-form article in the reader](docs/images/article.png) | ![The social graph as hop rings and the relay connections](docs/images/network.png) |
+
 ## Quick start
 
 You need [Deno](https://deno.com) 2.9 (tested with 2.9.6). Check with

@@ -155,6 +155,17 @@ function forward(
   if (!wanted) return;
   Promise.resolve()
     .then(() => replicator.publish(event))
+    .then((results) => {
+      // An event nobody took exists on this node only; say so.
+      if (results.length > 0 && !results.some((result) => result.ok)) {
+        const tried = results
+          .map((result) => `${result.relay} (${result.message ?? "no answer"})`)
+          .join(", ");
+        console.warn(
+          `replication: event ${event.id} was accepted by none of its author's relays: ${tried}`,
+        );
+      }
+    })
     .catch((error) => console.error("replication: publish failed", error));
 }
 
