@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Scuttlesaurus</title>
+    <meta name="description"
+      content="A personal Nostr node: relay, client and media server for your social neighbourhood." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f4ee"
+      media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1512"
+      media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+    // Apply the stored theme before first paint to avoid a flash.
+    try {
+      var t = localStorage.getItem("scuttlesaurus.theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch (_) { /* storage unavailable */ }
+    </script>
+    <link rel="stylesheet" href="/assets/tokens.css" />
+    <link rel="stylesheet" href="/assets/base.css" />
+    <link rel="stylesheet" href="/assets/layout.css" />
+    <link rel="stylesheet" href="/assets/components.css" />
+    <link rel="stylesheet" href="/assets/prose.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript>Scuttlesaurus needs JavaScript.</noscript>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,178 @@
+/**
+ * SPARQL access to the node: `select()` plus helpers that build queries
+ * safely. Never concatenate user input into a query without going through
+ * {@link str}, {@link iriRef}, {@link int} or {@link values}.
+ *
+ * @module
+ */
+import { PREFIXES } from "../../../src/vocab.ts";
+import { addressIri, eventIri, pubkeyIri } from "../../../src/vocab.ts";
+import { getAuthorization } from "./auth.ts";
+
+export { PREFIXES };
+
+/** One result row: variable name → lexical value (unbound → undefined). */
+export type Row = Record<string, string | undefined>;
+
+/** Error of a failed query, with the HTTP status when there was one. */
+export class SparqlError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "SparqlError";
+  }
+}
+
+interface JsonResults {
+  head?: { vars?: string[] };
+  results?: {
+    bindings: Record<string, { type: string; value: string }>[];
+  };
+}
+
+async function post(query: string, authorized: boolean): Promise<Response> {
+  const headers: Record<string, string> = {
+    "content-type": "application/sparql-query",
+    accept: "application/sparql-results+json",
+  };
+  if (authorized) {
+    const auth = await getAuthorization("/sparql", "POST");
+    if (auth) headers.authorization = auth;
+  }
+  return fetch("/sparql", { method: "POST", headers, body: query });
+}
+
+/**
+ * Run a SELECT query and flatten the bindings to plain objects. The prefixes
+ * `nostr:`, `tag:` and `xsd:` are declared for you. When the node requires
+ * authorization for `/sparql` and the session can sign, the request is
+ * retried with NIP-98.
+ */
+export async function select(query: string): Promise<Row[]> {
+  const text = /^\s*PREFIX\s/i.test(query) ? query : PREFIXES + query;
+  let response: Response;
+  try {
+    response = await post(text, false);
+    if (response.status === 401 || response.status === 403) {
+      response = await post(text, true);
+    }
+  } catch (error) {
+    throw new SparqlError(`Node unreachable: ${(error as Error).message}`);
+  }
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).slice(0, 300);
+    throw new SparqlError(
+      `SPARQL ${response.status}${detail ? `: ${detail}` : ""}`,
+      response.status,
+    );
+  }
+  let json: JsonResults;
+  try {
+    json = await response.json();
+  } catch {
+    throw new SparqlError("SPARQL endpoint did not return JSON");
+  }
+  return (json.results?.bindings ?? []).map((binding) => {
+    const row: Row = {};
+    for (const [name, term] of Object.entries(binding)) row[name] = term.value;
+    return row;
+  });
+}
+
+// --- Term builders ---------------------------------------------------------------
+
+/** An IRI reference `<…>`; throws when the IRI contains forbidden characters. */
+export function iriRef(iri: string): string {
+  if (/[<>"{}|^`\\\s]/.test(iri) || [...iri].some((c) => c < "!")) {
+    throw new Error(`Unsafe IRI: ${iri}`);
+  }
+  return `<${iri}>`;
+}
+
+/** A string literal with correct SPARQL escaping. */
+export function str(text: string): string {
+  let out = "";
+  for (const char of text) {
+    const code = char.codePointAt(0)!;
+    if (char === "\\") out += "\\\\";
+    else if (char === '"') out += '\\"';
+    else if (char === "\n") out += "\\n";
+    else if (char === "\r") out += "\\r";
+    else if (char === "\t") out += "\\t";
+    else if (code < 0x20 || code === 0x7f) {
+      out += "\\u" + code.toString(16).padStart(4, "0");
+    } else out += char;
+  }
+  return `"${out}"`;
+}
+
+/** An integer literal. Throws on NaN/Infinity; fractions are truncated. */
+export function int(n: number): string {
+  if (!Number.isFinite(n)) throw new Error(`Not an integer: ${n}`);
+  return String(Math.trunc(n));
+}
+
+/** `VALUES ?varName { term term … }` (terms must already be valid terms). */
+export function values(varName: string, terms: readonly string[]): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(varName)) {
+    throw new Error(`Bad variable name: ${varName}`);
+  }
+  return `VALUES ?${varName} { ${terms.join(" ")} }`;
+}
+
+/** Term for a hex pubkey: `<nostr:npub1…>`. */
+export function pubkeyTerm(pubkey: string): string {
+  return iriRef(pubkeyIri(pubkey));
+}
+
+/** Term for a hex event id: `<nostr:note1…>`. */
+export function eventTerm(id: string): string {
+  return iriRef(eventIri(id));
+}
+
+/** Term for an article coordinate: `<nostr:naddr1…>` (no relay hints). */
+export function addressTerm(
+  kind: number,
+  pubkey: string,
+  identifier: string,
+): string {
+  return iriRef(addressIri(kind, pubkey, identifier));
+}
+
+/**
+ * `xsd:date` terms for the `days` UTC days ending at `until` (newest first),
+ * for the `nostr:date` window idiom:
+ * `values("date", recentDates(3))` →
+ * `VALUES ?date { "2026-11-13"^^xsd:date … }`.
+ */
+export function recentDates(days: number, until: Date = new Date()): string[] {
+  const out: string[] = [];
+  const start = Date.UTC(
+    until.getUTCFullYear(),
+    until.getUTCMonth(),
+    until.getUTCDate(),
+  );
+  for (let i = 0; i < days; i++) {
+    const day = new Date(start - i * 86_400_000).toISOString().slice(0, 10);
+    out.push(`"${day}"^^xsd:date`);
+  }
+  return out;
+}
+
+// --- Universal exclusions ---------------------------------------------------------
+
+/** Exclude retracted events (NIP-09): every query needs this. */
+export function notDeleted(variable: string): string {
+  return `FILTER NOT EXISTS { ${variable} nostr:deletedBy ?_del${
+    variable.slice(1)
+  } }`;
+}
+
+/**
+ * Keep only the current version of a replaceable or addressable event
+ * (kinds 0, 3, 10000–19999, 30000–39999).
+ */
+export function notSuperseded(variable: string): string {
+  return `FILTER NOT EXISTS { ${variable} nostr:supersededBy ?_new${
+    variable.slice(1)
+  } }`;
+}

@@ -1,0 +1,98 @@
+/* Design tokens. Light is the default; dark follows the system unless the
+   user chose a theme (data-theme on <html>). */
+:root {
+  color-scheme: light;
+
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-2: #efece3;
+  --border: #e2ddd0;
+  --text: #1c2420;
+  --text-muted: #5d6a63;
+  --primary: #1f7a5c;
+  --primary-hover: #17624a;
+  --primary-soft: #dff0e8;
+  --on-primary: #ffffff;
+  --accent: #d98a1f;
+  --danger: #c2410c;
+  --danger-soft: #fbe6dc;
+  --overlay: rgb(28 36 32 / 0.45);
+
+  /* Social distance: the signature idea. */
+  --hop-0: var(--primary);
+  --hop-1: #0f8a8a;
+  --hop-2: #b7791f;
+  --hop-3: #7a6f9b;
+
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+
+  --shadow-pop: 0 8px 28px rgb(28 36 32 / 0.14);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--primary);
+  --transition: 150ms ease;
+
+  --rail-width: 248px;
+  --rail-width-compact: 72px;
+  --main-width: 680px;
+  --aside-width: 320px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1512;
+    --surface: #161e1a;
+    --surface-2: #1d2823;
+    --border: #2a3832;
+    --text: #e7ede9;
+    --text-muted: #93a39b;
+    --primary: #4cc79a;
+    --primary-hover: #6ad6ad;
+    --primary-soft: #16382c;
+    --on-primary: #0b1511;
+    --accent: #f0b254;
+    --danger: #f08a5d;
+    --danger-soft: #3a1f14;
+    --overlay: rgb(0 0 0 / 0.6);
+    --hop-1: #3cc0c0;
+    --hop-2: #f0b254;
+    --hop-3: #a79ccb;
+    --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1512;
+  --surface: #161e1a;
+  --surface-2: #1d2823;
+  --border: #2a3832;
+  --text: #e7ede9;
+  --text-muted: #93a39b;
+  --primary: #4cc79a;
+  --primary-hover: #6ad6ad;
+  --primary-soft: #16382c;
+  --on-primary: #0b1511;
+  --accent: #f0b254;
+  --danger: #f08a5d;
+  --danger-soft: #3a1f14;
+  --overlay: rgb(0 0 0 / 0.6);
+  --hop-1: #3cc0c0;
+  --hop-2: #f0b254;
+  --hop-3: #a79ccb;
+  --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.5);
+}
