@@ -1,0 +1,41 @@
+# Keeps the graph in QLever through qlever-dir, next to the node. Use it with
+# the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.qlever.yml up -d
+#
+# The node writes each batch of events as a file into the volume `graph`. The
+# qlever service watches that volume, read-only, and serves SPARQL on port 7001
+# on the Compose network; nothing is published on the host. See
+# docs/INSTALL.md, "Use QLever through qlever-dir".
+services:
+  scuttlesaurus:
+    environment:
+      # qlever-dir's endpoint, reached through the Compose network. The graph
+      # directory defaults to /data/graph (DATA_DIR/graph), where the volume
+      # below is mounted.
+      QLEVER_DIR_URL: http://qlever:7001/
+    volumes:
+      - graph:/data/graph
+    depends_on:
+      qlever:
+        condition: service_healthy
+
+  qlever:
+    image: ghcr.io/retinue-os/qlever-dir:0.6.0
+    environment:
+      # Apply each new file as soon as it is written. The default of 2 seconds
+      # would delay every acknowledgement by that much.
+      INCREMENTAL_DELAY: "0"
+      # BASE_URI is not set here, so it is qlever-dir's default,
+      # https://example.org/data/. That equals the default of the node's
+      # QLEVER_DIR_BASE_URI. If one of them changes, change the other too.
+    volumes:
+      - graph:/data:ro
+      - qlever-index-a:/index-a
+      - qlever-index-b:/index-b
+    restart: unless-stopped
+
+volumes:
+  graph:
+  qlever-index-a:
+  qlever-index-b:

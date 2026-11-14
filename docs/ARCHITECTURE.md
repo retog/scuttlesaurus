@@ -32,6 +32,7 @@ browser (web client) ─▶│  GET /…             web client     │         
 | Storage             | One RDF graph, insert-only; see [DATA-MODEL.md](DATA-MODEL.md)                                     | Queryable with SPARQL, trivially persisted and replicated                |
 | Default store       | Oxigraph (WebAssembly) inside the process, in a worker, persisted as an append-only N-Triples log  | Installation needs no database                                           |
 | Larger stores       | Any SPARQL 1.1 endpoint through `SPARQL_ENDPOINT_QUERY` / `SPARQL_ENDPOINT_UPDATE`                 | The embedded store keeps the graph in memory                             |
+| QLever store        | QLever through qlever-dir (`QLEVER_DIR_URL`): the node writes N-Triples files                      | No update endpoint to run; the graph is a directory of plain files       |
 | What is replicated  | Authors within `hops` follow hops of the owner, capped at `maxAuthors` by proximity                | Scuttlebutt's social-distance replication                                |
 | Where it is fetched | Each author's NIP-65 write relays (outbox model), chosen to cover all authors with few connections | Nostr's replacement for Scuttlebutt pubs                                 |
 | Who may write       | Authors within range; everybody may read                                                           | The social graph is the spam filter                                      |
@@ -66,7 +67,7 @@ each other's implementations. Each module directory exports its factory from
 
 ## Storage (`src/store/`)
 
-`TripleStore` is the insert-only graph. Two implementations:
+`TripleStore` is the insert-only graph. Three implementations:
 
 - **Embedded** (default). Oxigraph's WebAssembly build runs in a dedicated
   worker so that a slow query never blocks the relay. Every inserted batch is
@@ -75,14 +76,29 @@ each other's implementations. Each module directory exports its factory from
   dropped.
 - **SPARQL endpoint**. `insert` sends `INSERT DATA`; queries use the SPARQL 1.1
   Protocol. Nothing else is ever sent to the update URL.
+- **QLever through qlever-dir** (`QLEVER_DIR_URL`). `insert` writes the batch as
+  a new file, `<QLEVER_DIR_GRAPH_DIR>/YYYY/MM/DD/<unix ms>-<sequence>.nt`, and
+  resolves once qlever-dir's endpoint shows the file's named graph, which is
+  `QLEVER_DIR_BASE_URI` followed by the file's path. Queries go to qlever-dir's
+  read-only endpoint. At start and every six hours, the day directories older
+  than yesterday (UTC) are merged into one file per day, `YYYY/MM/DD.nt`; a
+  day's directory is removed only after the merged graph is visible. An insert
+  whose file is not visible within two minutes fails, and the file stays in the
+  directory. Nothing is ever sent to an update URL. See
+  [INSTALL.md](INSTALL.md#use-qlever-through-qlever-dir).
 
 `EventStore` implements Nostr semantics on top:
 
 - `add` validates (structure, id, signature unless `verified`, `created_at` not
   more than 15 minutes in the future), ignores duplicates, refuses retracted
   events, writes the event's triples and the `supersededBy` / `deletedBy`
-  bookkeeping, then notifies subscribers. Adds are serialized so the bookkeeping
-  is consistent.
+  bookkeeping, then notifies subscribers.
+- Adds are committed in groups, on every backend. Adds issued in the same turn
+  form one group, of at most 500 events and an estimated 4 MiB of N-Triples;
+  adds that arrive while a group is being stored wait for the next one. A group reads its bookkeeping in a few queries
+  and inserts its triples in one `insert`, with the same results as adding the
+  events one by one. Each `add` resolves once its group is stored and its
+  subscribers are told.
 - `query` translates NIP-01 filters to SPARQL and reconstructs events from their
   triples. Superseded and retracted events are never returned. Filters that are
   not selective (no `ids`, `authors` or tag condition) are evaluated over a
@@ -92,7 +108,9 @@ each other's implementations. Each module directory exports its factory from
 
 Rough capacity of the embedded store: about 0.5 GB of memory per million
 triples, and an event is around ten triples. With the default limits a node
-stays well below a million triples. Beyond a few million, use an endpoint.
+stays well below a million triples. Beyond a few million, use an endpoint or the
+QLever store, which keeps the graph out of the node's memory. The QLever store
+has been run only on graphs of up to about ten thousand triples.
 
 ## Social graph (`src/social/`)
 
@@ -245,13 +263,18 @@ the environment is locked: the settings page shows it but cannot change it.
 | `SPARQL_ENDPOINT_QUERY`       | `store.queryUrl`; selects the endpoint store    | embedded store                                                                              |
 | `SPARQL_ENDPOINT_UPDATE`      | `store.updateUrl`                               | the query URL                                                                               |
 | `SPARQL_ENDPOINT_CREDENTIALS` | `store.credentials`                             | none                                                                                        |
+| `QLEVER_DIR_URL`              | `store.qleverUrl`; selects the QLever store     | embedded store                                                                              |
+| `QLEVER_DIR_GRAPH_DIR`        | `store.qleverGraphDir`                          | `<DATA_DIR>/graph`                                                                          |
+| `QLEVER_DIR_BASE_URI`         | `store.qleverBaseUri`                           | `https://example.org/data/`                                                                 |
 | `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                      |
 | `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                          |
 | `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                        |
 | `MAX_LIMIT`                   | `maxLimit`                                      | `500`                                                                                       |
 
-Files in `dataDir`: `graph.nt` (the graph), `blobs/`, `config.json`,
-`sync-state.json`.
+Files in `dataDir`: `graph.nt` (the graph of the embedded store), `blobs/`,
+`config.json`, `sync-state.json`. The QLever store keeps the graph under
+`QLEVER_DIR_GRAPH_DIR` instead, as `YYYY/MM/DD/*.nt` batch files and merged
+`YYYY/MM/DD.nt` files, and does not write `graph.nt`.
 
 ## Web client (`web/`)
 

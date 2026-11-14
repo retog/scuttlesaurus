@@ -43,6 +43,29 @@ deno test -A src/store/event_triples.test.ts
 deno test -A src/replication/
 ```
 
+### The live test of the qlever-dir store
+
+The tests of the qlever-dir store run against a stand-in for qlever-dir
+(`src/store/fake_qlever_dir.ts`), so `deno task test` needs no qlever-dir. The
+live test, `src/store/qlever_dir_live.test.ts`, runs the event store against a
+real one. It is skipped unless `QLEVER_DIR_TEST_URL` and `QLEVER_DIR_TEST_DIR`
+are set:
+
+| Variable                   | Meaning                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QLEVER_DIR_TEST_URL`      | qlever-dir's SPARQL endpoint, for example `http://127.0.0.1:7001/`.                                                                         |
+| `QLEVER_DIR_TEST_DIR`      | The directory qlever-dir watches, as this machine sees it. The test creates a subdirectory `it-<random>` in it and removes that at the end. |
+| `QLEVER_DIR_TEST_BASE_URI` | qlever-dir's `BASE_URI`, ending with `/`. Optional; the default is `https://example.org/data/`, which is also the default of qlever-dir.    |
+
+```bash
+QLEVER_DIR_TEST_URL=http://127.0.0.1:7001/ \
+QLEVER_DIR_TEST_DIR=/srv/qlever/data \
+deno test -A src/store/qlever_dir_live.test.ts
+```
+
+The test stores a few hundred events, checks queries against them, runs a
+consolidation and checks that the results do not change.
+
 To look at the web client without a node, build it and run `scripts/preview.ts`.
 It serves `web/dist/` on port 4173, and answers `/api/*` and `/sparql` with 503.
 

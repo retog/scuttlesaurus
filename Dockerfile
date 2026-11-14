@@ -11,8 +11,11 @@ ENV DATA_DIR=/data \
 WORKDIR /app
 
 # The directories the node writes to. They are created before USER, so that
-# the deno user owns them.
-RUN mkdir -p /app /data /deno-dir && chown -R deno:deno /app /data /deno-dir
+# the deno user owns them. /data/graph is the graph directory of the qlever-dir
+# store, which docker-compose.qlever.yml mounts as a named volume. A new named
+# volume takes the ownership of the image's directory at its mount point, so
+# the directory must exist here, owned by deno, or the node could not write it.
+RUN mkdir -p /app /data /data/graph /deno-dir && chown -R deno:deno /app /data /deno-dir
 
 USER deno
 

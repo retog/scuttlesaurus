@@ -61,6 +61,9 @@ Then open <http://localhost:7777>. See
 - **SPARQL endpoint.** Read-only SPARQL 1.1 over everything the node holds, so a
   query can join a profile, a note and the counts of their reactions in one
   request.
+- **Storage.** By default the graph is held in memory and kept as a log. It can
+  instead be held by an external SPARQL 1.1 endpoint, or by QLever through
+  qlever-dir.
 - **No external services.** The node stores everything itself, the web client
   makes no requests to third parties, and no CDN is involved.
 
@@ -134,7 +137,9 @@ is locked in the settings page. These are the settings most people change:
 | `SPARQL_ENDPOINT_QUERY` | none (embedded store) | The URL of an external SPARQL 1.1 endpoint, which then holds the graph. |
 
 The full table, with every variable, is in
-[ARCHITECTURE.md](docs/ARCHITECTURE.md#configuration-srcconfigts).
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#configuration-srcconfigts). To keep the
+graph in QLever through qlever-dir, set `QLEVER_DIR_URL`; see
+[INSTALL.md](docs/INSTALL.md#use-qlever-through-qlever-dir).
 
 ## Documentation
 
@@ -154,6 +159,9 @@ The full table, with every variable, is in
   long on a public network.
 - Replication has been tested only between local nodes and with the demo data.
   It has not yet been tested against the public relay network.
+- The QLever store has been tested with qlever-dir 0.6.0 run outside Docker, on
+  graphs of up to about ten thousand triples. Its Compose setup has not been
+  run.
 - The external SPARQL endpoint store has unit tests. The Oxigraph example in
   [docs/INSTALL.md](docs/INSTALL.md#use-an-external-triple-store) has not been
   run against an Oxigraph server.

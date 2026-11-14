@@ -29,8 +29,10 @@ Consequences:
 - A retracted event stays in the graph, marked with `nostr:deletedBy`. The relay
   never serves it and the client never shows it, but it is not physically
   erased. Only blob _files_ are physically removed.
-- Persistence is an append-only log of N-Triples, and a copy of the graph can be
-  brought up to date by appending.
+- Persistence is an append-only log of N-Triples in the embedded store, and a
+  directory of N-Triples files in the QLever store, where a merge replaces a
+  day's files with one file holding the same triples. See
+  [ARCHITECTURE.md](ARCHITECTURE.md#storage-srcstore).
 
 ## IRIs
 

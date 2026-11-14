@@ -1,15 +1,16 @@
 # Installing Scuttlesaurus
 
 This guide covers running a node from source, with Docker, behind a reverse
-proxy, with an external triple store, and tuning replication. For what the node
-is and how it works, read [ARCHITECTURE.md](ARCHITECTURE.md). For the data, read
-[DATA-MODEL.md](DATA-MODEL.md).
+proxy, with an external triple store or QLever, and tuning replication. For what
+the node is and how it works, read [ARCHITECTURE.md](ARCHITECTURE.md). For the
+data, read [DATA-MODEL.md](DATA-MODEL.md).
 
 - [Run from source](#run-from-source)
 - [First run](#first-run)
 - [Run with Docker](#run-with-docker)
 - [Put it on the internet](#put-it-on-the-internet)
 - [Use an external triple store](#use-an-external-triple-store)
+- [Use QLever through qlever-dir](#use-qlever-through-qlever-dir)
 - [Tune replication](#tune-replication)
 - [Use the node from other software](#use-the-node-from-other-software)
 - [Troubleshooting](#troubleshooting)
@@ -272,6 +273,181 @@ deno task start
 
 The Oxigraph example is not yet tested against a running Oxigraph server; see
 the README's status section before relying on it.
+
+## Use QLever through qlever-dir
+
+[qlever-dir](https://github.com/Retinue-OS/qlever-dir) turns a directory of RDF
+files into a read-only SPARQL endpoint backed by
+[QLever](https://github.com/ad-freiburg/qlever). With `QLEVER_DIR_URL` set, the
+node keeps its graph as N-Triples files in a directory that qlever-dir watches,
+and sends its queries to qlever-dir's endpoint. The node never sends SPARQL
+Update to it.
+
+Choose this store when QLever should answer the queries and you want the graph
+to be plain files on disk that you can back up. The embedded store needs nothing
+else, so keep it while the graph fits in memory.
+
+The store was tested with qlever-dir 0.6.0 (QLever 0.6.0), run outside Docker,
+on graphs of up to about ten thousand triples. The Compose setup below has not
+been run yet.
+
+### With Compose
+
+From the clone, start the node with the override file next to the base file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.qlever.yml up -d
+```
+
+The override adds a `qlever` service, from the published image
+`ghcr.io/retinue-os/qlever-dir:0.6.0`, and points the node at it. No port of
+`qlever` is published on the host. It adds three named volumes:
+
+- `graph`, which the node writes to at `/data/graph` and `qlever` reads at
+  `/data`, read-only.
+- `qlever-index-a` and `qlever-index-b`, which hold qlever-dir's two indexes.
+  With them, an endpoint whose container was recreated, for example by an image
+  update, answers from its last index while it rebuilds, instead of answering
+  502 for the whole rebuild.
+
+Compose starts the node only after `qlever` reports healthy. The node's other
+data stays in `scuttlesaurus-data`, as before. Compose names the volumes after
+the project, which is the directory name by default: the graph is in
+`scuttlesaurus_graph` for a clone in a directory called `scuttlesaurus`.
+`docker compose down -v` deletes that volume, and the graph with it.
+
+**Switching an existing node.** A node that runs with the embedded store keeps
+`sync-state.json`, which records how far each author's events were fetched. The
+override does not copy the embedded graph, and the node does not fetch again
+what that file covers, so the QLever graph would lack those events. To start the
+QLever store with an empty graph, stop the node with `docker compose down`,
+which keeps the volumes, and start the override under another project name. That
+creates new volumes:
+
+```bash
+docker compose -p scuttlesaurus-qlever -f docker-compose.yml -f docker-compose.qlever.yml up -d
+```
+
+### Set it up by hand
+
+Run qlever-dir yourself, and give the node three variables:
+
+| Variable               | Meaning                                                                                           | Default                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | --------------------------- |
+| `QLEVER_DIR_URL`       | qlever-dir's SPARQL endpoint, for example `http://127.0.0.1:7001/`. Setting it selects the store. | none: the embedded store    |
+| `QLEVER_DIR_GRAPH_DIR` | The directory the node writes its files to. It must be the directory qlever-dir watches.          | `<DATA_DIR>/graph`          |
+| `QLEVER_DIR_BASE_URI`  | qlever-dir's `BASE_URI`: an absolute http or https URI ending with `/`.                           | `https://example.org/data/` |
+
+`QLEVER_DIR_GRAPH_DIR` and `QLEVER_DIR_BASE_URI` are refused unless
+`QLEVER_DIR_URL` is set, and `QLEVER_DIR_URL` cannot be set together with
+`SPARQL_ENDPOINT_QUERY`.
+
+```bash
+QLEVER_DIR_URL=http://127.0.0.1:7001/ \
+QLEVER_DIR_GRAPH_DIR=/srv/scuttlesaurus/graph \
+deno task start
+```
+
+These settings must agree with qlever-dir's:
+
+- qlever-dir's `/data` is the node's graph directory. Mount it there, read-only.
+  qlever-dir only reads it.
+- qlever-dir's `BASE_URI` is equal to `QLEVER_DIR_BASE_URI`. qlever-dir names
+  the graph of each file by `BASE_URI` followed by the file's path under
+  `/data`, and the node looks for the same names.
+- `INCREMENTAL_DELAY=0`. qlever-dir applies a changed file after that many
+  seconds without a further change to it. The node writes each file once and
+  never changes it, so there is nothing to wait for. With the default of 2
+  seconds, every event would be acknowledged 2 seconds later.
+- `COMPACTION_DELTA_TRIPLES` sets how much change qlever-dir accepts before it
+  rebuilds its whole index. Each file the node writes adds its triples to that
+  count. When the count since the last full build reaches the value, qlever-dir
+  rebuilds the index in the background. A lower value means more rebuilds. A
+  higher one lets unmerged changes pile up, which slows queries, as qlever-dir's
+  README explains. Merging the node's day files also causes a rebuild, because
+  removing a directory is a structural change. Leave the default, 100000, unless
+  you have measured a need to change it.
+
+The directory must be on a local filesystem. qlever-dir detects changes with
+inotify, which does not work reliably on NFS or on Docker Desktop for macOS and
+Windows.
+
+### What to expect
+
+- **An event is acknowledged after about a second.** Measured with qlever-dir
+  0.6.0 and `INCREMENTAL_DELAY=0`, a file of 10 triples could be queried 1.0 s
+  after it was written, and a file of 5,000 triples 1.4 s after. qlever-dir
+  applies the files one after another, about 80 ms each.
+- **Bulk loads are slow.** Each write waits until its file is visible. Seeding
+  the demo world through the relay took 211 s with this store, and about 7 s
+  with the embedded store.
+- **Queries see one graph.** A query without a `GRAPH` clause sees the union of
+  the files' graphs, with set semantics. Of 77 distinct queries the web client
+  issues on a tour of all its views, 74 returned the same rows on Oxigraph and
+  on QLever over the same data. Of those 74, 21 came back in a different order,
+  where the query does not fix one. The other 3 differed only in the order of
+  ties or inside `GROUP_CONCAT`.
+- **Integers have another datatype.** QLever returns integers as `xsd:int`,
+  where the graph holds `xsd:integer`. The values are the same.
+- **Merges and rebuilds keep the results.** In a test, a day of 300 small files
+  was merged into one, and the index was rebuilt meanwhile. The number of
+  matching triples did not change.
+- **The first start waits for the first index.** qlever-dir answers 502 until it
+  has built its first index. While the node waits, it logs
+  `[qlever-dir] waiting for qlever-dir at <query URL> (it may still be building its first index)`.
+
+### Backup
+
+The graph directory is the source of truth. qlever-dir's indexes in `/index-a`
+and `/index-b` are built from it, and qlever-dir always rebuilds them when it
+starts, so they need not be backed up. Back up the graph directory together with
+`sync-state.json` in `DATA_DIR`, and at the same time: the file records how far
+events were fetched, so the two must belong together. Stop the node first, for a
+consistent copy. With Compose, the graph is in the volume `scuttlesaurus_graph`:
+
+```bash
+docker compose stop scuttlesaurus
+docker run --rm -v scuttlesaurus_graph:/graph:ro -v "$PWD":/backup alpine tar -czf /backup/graph.tar.gz -C /graph .
+docker compose start scuttlesaurus
+```
+
+To restore, stop the node and `qlever`, replace the contents of the graph
+directory with the copy, and start them again.
+
+### Troubleshooting
+
+**Every write fails after two minutes.** Each insert fails with a message of
+this form:
+
+```
+qlever-dir endpoint <query URL> did not show <file> (graph <<graph IRI>>) within 120 s (the graph holds 0 of 1 triples). The file is kept in <graph directory> and will be indexed when qlever-dir catches up.
+```
+
+The node looks for each file under the graph IRI made of `QLEVER_DIR_BASE_URI`
+and the file's path, and that graph never appears. The usual cause is that
+`QLEVER_DIR_BASE_URI` is not qlever-dir's `BASE_URI`. qlever-dir does index the
+file, but under its own base, and queries without a `GRAPH` clause see it. Make
+the two equal, stop the node, and remove the files written while they differed.
+Their names begin with the time of writing, in milliseconds since 1970. Then
+start the node again.
+
+**The endpoint does not answer at start.** The node prints a message of this
+form and exits with status 1:
+
+```
+qlever-dir at <query URL> did not answer within 600 s: <reason>
+```
+
+The usual causes are a wrong `QLEVER_DIR_URL`, qlever-dir not running or not
+reachable from the node, or an index still being built after 10 minutes. Check
+the endpoint from the node's side:
+
+```bash
+curl -sS -X POST http://127.0.0.1:7001/ -H 'Content-Type: application/sparql-query' -H 'Accept: application/sparql-results+json' --data 'ASK {}'
+```
+
+It answers `{"boolean":true,"head":{}}` once it is ready. With Compose, Docker
+restarts the node, which tries again.
 
 ## Tune replication
 
