@@ -347,3 +347,116 @@ Deno.test({
     }
   },
 });
+
+/** Count the requests sent to the endpoint while `fn` runs. */
+async function countRequests(fn: () => Promise<void>): Promise<string[]> {
+  const original = globalThis.fetch;
+  const bodies: string[] = [];
+  globalThis.fetch = (input, init) => {
+    if (String(input instanceof Request ? input.url : input).startsWith(url!)) {
+      bodies.push(String(init?.body ?? ""));
+    }
+    return original(input, init);
+  };
+  try {
+    await fn();
+  } finally {
+    globalThis.fetch = original;
+  }
+  return bodies;
+}
+
+Deno.test({
+  name: "qlever-dir live: a restart checks only files that may be unindexed",
+  ignore: !url || !dir,
+  fn: async () => {
+    const run = `it-${crypto.randomUUID().slice(0, 8)}`;
+    const graphDir = join(dir!, run);
+    const stateDir = await Deno.makeTempDir({ prefix: "scuttle-live-state-" });
+    const open = (log: (m: string) => void = () => {}) =>
+      openQleverDirStore(
+        {
+          kind: "qlever-dir",
+          queryUrl: url!,
+          graphDir,
+          baseUri: `${base}${run}/`,
+        },
+        {
+          stateFile: join(stateDir, "qlever-dir-state.json"),
+          safetyMarginMs: 0,
+          consolidateOnOpen: false,
+          consolidateEveryMs: 0,
+          log,
+        },
+      );
+    try {
+      const [author] = identities(1);
+      const NOW = Math.floor(Date.now() / 1000);
+      const mine = Array.from(
+        { length: 30 },
+        (_, i) =>
+          sign(author, 1, {
+            content: `restart ${run} ${i}`,
+            created_at: NOW - i,
+          }),
+      );
+      let store = await open();
+      let events = await createEventStore(store, testConfig());
+      for (let i = 0; i < 3; i++) {
+        await Promise.all(
+          mine.slice(i * 10, i * 10 + 10).map((e) => events.add(e)),
+        );
+      }
+      await events.close();
+
+      // Reopen: nothing is unconfirmed, so only the liveness check is sent.
+      let known: string[] = [];
+      const bodies = await countRequests(async () => {
+        store = await open();
+        events = await createEventStore(store, testConfig());
+        known = (await events.query([{ authors: [author.pubkey], limit: 500 }]))
+          .map((e) => e.id);
+      });
+      const names = bodies.filter((b) => b.includes("FILTER EXISTS"));
+      assertEquals(names, []);
+      assertEquals(known.length, 30);
+      await events.close();
+
+      // A file dropped in while the node is down is waited for.
+      await new Promise((r) => setTimeout(r, 1100));
+      const foreign = Array.from(
+        { length: 200 },
+        (_, i) =>
+          sign(author, 1, {
+            content: `foreign ${run} ${i}`,
+            created_at: NOW - 100 - i,
+          }),
+      );
+      const copied = join(graphDir, "embedded.nt");
+      await Deno.writeTextFile(
+        copied,
+        foreign.map((e) => eventToTriples(e)).join(""),
+      );
+      const old = new Date("2020-01-01T00:00:00Z");
+      await Deno.utime(copied, old, old);
+      const logs: string[] = [];
+      const started = performance.now();
+      let reopened: string[] = [];
+      store = await open((m) => logs.push(m));
+      events = await createEventStore(store, testConfig());
+      const elapsed = Math.round(performance.now() - started);
+      reopened = foreign.filter((e) => events.has(e.id)).map((e) => e.id);
+      assertEquals(reopened.length, foreign.length);
+      assert(logs.some((m) => m.includes("checked files")), String(logs));
+      console.log(
+        `qlever-dir live: reopen with 1 foreign file took ${elapsed} ms (${
+          logs.join(" | ")
+        })`,
+      );
+      await events.close();
+    } finally {
+      await Deno.remove(graphDir, { recursive: true });
+      await Deno.remove(stateDir, { recursive: true });
+    }
+  },
+});

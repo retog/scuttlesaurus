@@ -431,10 +431,182 @@ Deno.test("qlever-dir: opening waits until files already in the directory are vi
       logs.some((m) => m.includes("waiting") && m.includes("2 of 2")),
       String(logs),
     );
-    assert(logs.some((m) => m.includes("all 2 existing files")), String(logs));
+    assert(logs.some((m) => m.includes("all 2 checked files")), String(logs));
     const store = await createEventStore(triples, testConfig());
     for (const event of events) assert(store.has(event.id));
   }, 300);
+});
+
+/** Deno reports inode change times with a resolution of one second. */
+const pause = () => new Promise<void>((r) => setTimeout(r, 1100));
+
+/** Options that persist `confirmedAt` in the fixture, without a margin. */
+const withState = (
+  f: Fixture,
+  extra: QleverDirOptions = {},
+): QleverDirOptions => ({
+  stateFile: join(f.dir, "state.json"),
+  safetyMarginMs: 0,
+  ...extra,
+});
+
+const readConfirmed = async (f: Fixture): Promise<number> =>
+  JSON.parse(await Deno.readTextFile(join(f.dir, "state.json"))).confirmedAt;
+
+Deno.test("qlever-dir: a reopen after a clean close sends no visibility query", async () => {
+  await withFixture(async (f) => {
+    const first = await f.open(withState(f));
+    await first.insert(triple(1));
+    await first.insert(triple(2));
+    await first.close();
+    const requests = f.fake.requests;
+    const logs: string[] = [];
+    const second = await f.open(withState(f, { log: (m) => logs.push(m) }));
+    // Only the `ASK {}` that checks the endpoint is up.
+    assertEquals(f.fake.requests - requests, 1);
+    assertEquals(logs, []);
+    assertEquals(await second.size(), 2);
+  });
+});
+
+Deno.test("qlever-dir: only files newer than confirmedAt are asked about", async () => {
+  await withFixture(async (f) => {
+    const first = await f.open(withState(f));
+    await first.insert(triple(1));
+    await first.close();
+    await pause();
+    await Deno.writeTextFile(join(f.graphDir, "new.nt"), triple(7));
+    const requests = f.fake.requests;
+    const logs: string[] = [];
+    await f.open(withState(f, { log: (m) => logs.push(m) }));
+    // ASK {}, one name query for 1 candidate, one parse-error query.
+    assertEquals(f.fake.requests - requests, 3);
+    assert(logs.some((m) => m.includes("all 1 checked files")), String(logs));
+  });
+});
+
+Deno.test("qlever-dir: a file copied in while down is checked despite an old mtime", async () => {
+  await withFixture(async (f) => {
+    const first = await f.open(withState(f));
+    await first.insert(triple(1));
+    await first.close();
+    await pause();
+    const { events, ntriples } = migratedGraph(10);
+    const copied = join(f.graphDir, "embedded.nt");
+    await Deno.writeTextFile(copied, ntriples);
+    const old = new Date("2020-01-01T00:00:00Z");
+    await Deno.utime(copied, old, old);
+    f.fake.setDelay(250);
+    const started = performance.now();
+    const second = await f.open(withState(f));
+    assert(performance.now() - started >= 250);
+    const store = await createEventStore(second, testConfig());
+    for (const event of events) assert(store.has(event.id));
+  });
+});
+
+Deno.test("qlever-dir: a file whose insert timed out is checked at the next open", async () => {
+  await withFixture(async (f) => {
+    const first = await f.open(
+      withState(f, { visibleTimeoutMs: 100, safetyMarginMs: 5000 }),
+    );
+    await first.insert(triple(1));
+    f.fake.setDelay(60_000);
+    await assertRejects(() => first.insert(triple(2)), Error, "did not show");
+    // Later successes cannot advance confirmedAt past the unconfirmed file.
+    f.fake.setDelay(0);
+    await first.insert(triple(3));
+    await first.close();
+    const [, timedOut] = await f.files();
+    const written = (await Deno.stat(join(f.graphDir, timedOut))).mtime!;
+    assert(await readConfirmed(f) < written.getTime());
+    const logs: string[] = [];
+    const second = await f.open(
+      withState(f, { safetyMarginMs: 5000, log: (m) => logs.push(m) }),
+    );
+    assert(logs.some((m) => m.includes("checked files")), String(logs));
+    assertEquals(await second.size(), 3);
+  });
+});
+
+Deno.test("qlever-dir: a missing, corrupt or foreign state file means check everything", async () => {
+  const damages: [string, (state: string) => Promise<void>][] = [
+    ["missing", (state) => Deno.remove(state)],
+    ["corrupt", (state) => Deno.writeTextFile(state, "{not json")],
+    [
+      "wrong version",
+      (state) =>
+        Deno.writeTextFile(
+          state,
+          JSON.stringify({ version: 99, confirmedAt: Date.now() }),
+        ),
+    ],
+    [
+      "another graph directory",
+      (state) =>
+        Deno.writeTextFile(
+          state,
+          JSON.stringify({
+            version: 1,
+            graphDir: "/elsewhere",
+            baseUri: BASE,
+            confirmedAt: Date.now() + 1000,
+          }),
+        ),
+    ],
+  ];
+  for (const [name, damage] of damages) {
+    await withFixture(async (f) => {
+      const first = await f.open(withState(f));
+      await first.insert(triple(1));
+      await first.close();
+      await damage(join(f.dir, "state.json"));
+      const requests = f.fake.requests;
+      const second = await f.open(withState(f));
+      assert(f.fake.requests - requests > 1, name);
+      await second.close();
+      // The state is rewritten and trusted again.
+      const third = requests;
+      const before = f.fake.requests;
+      await f.open(withState(f));
+      assertEquals(f.fake.requests - before, 1, name + String(third));
+    });
+  }
+});
+
+Deno.test("qlever-dir: confirmedAt only moves forward and is flushed on close", async () => {
+  await withFixture(async (f) => {
+    const store = await f.open(
+      withState(f, { stateWriteIntervalMs: 3_600_000 }),
+    );
+    const atOpen = await readConfirmed(f);
+    await store.insert(triple(1));
+    await store.insert(triple(2));
+    // Debounced: the file still holds the value from open.
+    assertEquals(await readConfirmed(f), atOpen);
+    await store.close();
+    const flushed = await readConfirmed(f);
+    assert(flushed > atOpen);
+    const files = await f.files();
+    const newest = (await Deno.stat(join(f.graphDir, files[files.length - 1])))
+      .ctime!;
+    assert(flushed >= newest.getTime());
+    const again = await f.open(withState(f));
+    await again.close();
+    assert((await readConfirmed(f)) >= flushed);
+  });
+});
+
+Deno.test("qlever-dir: many candidates are asked about in chunks", async () => {
+  await withFixture(async (f) => {
+    for (let i = 0; i < 650; i++) {
+      await Deno.writeTextFile(join(f.graphDir, `f${i}.nt`), triple(i));
+    }
+    const requests = f.fake.requests;
+    await f.open(withState(f));
+    // ASK {}, 3 chunks of names, 3 chunks of parse-error checks.
+    assertEquals(f.fake.requests - requests, 7);
+  });
 });
 
 Deno.test("qlever-dir: opening with no pending files does not wait or log", async () => {

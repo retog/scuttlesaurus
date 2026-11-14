@@ -10,7 +10,7 @@
  *
  * @module
  */
-import { join } from "@std/path";
+import { dirname, join } from "@std/path";
 import type { StoreConfig, TripleStore } from "../types.ts";
 import { type Backend, tripleStore } from "./backend.ts";
 import {
@@ -25,8 +25,10 @@ import { SparqlClient } from "./sparql_client.ts";
 type QleverConfig = Extract<StoreConfig, { kind: "qlever-dir" }>;
 
 const DAY_MS = 86400_000;
-/** Graph names fetched per page when waiting for existing files. */
-const GRAPH_PAGE = 5000;
+/** Graph IRIs asked about per query when checking existing files. */
+const NAME_CHUNK = 300;
+/** Version of the state file; other versions are treated as unknown. */
+const STATE_VERSION = 1;
 /** Names of the batch files this store writes. */
 const BATCH_NAME = /^\d+-\d{6}\.nt$/;
 
@@ -47,6 +49,22 @@ export interface QleverDirOptions {
   consolidateOnOpen?: boolean;
   /** Timeout of a single query request (default 60 s). */
   requestTimeoutMs?: number;
+  /**
+   * Where to keep `confirmedAt`, the time at which all files were last known
+   * to be visible (default none: every open then checks every file). It
+   * belongs outside the graph directory, which qlever-dir watches.
+   */
+  stateFile?: string;
+  /**
+   * Files whose inode change time is later than `confirmedAt` minus this
+   * margin are checked at open (default 2 minutes). The change time has a
+   * resolution of one second, and a clock may be a little off, so the margin
+   * should stay well above a second; the file written last is always checked
+   * again after a restart.
+   */
+  safetyMarginMs?: number;
+  /** Least time between writes of the state file (default 1 minute). */
+  stateWriteIntervalMs?: number;
   /** The clock, for naming files and for consolidation (default now). */
   now?: () => Date;
   /** Receives progress and error messages (default `console.warn`). */
@@ -84,6 +102,15 @@ class QleverDirBackend implements Backend {
   #closed = false;
   #consolidation: Promise<void> = Promise.resolve();
   #timer?: ReturnType<typeof setInterval>;
+  /** Write times of this store's files that are not yet confirmed visible. */
+  readonly #inFlight = new Set<number>();
+  /** A file of ours failed to become visible: stop advancing `confirmedAt`. */
+  #failed = false;
+  #confirmedAt?: number;
+  #persistedAt?: number;
+  #lastStateWrite = 0;
+  #stateTimer?: ReturnType<typeof setTimeout>;
+  #stateChain: Promise<void> = Promise.resolve();
 
   constructor(config: QleverConfig, options: QleverDirOptions) {
     this.config = config;
@@ -96,6 +123,9 @@ class QleverDirBackend implements Backend {
       consolidateEveryMs: options.consolidateEveryMs ?? 6 * 3600_000,
       consolidateOnOpen: options.consolidateOnOpen ?? true,
       requestTimeoutMs: options.requestTimeoutMs ?? 60_000,
+      stateFile: options.stateFile ?? "",
+      safetyMarginMs: options.safetyMarginMs ?? 120_000,
+      stateWriteIntervalMs: options.stateWriteIntervalMs ?? 60_000,
       now: options.now ?? (() => new Date()),
       log: options.log ?? ((m) => console.warn(`[qlever-dir] ${m}`)),
     };
@@ -149,9 +179,115 @@ class QleverDirBackend implements Backend {
     }
   }
 
-  /** Every non-empty `*.nt` file under the graph directory, by graph IRI. */
-  async #existingFiles(): Promise<Map<string, string>> {
-    const found = new Map<string, string>();
+  /** The persisted `confirmedAt`, or undefined when unknown or unusable. */
+  async #readState(): Promise<number | undefined> {
+    if (!this.options.stateFile) return undefined;
+    try {
+      const state = JSON.parse(await Deno.readTextFile(this.options.stateFile));
+      if (
+        state?.version === STATE_VERSION &&
+        state.graphDir === this.config.graphDir &&
+        state.baseUri === this.config.baseUri &&
+        Number.isFinite(state.confirmedAt) &&
+        state.confirmedAt <= Date.now() + this.options.safetyMarginMs
+      ) {
+        return state.confirmedAt;
+      }
+    } catch {
+      // Missing or corrupt: unknown.
+    }
+    return undefined;
+  }
+
+  /** Remember that everything written up to `time` is visible. */
+  #confirm(time: number): void {
+    if (!this.options.stateFile) return;
+    if (this.#confirmedAt !== undefined && time <= this.#confirmedAt) return;
+    this.#confirmedAt = time;
+    this.#scheduleStateWrite();
+  }
+
+  /** Write the state at most once per interval. */
+  #scheduleStateWrite(): void {
+    if (this.#stateTimer !== undefined || this.#closed) return;
+    const wait = this.#lastStateWrite + this.options.stateWriteIntervalMs -
+      Date.now();
+    if (wait <= 0) {
+      void this.#flushState();
+      return;
+    }
+    this.#stateTimer = setTimeout(() => {
+      this.#stateTimer = undefined;
+      void this.#flushState();
+    }, wait);
+    Deno.unrefTimer(this.#stateTimer as unknown as number);
+  }
+
+  /** Write the state file now if it changed (temporary file, then rename). */
+  #flushState(): Promise<void> {
+    const value = this.#confirmedAt;
+    if (!this.options.stateFile || value === undefined) return this.#stateChain;
+    if (value === this.#persistedAt) return this.#stateChain;
+    this.#lastStateWrite = Date.now();
+    this.#stateChain = this.#stateChain.then(async () => {
+      const file = this.options.stateFile;
+      try {
+        await Deno.mkdir(dirname(file), { recursive: true });
+        await Deno.writeTextFile(
+          `${file}.tmp`,
+          JSON.stringify({
+            version: STATE_VERSION,
+            graphDir: this.config.graphDir,
+            baseUri: this.config.baseUri,
+            confirmedAt: value,
+          }),
+        );
+        await Deno.rename(`${file}.tmp`, file);
+        this.#persistedAt = value;
+      } catch (error) {
+        this.options.log(`could not write ${file}: ${error}`);
+      }
+    });
+    return this.#stateChain;
+  }
+
+  /**
+   * Write one of our files and wait until it is visible. `work` calls
+   * `written()` right after the file is in place; the file's inode change
+   * time is then not later than that instant, which is what `confirmedAt`
+   * becomes once the file is confirmed. Until then the file is unconfirmed:
+   * if it never shows, `confirmedAt` stays behind it for the rest of the
+   * process, so the next start checks the file.
+   */
+  async #confirmed(
+    work: (written: () => void) => Promise<void>,
+  ): Promise<void> {
+    const started = Date.now();
+    let writtenAt = started;
+    this.#inFlight.add(started);
+    try {
+      await work(() => {
+        writtenAt = Date.now();
+      });
+    } catch (error) {
+      this.#failed = true;
+      throw error;
+    } finally {
+      this.#inFlight.delete(started);
+    }
+    if (!this.#failed && this.#inFlight.size === 0) this.#confirm(writtenAt);
+  }
+
+  /**
+   * Every non-empty `*.nt` file under the graph directory by graph IRI, with
+   * the files that must be checked: those that appeared (inode change time)
+   * after `confirmedAt` minus the safety margin, or all of them when that
+   * time is unknown or a file has no change time.
+   */
+  async #candidates(
+    confirmedAt: number | undefined,
+  ): Promise<Map<string, string>> {
+    const found = new Map<string, { path: string; ctime: Date | null }>();
     const walk = async (relative: string) => {
       for await (
         const entry of Deno.readDir(join(this.config.graphDir, relative))
@@ -161,78 +297,97 @@ class QleverDirBackend implements Backend {
         else if (entry.isFile && entry.name.endsWith(".nt")) {
           const info = await Deno.stat(join(this.config.graphDir, path));
           if (info.size > 0) {
-            found.set(escapedGraphIri(this.config.baseUri, path), path);
+            found.set(escapedGraphIri(this.config.baseUri, path), {
+              path,
+              ctime: info.ctime,
+            });
           }
         }
       }
     };
     await walk("");
-    return found;
+    const everything = confirmedAt === undefined ||
+      [...found.values()].some((f) => f.ctime === null);
+    const since = (confirmedAt ?? 0) - this.options.safetyMarginMs;
+    const candidates = new Map<string, string>();
+    for (const [graph, { path, ctime }] of found) {
+      if (everything || ctime!.getTime() > since) candidates.set(graph, path);
+    }
+    return candidates;
   }
 
-  /** The graph names under the base URI that satisfy `condition`, paged. */
-  async #graphNames(condition: string): Promise<Set<string>> {
-    const names = new Set<string>();
-    const prefix = JSON.stringify(this.config.baseUri);
-    for (let offset = 0;; offset += GRAPH_PAGE) {
+  /** Those of `graphs` that exist and satisfy `condition`, asked in chunks. */
+  async #existing(graphs: string[], condition: string): Promise<Set<string>> {
+    const found = new Set<string>();
+    for (let i = 0; i < graphs.length; i += NAME_CHUNK) {
+      const chunk = graphs.slice(i, i + NAME_CHUNK);
       const body = await this.client.evaluate(
-        `SELECT DISTINCT ?g WHERE {
-          GRAPH ?g { ${condition} }
-          FILTER(STRSTARTS(STR(?g), ${prefix}))
-        } ORDER BY ?g LIMIT ${GRAPH_PAGE} OFFSET ${offset}`,
+        `SELECT ?g WHERE {
+          VALUES ?g { ${chunk.map((g) => `<${g}>`).join(" ")} }
+          FILTER EXISTS { GRAPH ?g { ${condition} } }
+        }`,
         "SELECT",
       );
       const rows: { g: { value: string } }[] = JSON.parse(body).results
         .bindings;
-      for (const row of rows) names.add(row.g.value);
-      if (rows.length < GRAPH_PAGE) return names;
+      for (const row of rows) found.add(row.g.value);
     }
+    return found;
   }
 
   async #waitForExistingFiles(): Promise<void> {
+    const listingStarted = Date.now();
+    const candidates = await this.#candidates(await this.#readState());
+    if (candidates.size > 0) await this.#waitFor(candidates);
+    // Everything present when the listing started is now known to be visible.
+    this.#confirm(listingStarted);
+    await this.#flushState();
+  }
+
+  async #waitFor(files: Map<string, string>): Promise<void> {
     const { openTimeoutMs, pollStartMs, pollMaxMs, log } = this.options;
-    const files = await this.#existingFiles();
-    if (files.size === 0) return;
     const deadline = Date.now() + openTimeoutMs;
     let pause = pollStartMs;
     let announced = false;
     let lastError = "";
+    let missing = [...files.keys()];
     for (;;) {
-      let missing: string[] | undefined;
       try {
-        const visible = await this.#graphNames("?s ?p ?o");
-        missing = [...files.keys()].filter((g) => !visible.has(g));
+        const visible = await this.#existing(missing, "?s ?p ?o");
+        missing = missing.filter((g) => !visible.has(g));
+        lastError = "";
       } catch (error) {
         lastError = ` (last error: ${
           error instanceof Error ? error.message : error
         })`;
       }
-      if (missing?.length === 0) break;
+      if (missing.length === 0 && lastError === "") break;
       if (Date.now() >= deadline) {
-        const sample = (missing ?? [...files.keys()]).slice(0, 5)
-          .map((g) => files.get(g));
+        const sample = missing.slice(0, 5).map((g) => files.get(g));
         throw new Error(
-          `qlever-dir at ${this.config.queryUrl} did not show ${
-            missing?.length ?? files.size
-          } of ${files.size} files of ${this.config.graphDir} within ${
+          `qlever-dir at ${this.config.queryUrl} did not show ${missing.length} of ${files.size} files of ${this.config.graphDir} within ${
             Math.round(openTimeoutMs / 1000)
           } s, for example ${sample.join(", ")}. Their graphs must be named ` +
             `under QLEVER_DIR_BASE_URI (${this.config.baseUri}), which has to equal ` +
             `qlever-dir's BASE_URI plus this directory's path inside its /data${lastError}`,
         );
       }
-      if (missing && !announced) {
+      if (!announced && lastError === "") {
         announced = true;
         log(
-          `waiting for qlever-dir to apply ${missing.length} of ${files.size} files already in ${this.config.graphDir}`,
+          `waiting for qlever-dir to apply ${missing.length} of ${files.size} files that may not be indexed yet in ${this.config.graphDir}`,
         );
       }
       await sleep(pause);
       pause = Math.min(pause * 2, pollMaxMs);
     }
-    log(`all ${files.size} existing files are visible in qlever-dir`);
+    log(`all ${files.size} checked files are visible in qlever-dir`);
+    // Only these can be newly rejected; older rejected files are not repeated.
     try {
-      const rejected = await this.#graphNames(`?s <${PARSING_ERROR}> ?o`);
+      const rejected = await this.#existing(
+        [...files.keys()],
+        `?s <${PARSING_ERROR}> ?o`,
+      );
       for (const [graph, path] of files) {
         if (rejected.has(graph)) {
           log(
@@ -344,8 +499,11 @@ class QleverDirBackend implements Backend {
     const content = ntriples.endsWith("\n") ? ntriples : ntriples + "\n";
     assertPlausibleNTriples(content);
     const relative = await this.#newFile();
-    await this.#write(relative, content);
-    await this.#waitVisible(relative);
+    await this.#confirmed(async (written) => {
+      await this.#write(relative, content);
+      written();
+      await this.#waitVisible(relative);
+    });
   }
 
   evaluate(
@@ -450,10 +608,13 @@ class QleverDirBackend implements Backend {
     for (const file of files) add(await Deno.readTextFile(join(dayDir, file)));
     const merged = [...lines].join("\n") + "\n";
 
-    if (existing === undefined || lines.size !== known) {
-      await this.#write(mergedRelative, merged);
-    }
-    await this.#waitVisible(mergedRelative, lines.size);
+    await this.#confirmed(async (written) => {
+      if (existing === undefined || lines.size !== known) {
+        await this.#write(mergedRelative, merged);
+        written();
+      }
+      await this.#waitVisible(mergedRelative, lines.size);
+    });
 
     // Nothing may have arrived meanwhile that the merged file does not hold.
     const after = await this.#batchFiles(dayDir).catch((error) => {
@@ -468,12 +629,17 @@ class QleverDirBackend implements Backend {
     if (this.#closed) return;
     this.#closed = true;
     if (this.#timer !== undefined) clearInterval(this.#timer);
+    if (this.#stateTimer !== undefined) clearTimeout(this.#stateTimer);
     await this.#consolidation;
+    await this.#flushState();
   }
 }
 
 /**
- * Open the store: create `config.graphDir` and wait for the endpoint.
+ * Open the store: create `config.graphDir`, wait for the endpoint, and wait
+ * until the files that may not be indexed yet are visible (files that appeared
+ * after the `confirmedAt` time kept in `options.stateFile`, or every file when
+ * that is unknown).
  *
  * `insert` writes the batch as `<graphDir>/YYYY/MM/DD/<unix ms>-<sequence>.nt`
  * (UTC day of writing) and resolves once the endpoint shows the file's graph.

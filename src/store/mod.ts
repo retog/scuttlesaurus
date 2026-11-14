@@ -3,6 +3,7 @@
  * store on top of it. Contract: `docs/ARCHITECTURE.md`, `docs/DATA-MODEL.md`.
  * @module
  */
+import { join } from "@std/path";
 import type { Config, EventStore, TripleStore } from "../types.ts";
 import { openEmbeddedStore } from "./embedded_store.ts";
 import { createEventStore, type GroupOptions } from "./event_store.ts";
@@ -21,7 +22,9 @@ export function openTripleStore(config: Config): Promise<TripleStore> {
     case "sparql":
       return Promise.resolve(openEndpointStore(store));
     case "qlever-dir":
-      return openQleverDirStore(store);
+      return openQleverDirStore(store, {
+        stateFile: join(config.dataDir, "qlever-dir-state.json"),
+      });
   }
 }
 

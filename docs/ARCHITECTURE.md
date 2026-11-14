@@ -82,9 +82,15 @@ each other's implementations. Each module directory exports its factory from
   `QLEVER_DIR_BASE_URI` followed by the file's path. Queries go to qlever-dir's
   read-only endpoint. At start and every six hours, the day directories older
   than yesterday (UTC) are merged into one file per day, `YYYY/MM/DD.nt`; a
-  day's directory is removed only after the merged graph is visible. An insert
-  whose file is not visible within two minutes fails, and the file stays in the
-  directory. Nothing is ever sent to an update URL. See
+  day's directory is removed only after the merged graph is visible. At start,
+  once the endpoint answers, the store waits until the files that may not be
+  indexed yet are visible: files under the graph directory whose inode change
+  time is later than `confirmedAt`, a time at which all files were last known to
+  be visible, minus two minutes. `confirmedAt` is kept in
+  `<dataDir>/qlever-dir-state.json` and advanced as inserts become visible and
+  on close; when it is unknown, every file is checked. An insert whose file is
+  not visible within two minutes fails, and the file stays in the directory.
+  Nothing is ever sent to an update URL. See
   [INSTALL.md](INSTALL.md#use-qlever-through-qlever-dir).
 
 `EventStore` implements Nostr semantics on top:
@@ -272,9 +278,9 @@ the environment is locked: the settings page shows it but cannot change it.
 | `MAX_LIMIT`                   | `maxLimit`                                      | `500`                                                                                       |
 
 Files in `dataDir`: `graph.nt` (the graph of the embedded store), `blobs/`,
-`config.json`, `sync-state.json`. The QLever store keeps the graph under
-`QLEVER_DIR_GRAPH_DIR` instead, as `YYYY/MM/DD/*.nt` batch files and merged
-`YYYY/MM/DD.nt` files, and does not write `graph.nt`.
+`config.json`, `sync-state.json`, `qlever-dir-state.json`. The QLever store
+keeps the graph under `QLEVER_DIR_GRAPH_DIR` instead, as `YYYY/MM/DD/*.nt` batch
+files and merged `YYYY/MM/DD.nt` files, and does not write `graph.nt`.
 
 ## Web client (`web/`)
 
