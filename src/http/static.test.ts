@@ -104,20 +104,48 @@ Deno.test("paths cannot escape the web directory", async () => {
       "/%00",
       "/%E0%A4%A",
     ];
+    // Whatever is asked, the answer is a 404 or the client's index.html.
     for (const path of attempts) {
-      const json = await fixture.handler(new Request(`${BASE}${path}`));
-      const jsonText = await json.text();
-      assert(!jsonText.includes(secret), path);
-      assertEquals(json.status, 404, path);
-
-      const html = await fixture.handler(
-        new Request(`${BASE}${path}`, { headers: HTML }),
-      );
-      const htmlText = await html.text();
-      assert(!htmlText.includes(secret), path);
-      assertEquals(html.status, 200, path);
-      assertStringIncludes(htmlText, "<title>client</title>");
+      for (const headers of [undefined, HTML]) {
+        const response = await fixture.handler(
+          new Request(`${BASE}${path}`, { headers }),
+        );
+        const text = await response.text();
+        assert(!text.includes(secret), path);
+        if (response.status === 200) {
+          assertStringIncludes(text, "<title>client</title>", path);
+        } else {
+          assertEquals(response.status, 404, path);
+        }
+      }
     }
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("the client is served to requests without an HTML preference", async () => {
+  const fixture = await makeFixture();
+  try {
+    for (const headers of [undefined, { accept: "*/*" }]) {
+      const response = await fixture.handler(
+        new Request(`${BASE}/p/npub1example`, { headers }),
+      );
+      assertEquals(response.status, 200);
+      assertStringIncludes(await response.text(), "<title>client</title>");
+    }
+    const asset = await fixture.handler(
+      new Request(`${BASE}/assets/missing.js`, { headers: HTML }),
+    );
+    assertEquals(asset.status, 404);
+    await asset.text();
+    const data = await fixture.handler(
+      new Request(`${BASE}/p/npub1example`, {
+        headers: { accept: "application/json" },
+      }),
+    );
+    assertEquals(data.status, 404);
+    await data.text();
   } finally {
     await fixture.close();
   }

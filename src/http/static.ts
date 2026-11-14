@@ -43,7 +43,9 @@ export async function serveWebClient(
     await file.body?.cancel();
   }
 
-  if (!acceptsHtml(request)) return errorResponse(404, "not found");
+  if (looksLikeFile(pathname) || !acceptsHtml(request)) {
+    return errorResponse(404, "not found");
+  }
   const index = join(webDir, "index.html");
   if (!(await isFile(index))) return plainText(503, NOT_BUILT);
   return noCache(await serveFile(request, index));
@@ -64,10 +66,22 @@ function isSafePath(pathname: string): boolean {
   return !decoded.split("/").includes("..");
 }
 
-/** Whether the request accepts an HTML document. */
+/**
+ * Whether the request accepts an HTML document. Clients that state no
+ * preference (no `Accept` header, or a wildcard) do.
+ */
 function acceptsHtml(request: Request): boolean {
-  return request.headers.get("accept")?.toLowerCase().includes("text/html") ??
-    false;
+  const accept = request.headers.get("accept")?.toLowerCase();
+  return accept === undefined || accept.includes("text/html") ||
+    accept.includes("*/*");
+}
+
+/**
+ * Whether the last path segment has a file extension. Such a path names an
+ * asset, never a route of the web client, so a missing one is a 404.
+ */
+function looksLikeFile(pathname: string): boolean {
+  return /\.[A-Za-z0-9]+$/.test(pathname.slice(pathname.lastIndexOf("/") + 1));
 }
 
 async function isFile(path: string): Promise<boolean> {
