@@ -387,16 +387,138 @@ Deno.test("qlever-dir: consolidation errors are logged and lose nothing", async 
       log: (m) => logs.push(m),
       now: () => new Date("2026-11-13T00:00:00Z"),
     });
-    for (let i = 0; i < 100 && logs.length === 0; i++) {
+    for (
+      let i = 0;
+      i < 100 && !logs.some((m) => m.includes("consolidation failed"));
+      i++
+    ) {
       await new Promise((r) => setTimeout(r, 20));
     }
-    assert(logs[0]?.includes("consolidation failed"), String(logs));
+    assert(logs.some((m) => m.includes("consolidation failed")), String(logs));
     // The merged file was never shown, so the batch files must still be there.
     assertEquals((await f.files()).filter((x) => x.includes("/01/")).length, 2);
     await assertRejects(() =>
       store.consolidate(new Date("2026-11-13T00:00:00Z"))
     );
   });
+});
+
+/** N-Triples of `count` signed notes, as a migrated embedded graph would hold. */
+function migratedGraph(count: number) {
+  const [alice] = identities(1);
+  const events = Array.from(
+    { length: count },
+    (_, i) => sign(alice, 1, { content: `migrated ${i}` }),
+  );
+  return { events, ntriples: events.map((e) => eventToTriples(e)).join("") };
+}
+
+Deno.test("qlever-dir: opening waits until files already in the directory are visible", async () => {
+  await withFixture(async (f) => {
+    const { events, ntriples } = migratedGraph(20);
+    await Deno.writeTextFile(join(f.graphDir, "embedded.nt"), ntriples);
+    await Deno.mkdir(join(f.graphDir, "a/b"), { recursive: true });
+    await Deno.writeTextFile(join(f.graphDir, "a/b/my file.nt"), triple(1));
+    await Deno.writeTextFile(join(f.graphDir, "a/empty.nt"), "");
+    await Deno.writeTextFile(join(f.graphDir, "half.nt.tmp"), "<urn:x");
+    const logs: string[] = [];
+    const started = performance.now();
+    const triples = await f.open({ log: (m) => logs.push(m) });
+    assert(performance.now() - started >= 300);
+    // The fake also loads the empty file, which the store does not wait for.
+    assertEquals(f.fake.graphs().length, 3);
+    assert(
+      logs.some((m) => m.includes("waiting") && m.includes("2 of 2")),
+      String(logs),
+    );
+    assert(logs.some((m) => m.includes("all 2 existing files")), String(logs));
+    const store = await createEventStore(triples, testConfig());
+    for (const event of events) assert(store.has(event.id));
+  }, 300);
+});
+
+Deno.test("qlever-dir: opening with no pending files does not wait or log", async () => {
+  await withFixture(async (f) => {
+    const logs: string[] = [];
+    await f.open({ log: (m) => logs.push(m) });
+    assertEquals(logs, []);
+  });
+});
+
+Deno.test("qlever-dir: opening gives up on a file that never becomes visible", async () => {
+  await withFixture(async (f) => {
+    await Deno.writeTextFile(join(f.graphDir, "embedded.nt"), triple(1));
+    const error = await assertRejects(
+      () => f.open({ openTimeoutMs: 200 }),
+      Error,
+    );
+    assert(error.message.includes("embedded.nt"), error.message);
+    assert(error.message.includes(BASE), error.message);
+    assert(error.message.includes("1 of 1"), error.message);
+  }, 60_000);
+});
+
+Deno.test("qlever-dir: a copied file qlever-dir rejects is visible but logged as a warning", async () => {
+  await withFixture(async (f) => {
+    await Deno.writeTextFile(
+      join(f.graphDir, "bad.nt"),
+      "this is not n-triples\n",
+    );
+    await Deno.writeTextFile(join(f.graphDir, "good.nt"), triple(1));
+    const logs: string[] = [];
+    await f.open({ log: (m) => logs.push(m) });
+    const warnings = logs.filter((m) => m.includes("WARNING"));
+    assertEquals(warnings.length, 1);
+    assert(warnings[0].includes("bad.nt"));
+  });
+});
+
+Deno.test("qlever-dir: consolidation never touches files it does not own", async () => {
+  await withFixture(async (f) => {
+    await Deno.writeTextFile(join(f.graphDir, "embedded.nt"), triple(500));
+    await Deno.writeTextFile(join(f.graphDir, "2026-notes.nt"), triple(501));
+    await Deno.mkdir(join(f.graphDir, "2026/11/02"), { recursive: true });
+    await Deno.writeTextFile(
+      join(f.graphDir, "2026/11/02/foreign.nt"),
+      triple(502),
+    );
+    await Deno.writeTextFile(
+      join(f.graphDir, "2026/11/02/1-000000.nt"),
+      triple(503),
+    );
+    await Deno.writeTextFile(
+      join(f.graphDir, "2026/11/02/2-000000.nt"),
+      triple(504),
+    );
+    await Deno.writeTextFile(join(f.graphDir, "2026/11/03.nt"), triple(505));
+    const logs: string[] = [];
+    const store = await f.open({ log: (m) => logs.push(m) });
+    const seeded = await seedDays(f, { "2026-11-01": 2 });
+    const before = await all(seeded);
+    const files = await f.files();
+    await store.consolidate(new Date("2026-11-13T00:00:00Z"));
+    const after = await f.files();
+    // Only the day directory made of our own batch files was merged.
+    assertEquals(
+      after.filter((x) => !x.startsWith("2026/11/01")),
+      files.filter((x) => !x.startsWith("2026/11/01")),
+    );
+    assert(after.includes("2026/11/01.nt"));
+    assertEquals(after.some((x) => x.startsWith("2026/11/01/")), false);
+    assert(logs.some((m) => m.includes("not consolidating")));
+    assertEquals(await all(store), before);
+  });
+});
+
+Deno.test("qlever-dir: the insert timeout says what is most likely wrong", async () => {
+  await withFixture(async (f) => {
+    const store = await f.open({ visibleTimeoutMs: 100 });
+    const error = await assertRejects(() => store.insert(triple(1)), Error);
+    assert(error.message.includes("QLEVER_DIR_BASE_URI"), error.message);
+    assert(error.message.includes(BASE), error.message);
+    assert(error.message.includes("BASE_URI plus"), error.message);
+    assert(error.message.includes("is kept in"), error.message);
+  }, 60_000);
 });
 
 Deno.test("qlever-dir: graph IRIs are built as qlever-dir builds them", () => {

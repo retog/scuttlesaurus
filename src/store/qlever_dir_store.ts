@@ -16,6 +16,7 @@ import { type Backend, tripleStore } from "./backend.ts";
 import {
   assertPlausibleNTriples,
   dayPath,
+  escapedGraphIri,
   graphIri,
   PARSING_ERROR,
 } from "./qlever_graph.ts";
@@ -24,6 +25,10 @@ import { SparqlClient } from "./sparql_client.ts";
 type QleverConfig = Extract<StoreConfig, { kind: "qlever-dir" }>;
 
 const DAY_MS = 86400_000;
+/** Graph names fetched per page when waiting for existing files. */
+const GRAPH_PAGE = 5000;
+/** Names of the batch files this store writes. */
+const BATCH_NAME = /^\d+-\d{6}\.nt$/;
 
 /** Tunables of the qlever-dir store; the defaults suit production. */
 export interface QleverDirOptions {
@@ -57,6 +62,13 @@ export interface QleverDirStore extends TripleStore {
    * repeat and to interrupt; calls never overlap.
    */
   consolidate(now?: Date): Promise<void>;
+}
+
+/** A day directory holds something other than this store's batch files. */
+class ForeignContent extends Error {
+  constructor(name: string) {
+    super(`${name} is not a batch file`);
+  }
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -97,8 +109,19 @@ class QleverDirBackend implements Backend {
     });
   }
 
-  /** Create the directory and wait for the endpoint to answer. */
+  /**
+   * Create the directory, wait for the endpoint to answer, then wait until
+   * every file already in the directory is visible. Files can predate this
+   * process: a graph copied from the embedded store, a restored backup, or
+   * files written just before a crash. Loading the event ids earlier would
+   * silently miss them.
+   */
   async open(): Promise<void> {
+    await this.#waitForEndpoint();
+    await this.#waitForExistingFiles();
+  }
+
+  async #waitForEndpoint(): Promise<void> {
     await Deno.mkdir(this.config.graphDir, { recursive: true });
     const { openTimeoutMs, openRetryMs, log } = this.options;
     const deadline = Date.now() + openTimeoutMs;
@@ -123,6 +146,102 @@ class QleverDirBackend implements Backend {
         }
         await sleep(openRetryMs);
       }
+    }
+  }
+
+  /** Every non-empty `*.nt` file under the graph directory, by graph IRI. */
+  async #existingFiles(): Promise<Map<string, string>> {
+    const found = new Map<string, string>();
+    const walk = async (relative: string) => {
+      for await (
+        const entry of Deno.readDir(join(this.config.graphDir, relative))
+      ) {
+        const path = relative ? `${relative}/${entry.name}` : entry.name;
+        if (entry.isDirectory) await walk(path);
+        else if (entry.isFile && entry.name.endsWith(".nt")) {
+          const info = await Deno.stat(join(this.config.graphDir, path));
+          if (info.size > 0) {
+            found.set(escapedGraphIri(this.config.baseUri, path), path);
+          }
+        }
+      }
+    };
+    await walk("");
+    return found;
+  }
+
+  /** The graph names under the base URI that satisfy `condition`, paged. */
+  async #graphNames(condition: string): Promise<Set<string>> {
+    const names = new Set<string>();
+    const prefix = JSON.stringify(this.config.baseUri);
+    for (let offset = 0;; offset += GRAPH_PAGE) {
+      const body = await this.client.evaluate(
+        `SELECT DISTINCT ?g WHERE {
+          GRAPH ?g { ${condition} }
+          FILTER(STRSTARTS(STR(?g), ${prefix}))
+        } ORDER BY ?g LIMIT ${GRAPH_PAGE} OFFSET ${offset}`,
+        "SELECT",
+      );
+      const rows: { g: { value: string } }[] = JSON.parse(body).results
+        .bindings;
+      for (const row of rows) names.add(row.g.value);
+      if (rows.length < GRAPH_PAGE) return names;
+    }
+  }
+
+  async #waitForExistingFiles(): Promise<void> {
+    const { openTimeoutMs, pollStartMs, pollMaxMs, log } = this.options;
+    const files = await this.#existingFiles();
+    if (files.size === 0) return;
+    const deadline = Date.now() + openTimeoutMs;
+    let pause = pollStartMs;
+    let announced = false;
+    let lastError = "";
+    for (;;) {
+      let missing: string[] | undefined;
+      try {
+        const visible = await this.#graphNames("?s ?p ?o");
+        missing = [...files.keys()].filter((g) => !visible.has(g));
+      } catch (error) {
+        lastError = ` (last error: ${
+          error instanceof Error ? error.message : error
+        })`;
+      }
+      if (missing?.length === 0) break;
+      if (Date.now() >= deadline) {
+        const sample = (missing ?? [...files.keys()]).slice(0, 5)
+          .map((g) => files.get(g));
+        throw new Error(
+          `qlever-dir at ${this.config.queryUrl} did not show ${
+            missing?.length ?? files.size
+          } of ${files.size} files of ${this.config.graphDir} within ${
+            Math.round(openTimeoutMs / 1000)
+          } s, for example ${sample.join(", ")}. Their graphs must be named ` +
+            `under QLEVER_DIR_BASE_URI (${this.config.baseUri}), which has to equal ` +
+            `qlever-dir's BASE_URI plus this directory's path inside its /data${lastError}`,
+        );
+      }
+      if (missing && !announced) {
+        announced = true;
+        log(
+          `waiting for qlever-dir to apply ${missing.length} of ${files.size} files already in ${this.config.graphDir}`,
+        );
+      }
+      await sleep(pause);
+      pause = Math.min(pause * 2, pollMaxMs);
+    }
+    log(`all ${files.size} existing files are visible in qlever-dir`);
+    try {
+      const rejected = await this.#graphNames(`?s <${PARSING_ERROR}> ?o`);
+      for (const [graph, path] of files) {
+        if (rejected.has(graph)) {
+          log(
+            `WARNING: qlever-dir could not parse ${path}; only an error triple is indexed for it`,
+          );
+        }
+      }
+    } catch (error) {
+      log(`could not check for parse errors: ${error}`);
     }
   }
 
@@ -207,7 +326,11 @@ class QleverDirBackend implements Backend {
           `qlever-dir endpoint ${this.config.queryUrl} did not show ${relative} ` +
             `(graph <${graph}>) within ${
               Math.round(visibleTimeoutMs / 1000)
-            } s (${lastError}). The file is kept in ${this.config.graphDir} and will be indexed when qlever-dir catches up.`,
+            } s (${lastError}). Most likely QLEVER_DIR_BASE_URI (currently ` +
+            `${this.config.baseUri}) does not equal qlever-dir's BASE_URI plus the ` +
+            `path of ${this.config.graphDir} inside its /data; otherwise qlever-dir ` +
+            `may be down or far behind. The file is kept in ${this.config.graphDir} ` +
+            `and will be indexed when qlever-dir catches up.`,
         );
       }
       await sleep(pause);
@@ -281,7 +404,11 @@ class QleverDirBackend implements Backend {
   async #batchFiles(dir: string): Promise<string[]> {
     const names: string[] = [];
     for await (const entry of Deno.readDir(dir)) {
-      if (entry.isFile && entry.name.endsWith(".nt")) names.push(entry.name);
+      if (entry.isFile && BATCH_NAME.test(entry.name)) names.push(entry.name);
+      else {
+        // Not ours (or a write in progress): leave the whole day alone.
+        throw new ForeignContent(entry.name);
+      }
     }
     return names.sort();
   }
@@ -295,7 +422,14 @@ class QleverDirBackend implements Backend {
     const dayDir = join(this.config.graphDir, month, day);
     const mergedRelative = `${month}/${day}.nt`;
     const mergedPath = join(this.config.graphDir, mergedRelative);
-    const files = await this.#batchFiles(dayDir);
+    let files: string[];
+    try {
+      files = await this.#batchFiles(dayDir);
+    } catch (error) {
+      if (!(error instanceof ForeignContent)) throw error;
+      this.options.log(`not consolidating ${dayDir}: ${error.message}`);
+      return;
+    }
     let existing: string | undefined;
     try {
       existing = await Deno.readTextFile(mergedPath);
@@ -322,8 +456,11 @@ class QleverDirBackend implements Backend {
     await this.#waitVisible(mergedRelative, lines.size);
 
     // Nothing may have arrived meanwhile that the merged file does not hold.
-    const after = await this.#batchFiles(dayDir);
-    if (after.join("\n") !== files.join("\n")) return;
+    const after = await this.#batchFiles(dayDir).catch((error) => {
+      if (error instanceof ForeignContent) return undefined;
+      throw error;
+    });
+    if (after?.join("\n") !== files.join("\n")) return;
     await Deno.remove(dayDir, { recursive: true });
   }
 

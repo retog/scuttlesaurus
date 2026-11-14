@@ -13,7 +13,7 @@
  */
 import { join, relative } from "@std/path";
 import oxigraph from "oxigraph";
-import { graphIri, PARSING_ERROR } from "./qlever_graph.ts";
+import { escapedGraphIri, PARSING_ERROR } from "./qlever_graph.ts";
 
 /** Options of {@link startFakeQleverDir}. */
 export interface FakeQleverDirOptions {
@@ -89,12 +89,14 @@ export function startFakeQleverDir(
   }
 
   function drop(path: string): void {
-    store.update(`DROP SILENT GRAPH <${graphIri(options.baseUri, path)}>`);
+    store.update(
+      `DROP SILENT GRAPH <${escapedGraphIri(options.baseUri, path)}>`,
+    );
     loaded.delete(path);
   }
 
   async function load(path: string, signature: string): Promise<void> {
-    const graph = graphIri(options.baseUri, path);
+    const graph = escapedGraphIri(options.baseUri, path);
     const text = await Deno.readTextFile(join(options.dir, path));
     drop(path);
     try {
@@ -192,7 +194,7 @@ export function startFakeQleverDir(
       return requests;
     },
     graphs: () =>
-      [...loaded.keys()].map((p) => graphIri(options.baseUri, p)).sort(),
+      [...loaded.keys()].map((p) => escapedGraphIri(options.baseUri, p)).sort(),
     close: () => server.shutdown(),
   };
 }

@@ -316,17 +316,10 @@ the project, which is the directory name by default: the graph is in
 `scuttlesaurus_graph` for a clone in a directory called `scuttlesaurus`.
 `docker compose down -v` deletes that volume, and the graph with it.
 
-**Switching an existing node.** A node that runs with the embedded store keeps
-`sync-state.json`, which records how far each author's events were fetched. The
-override does not copy the embedded graph, and the node does not fetch again
-what that file covers, so the QLever graph would lack those events. To start the
-QLever store with an empty graph, stop the node with `docker compose down`,
-which keeps the volumes, and start the override under another project name. That
-creates new volumes:
-
-```bash
-docker compose -p scuttlesaurus-qlever -f docker-compose.yml -f docker-compose.qlever.yml up -d
-```
+**Switching an existing node.** The override does not move the graph by itself,
+and the node does not fetch again what `sync-state.json` records as fetched.
+Move the graph first; see
+[Move a graph from the embedded store](#move-a-graph-from-the-embedded-store).
 
 ### Set it up by hand
 
@@ -396,6 +389,35 @@ Windows.
   has built its first index. While the node waits, it logs
   `[qlever-dir] waiting for qlever-dir at <query URL> (it may still be building its first index)`.
 
+### Move a graph from the embedded store
+
+The embedded store keeps the whole graph in one file, `graph.nt` in `DATA_DIR`.
+qlever-dir indexes any N-Triples file in the graph directory, so moving the
+graph is copying that file. Stop the node, copy the file, and start the node
+with `QLEVER_DIR_URL` set:
+
+```bash
+mkdir -p data/graph
+cp data/graph.nt data/graph/embedded.nt
+QLEVER_DIR_URL=http://127.0.0.1:7001/ deno task start
+```
+
+When it starts, the node waits until qlever-dir has indexed every file in the
+graph directory, and logs that it does. In a test, a node started right after
+the copy came up with the same 782 events, 9,095 triples and social graph as the
+embedded node it was copied from. The node never changes or merges
+`embedded.nt`. Keep `graph.nt` until you have checked the result; the node no
+longer reads it.
+
+With Compose, the embedded graph is in the volume mounted at `/data` and the new
+graph directory is the volume mounted at `/data/graph`. Stop the node, then copy
+inside a one-off container before starting with the override. This command has
+not been run:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.qlever.yml run --rm --no-deps --entrypoint cp scuttlesaurus /data/graph.nt /data/graph/embedded.nt
+```
+
 ### Backup
 
 The graph directory is the source of truth. qlever-dir's indexes in `/index-a`
@@ -420,7 +442,7 @@ directory with the copy, and start them again.
 this form:
 
 ```
-qlever-dir endpoint <query URL> did not show <file> (graph <<graph IRI>>) within 120 s (the graph holds 0 of 1 triples). The file is kept in <graph directory> and will be indexed when qlever-dir catches up.
+qlever-dir endpoint <query URL> did not show <file> (graph <<graph IRI>>) within 120 s (the graph holds 0 of 1 triples). Most likely QLEVER_DIR_BASE_URI (currently <base URI>) does not equal qlever-dir's BASE_URI plus the path of <graph directory> inside its /data; otherwise qlever-dir may be down or far behind. The file is kept in <graph directory> and will be indexed when qlever-dir catches up.
 ```
 
 The node looks for each file under the graph IRI made of `QLEVER_DIR_BASE_URI`

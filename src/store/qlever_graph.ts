@@ -9,9 +9,11 @@
 /** The predicate qlever-dir uses to report a file it could not parse. */
 export const PARSING_ERROR = "urn:qlever-dir:parsingError";
 
-/** The graph IRI qlever-dir derives for a file: `BASE_URI` + escaped path. */
-export function graphIri(baseUri: string, relativePath: string): string {
-  // The same escaping as `urlencode_relpath` in qlever-dir's emit_file.sh.
+/**
+ * The graph IRI qlever-dir derives for any file: `BASE_URI` + the path
+ * escaped as `urlencode_relpath` in qlever-dir's emit_file.sh does.
+ */
+export function escapedGraphIri(baseUri: string, relativePath: string): string {
   const safe = "/-._~!$&'()*+,;=:@";
   let out = "";
   for (const ch of relativePath) {
@@ -22,12 +24,20 @@ export function graphIri(baseUri: string, relativePath: string): string {
         "%" + b.toString(16).toUpperCase().padStart(2, "0")
       ).join("");
   }
-  // Our own file names need no escaping; if one ever did, the graph IRI
-  // computed here must not silently diverge from the one qlever-dir uses.
-  if (out !== relativePath) {
+  return baseUri + out;
+}
+
+/**
+ * The graph IRI of a file this store writes. Its names need no escaping; if
+ * one ever did, the IRI computed here must not silently diverge from the one
+ * qlever-dir uses, so this throws instead.
+ */
+export function graphIri(baseUri: string, relativePath: string): string {
+  const iri = escapedGraphIri(baseUri, relativePath);
+  if (iri !== baseUri + relativePath) {
     throw new Error(`File path needs escaping in a graph IRI: ${relativePath}`);
   }
-  return baseUri + out;
+  return iri;
 }
 
 /** `YYYY/MM/DD` of the UTC day of `date`. */

@@ -11,6 +11,8 @@ import { join } from "@std/path";
 import { testConfig } from "../testing/mod.ts";
 import type { NostrEvent } from "../types.ts";
 import { createEventStore } from "./event_store.ts";
+import { eventToTriples } from "./event_triples.ts";
+import { SparqlClient } from "./sparql_client.ts";
 import { openQleverDirStore } from "./qlever_dir_store.ts";
 import { DAY, identities, sign } from "./test_util.ts";
 
@@ -165,9 +167,14 @@ Deno.test({
         ),
         [profile.id],
       );
-      assertEquals((await store.query([{ kinds: [30023] }])).map((x) => x.id), [
-        v[2].id,
-      ]);
+      assertEquals(
+        (await store.query([{ kinds: [30023], authors: [b.pubkey] }])).map((
+          x,
+        ) => x.id),
+        [
+          v[2].id,
+        ],
+      );
       assertEquals(await store.query([{ ids: [doomed.id] }]), []);
       assertEquals((await store.add(doomed)).status, "duplicate");
 
@@ -189,7 +196,11 @@ Deno.test({
         newest(live.filter((n) => n.pubkey === c.pubkey), 500),
       );
       assertEquals(
-        await q({ "#t": ["topic2"], limit: 500 }),
+        await q({
+          "#t": ["topic2"],
+          authors: people.map((p) => p.pubkey),
+          limit: 500,
+        }),
         newest(live.filter((n) => n.tags[0][1] === "topic2"), 500),
       );
       assertEquals(
@@ -260,6 +271,78 @@ Deno.test({
       assertEquals(files, [`${day}.nt`]);
     } finally {
       await store.close();
+      await Deno.remove(graphDir, { recursive: true });
+    }
+  },
+});
+
+Deno.test({
+  name: "qlever-dir live: opening waits for a migrated file to be applied",
+  ignore: !url || !dir,
+  fn: async () => {
+    const run = `it-${crypto.randomUUID().slice(0, 8)}`;
+    const graphDir = join(dir!, run);
+    await Deno.mkdir(graphDir);
+    try {
+      const people = identities(3);
+      const NOW = Math.floor(Date.now() / 1000);
+      const events: NostrEvent[] = [];
+      for (let i = 0; i < 300; i++) {
+        events.push(sign(people[i % 3], 1, {
+          content: `migrated ${i}`,
+          tags: [["t", "migrated"]],
+          created_at: NOW - 1000 + i,
+        }));
+      }
+      // Written the way a migration copies `graph.nt`, then opened at once.
+      await Deno.writeTextFile(
+        join(graphDir, "embedded.nt"),
+        events.map((e) => eventToTriples(e, { seenOn: "wss://r.example.com" }))
+          .join(""),
+      );
+      const logs: string[] = [];
+      const started = performance.now();
+      const triples = await openQleverDirStore(
+        {
+          kind: "qlever-dir",
+          queryUrl: url!,
+          graphDir,
+          baseUri: `${base}${run}/`,
+        },
+        {
+          consolidateOnOpen: false,
+          consolidateEveryMs: 0,
+          log: (m) => logs.push(m),
+        },
+      );
+      const opened = Math.round(performance.now() - started);
+      const store = await createEventStore(triples, testConfig());
+      try {
+        for (const event of events) assert(store.has(event.id));
+        assertEquals(
+          (await store.query([{
+            "#t": ["migrated"],
+            authors: people.map((p) => p.pubkey),
+            limit: 500,
+          }])).length,
+          events.length,
+        );
+        const probe = performance.now();
+        await new SparqlClient(url!).evaluate(
+          `SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } FILTER(STRSTARTS(STR(?g), ${
+            JSON.stringify(base)
+          })) } ORDER BY ?g LIMIT 5000`,
+          "SELECT",
+        );
+        console.log(
+          `qlever-dir live: open with a pending 300-event file took ${opened} ms (${
+            logs.join(" | ")
+          }); graph-name query ${Math.round(performance.now() - probe)} ms`,
+        );
+      } finally {
+        await store.close();
+      }
+    } finally {
       await Deno.remove(graphDir, { recursive: true });
     }
   },
