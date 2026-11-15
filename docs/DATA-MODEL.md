@@ -25,7 +25,8 @@ Consequences:
 
 - The **current** version of anything replaceable is the event without a
   `nostr:supersededBy` triple. Queries express this as
-  `FILTER NOT EXISTS { ?e nostr:supersededBy ?newer }`.
+  `MINUS { ?e nostr:supersededBy ?newer }` (see [Query idioms](#query-idioms)
+  for why `MINUS` and not `FILTER NOT EXISTS`).
 - A retracted event stays in the graph, marked with `nostr:deletedBy`. The relay
   never serves it and the client never shows it, but it is not physically
   erased. Only blob _files_ are physically removed.
@@ -196,6 +197,17 @@ uploader's receipts for it; a blob's file is removed once no receipt without
 
 ## Query idioms
 
+Exclusions are written as `MINUS { … }` after the pattern that binds the
+variable, not as `FILTER NOT EXISTS { … }`. The two return the same rows here,
+but QLever answers a query that has several `FILTER NOT EXISTS` slowly. On a
+graph of 1.9 million triples (156 000 events) the key query of the home feed
+took about 7 s with three of them and about 0.15 s with three `MINUS` (0.03 s
+once QLever has the parts cached); a page of the feed took 6.5 s against 0.2 s.
+On a node with unmerged updates the first form runs into QLever's 30 s limit
+("Operation timed out. Last operation: Query planning"). Oxigraph evaluates both
+forms in about the same time (the key query takes 50 ms with `FILTER NOT EXISTS`
+and 75 ms with `MINUS`).
+
 The current profile of every author of a recent note:
 
 ```sparql
@@ -206,11 +218,11 @@ SELECT ?note ?content ?createdAt ?author ?name ?picture WHERE {
         nostr:createdAt ?createdAt ;
         nostr:author ?author ;
         nostr:content ?content .
-  FILTER NOT EXISTS { ?note nostr:deletedBy ?deletion }
-  FILTER NOT EXISTS { ?note nostr:replyTo ?parent }
+  MINUS { ?note nostr:deletedBy ?deletion }
+  MINUS { ?note nostr:replyTo ?parent }
   OPTIONAL {
     ?profile nostr:author ?author ; nostr:kind 0 .
-    FILTER NOT EXISTS { ?profile nostr:supersededBy ?newer }
+    MINUS { ?profile nostr:supersededBy ?newer }
     OPTIONAL { ?profile nostr:name ?name }
     OPTIONAL { ?profile nostr:picture ?picture }
   }
@@ -224,9 +236,9 @@ Whom somebody currently follows, and the notes of those people:
 ```sparql
 SELECT ?note ?createdAt WHERE {
   ?list nostr:author <nostr:npub1…> ; nostr:kind 3 ; nostr:follows ?author .
-  FILTER NOT EXISTS { ?list nostr:supersededBy ?newer }
+  MINUS { ?list nostr:supersededBy ?newer }
   ?note nostr:author ?author ; nostr:kind 1 ; nostr:createdAt ?createdAt .
-  FILTER NOT EXISTS { ?note nostr:deletedBy ?deletion }
+  MINUS { ?note nostr:deletedBy ?deletion }
 }
 ORDER BY DESC(?createdAt) LIMIT 50
 ```
@@ -238,8 +250,8 @@ SELECT ?article ?version ?title ?summary ?image ?author WHERE {
   ?version nostr:kind 30023 ;
            nostr:address ?article ;
            nostr:author ?author .
-  FILTER NOT EXISTS { ?version nostr:supersededBy ?newer }
-  FILTER NOT EXISTS { ?version nostr:deletedBy ?deletion }
+  MINUS { ?version nostr:supersededBy ?newer }
+  MINUS { ?version nostr:deletedBy ?deletion }
   OPTIONAL { ?version nostr:title ?title }
   OPTIONAL { ?version nostr:summary ?summary }
   OPTIONAL { ?version nostr:image ?image }
@@ -250,16 +262,46 @@ Replies to and reactions on a note:
 
 ```sparql
 SELECT (COUNT(DISTINCT ?reply) AS ?replies) (COUNT(DISTINCT ?reaction) AS ?reactions) WHERE {
-  { ?reply nostr:replyTo <nostr:note1…> . FILTER NOT EXISTS { ?reply nostr:deletedBy ?d1 } }
+  { ?reply nostr:replyTo <nostr:note1…> . MINUS { ?reply nostr:deletedBy ?d1 } }
   UNION
-  { ?reaction nostr:reactsTo <nostr:note1…> . FILTER NOT EXISTS { ?reaction nostr:deletedBy ?d2 } }
+  { ?reaction nostr:reactsTo <nostr:note1…> . MINUS { ?reaction nostr:deletedBy ?d2 } }
 }
 ```
 
-Two rules of thumb for fast queries:
+Whether a version is the current one, as a column instead of a filter, uses
+`OPTIONAL` and `BOUND`, because `MINUS` cannot produce a value
+(`BIND(NOT EXISTS
+{ … } AS ?current)` evaluates the pattern per row like the
+filter does). A version has at most one `nostr:supersededBy`, so this adds no
+rows:
+
+```sparql
+SELECT ?version ?current WHERE {
+  ?version nostr:kind 30023 .
+  OPTIONAL { ?version nostr:supersededBy ?newer }
+  BIND(!BOUND(?newer) AS ?current)
+}
+```
+
+Rules of thumb for fast queries:
 
 1. Start from something selective: a known author, event, tag value or a small
    set of `nostr:date` values. `ORDER BY` over an unrestricted pattern sorts
    every match.
 2. Always exclude `nostr:deletedBy`, and exclude `nostr:supersededBy` whenever
-   the kind is replaceable or addressable.
+   the kind is replaceable or addressable. Use `MINUS`, placed after the pattern
+   that binds the variable (`MINUS` removes from what precedes it in the group).
+   It needs a variable shared with that pattern, so write
+   `MINUS { ?e nostr:deletedBy ?deletion }`, never `MINUS { ?x … }` with a
+   variable of its own, which removes nothing; and the subtracted pattern must
+   not contain a `FILTER` that refers to variables outside it. Name the
+   variables used only inside differently at each use. Where a condition does
+   not fit, keep `FILTER NOT EXISTS`.
+3. Fetch the optional parts (`OPTIONAL`) of a page of results in a second query
+   over `VALUES ?e { … }` of the ids the first one returned, not in the query
+   that sorts and limits: joined before the `LIMIT`, they are evaluated for
+   every candidate. Keep each `OPTIONAL` a single triple pattern; an `OPTIONAL`
+   group with its own `OPTIONAL`s takes seconds on Oxigraph.
+4. Restrict kinds with `FILTER(?kind IN (1, 6))` rather than
+   `VALUES ?kind { 1 6 }` joined to `nostr:kind ?kind`: Oxigraph needs seconds
+   for the latter on a large store, QLever is faster with the filter as well.

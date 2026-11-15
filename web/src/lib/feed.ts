@@ -1,8 +1,9 @@
 /**
  * Queries for short notes: the home feeds, an author's notes, threads,
- * counts, notifications and search. Every function is one SPARQL round trip
- * (a few are two) and returns plain objects; see `docs/DATA-MODEL.md`
- * ("Query idioms") for the patterns they follow.
+ * counts, notifications and search. Every function returns plain objects. A
+ * page of notes takes a few SPARQL round trips: the first picks the rows, the
+ * others fetch their text; see `docs/DATA-MODEL.md` ("Query idioms") for the
+ * patterns they follow.
  *
  * Feeds are read through the `nostr:date` window idiom: the newest UTC days
  * are queried first and the window is widened (doubling) until the page is
@@ -228,7 +229,7 @@ function rowFromEvent(event: {
   };
 }
 
-/** Turn one row of an {@link ENTRY} query into a note, or `undefined`. */
+/** Turn one entry row (see {@link entries}) into a note, or `undefined`. */
 function entryToRow(r: Row): NoteRow | undefined {
   const id = idOf(r.e);
   const pubkey = keyOf(r.author);
@@ -280,41 +281,70 @@ function entryToRow(r: Row): NoteRow | undefined {
 
 // --- Query fragments -----------------------------------------------------------------
 
-/** The optional parts of a note (and of the original a repost points to). */
-const ENTRY = `
-  OPTIONAL { ?e nostr:content ?content }
-  OPTIONAL { ?e nostr:tags ?tags }
-  OPTIONAL { ?e nostr:replyTo ?replyTo }
-  OPTIONAL { ?e nostr:root ?root }
-  OPTIONAL {
-    ?e nostr:reposts ?orig .
-    OPTIONAL { ?orig nostr:author ?oauthor ; nostr:createdAt ?oat }
-    OPTIONAL { ?orig nostr:content ?ocontent }
-    OPTIONAL { ?orig nostr:tags ?otags }
-    OPTIONAL { ?orig nostr:replyTo ?oreplyTo }
-    OPTIONAL { ?orig nostr:root ?oroot }
-  }`;
-
-/** Drops reposts whose original was deleted. */
+/** Drops reposts whose original was deleted (after the pattern that binds `?e`). */
 const NOT_GONE =
-  "FILTER NOT EXISTS { ?e nostr:reposts ?gone . ?gone nostr:deletedBy ?goneBy }";
+  "MINUS { ?e nostr:reposts ?gone . ?gone nostr:deletedBy ?goneBy }";
+
+/**
+ * Turn the rows of a key query (`?e ?kind ?author ?at`, already filtered,
+ * ordered and limited) into full entry rows by adding the optional parts of
+ * the notes, and of the originals the reposts point to.
+ *
+ * The parts are fetched for the handful of ids of the page in two further
+ * queries of single-triple `OPTIONAL`s over a `VALUES` list. Joining the
+ * optional parts to the key pattern in one query instead makes the engines
+ * evaluate them for every candidate (QLever) or evaluate each `OPTIONAL`
+ * group over the whole store (Oxigraph, which needs several seconds for the
+ * originals' group alone on a store of a few million triples).
+ */
+async function entries(keys: Row[]): Promise<Row[]> {
+  if (keys.length === 0) return [];
+  const own = select(`
+    SELECT ?e ?content ?tags ?replyTo ?root WHERE {
+      ${values("e", keys.map((k) => iriRef(k.e!)))}
+      OPTIONAL { ?e nostr:content ?content }
+      OPTIONAL { ?e nostr:tags ?tags }
+      OPTIONAL { ?e nostr:replyTo ?replyTo }
+      OPTIONAL { ?e nostr:root ?root }
+    }`);
+  const reposts = keys.filter((k) => k.kind === "6" || k.kind === "16");
+  const originals = reposts.length === 0 ? Promise.resolve([]) : select(`
+    SELECT ?e ?orig ?oauthor ?oat ?ocontent ?otags ?oreplyTo ?oroot WHERE {
+      ${values("e", reposts.map((k) => iriRef(k.e!)))}
+      ?e nostr:reposts ?orig .
+      OPTIONAL { ?orig nostr:author ?oauthor }
+      OPTIONAL { ?orig nostr:createdAt ?oat }
+      OPTIONAL { ?orig nostr:content ?ocontent }
+      OPTIONAL { ?orig nostr:tags ?otags }
+      OPTIONAL { ?orig nostr:replyTo ?oreplyTo }
+      OPTIONAL { ?orig nostr:root ?oroot }
+    }`);
+  const [ownRows, originalRows] = await Promise.all([own, originals]);
+  const ownBy = new Map<string, Row>();
+  for (const row of ownRows) if (!ownBy.has(row.e!)) ownBy.set(row.e!, row);
+  const originalBy = new Map<string, Row>();
+  for (const row of originalRows) {
+    if (!originalBy.has(row.e!)) originalBy.set(row.e!, row);
+  }
+  return keys.map((key) => ({
+    ...ownBy.get(key.e!),
+    ...originalBy.get(key.e!),
+    ...key,
+  }));
+}
 
 /**
  * A page of notes: `pattern` picks and orders the `?e ?kind ?author ?at` of
  * the page first (cheap, index driven); the optional parts are fetched only
- * for those rows, which is several times faster than joining them before the
- * sort.
+ * for those rows by {@link entries}.
  */
-function pageQuery(pattern: string, want: number): string {
-  return `
-    SELECT ${ENTRY_VARS} WHERE {
-      { SELECT ?e ?kind ?author ?at WHERE { ${pattern} }
-        ORDER BY DESC(?at) LIMIT ${int(want)} }
-      ${ENTRY}
-    } ORDER BY DESC(?at)`;
+async function pageRows(pattern: string, want: number): Promise<Row[]> {
+  return await entries(
+    await select(`
+      SELECT ?e ?kind ?author ?at WHERE { ${pattern} }
+      ORDER BY DESC(?at) LIMIT ${int(want)}`),
+  );
 }
-const ENTRY_VARS =
-  "?e ?kind ?author ?at ?content ?tags ?replyTo ?root ?orig ?oauthor ?oat ?ocontent ?otags ?oreplyTo ?oroot";
 
 // --- The date window -----------------------------------------------------------------
 
@@ -396,24 +426,23 @@ export async function fetchFeed(options: FeedOptions): Promise<NoteRow[]> {
     ? `{ SELECT DISTINCT ?author WHERE {
            { ?list nostr:author ${pubkeyTerm(viewer!)} ; nostr:kind 3 ;
                    nostr:follows ?author .
-             FILTER NOT EXISTS { ?list nostr:supersededBy ?listNewer } }
+             MINUS { ?list nostr:supersededBy ?listNewer } }
            UNION { BIND(${pubkeyTerm(viewer!)} AS ?author) }
          } }`
     : "";
   const rows = await windowed(until, limit, async (dates, bound, want) => {
-    const found = await select(pageQuery(
+    const found = await pageRows(
       `
         ${values("date", dates)}
-        VALUES ?kind { 1 6 }
         ?e nostr:date ?date ; nostr:kind ?kind ; nostr:author ?author ;
            nostr:createdAt ?at .
-        FILTER(?at <= ${int(bound)})
+        FILTER(?kind IN (1, 6) && ?at <= ${int(bound)})
         ${notDeleted("?e")}
-        FILTER NOT EXISTS { ?e nostr:replyTo ?parent }
+        MINUS { ?e nostr:replyTo ?parent }
         ${NOT_GONE}
         ${people}`,
       want,
-    ));
+    );
     return found.map(entryToRow).filter((n): n is NoteRow => !!n);
   });
   return rows;
@@ -435,18 +464,17 @@ export async function fetchAuthorNotes(
 ): Promise<NoteRow[]> {
   const { author, withReplies, until, limit = 20 } = options;
   const upper = until ?? Math.floor(Date.now() / 1000) + 3600;
-  const rows = await select(pageQuery(
+  const rows = await pageRows(
     `
       ?e nostr:author ${pubkeyTerm(author)} ; nostr:kind ?kind ;
          nostr:createdAt ?at .
-      VALUES ?kind { 1 6 }
       BIND(${pubkeyTerm(author)} AS ?author)
-      FILTER(?at <= ${int(upper)})
+      FILTER(?kind IN (1, 6) && ?at <= ${int(upper)})
       ${notDeleted("?e")}
       ${NOT_GONE}
-      ${withReplies ? "" : "FILTER NOT EXISTS { ?e nostr:replyTo ?parent }"}`,
+      ${withReplies ? "" : "MINUS { ?e nostr:replyTo ?parent }"}`,
     limit,
-  ));
+  );
   return rows.map(entryToRow).filter((n): n is NoteRow => !!n);
 }
 
@@ -529,14 +557,15 @@ export async function fetchFeedStatus(
 export async function fetchNotes(ids: readonly string[]): Promise<NoteRow[]> {
   const wanted = [...new Set(ids.filter(isHex64))];
   if (wanted.length === 0) return [];
-  const rows = await select(`
-    SELECT ${ENTRY_VARS} WHERE {
+  const rows = await entries(
+    await select(`
+    SELECT ?e ?kind ?author ?at WHERE {
       ${values("e", wanted.map(eventTerm))}
       ?e nostr:kind ?kind ; nostr:author ?author ; nostr:createdAt ?at .
       ${notDeleted("?e")}
       ${NOT_GONE}
-      ${ENTRY}
-    }`);
+    }`),
+  );
   const byId = new Map<string, NoteRow>();
   for (const row of rows) {
     const note = entryToRow(row);
@@ -557,12 +586,14 @@ export async function fetchThread(id: string): Promise<Thread> {
       { ${focusTerm} nostr:replyTo* ?e }
       UNION { ${focusTerm} nostr:root ?r . ?e nostr:root ?r }
       UNION { ?e nostr:root ${focusTerm} }
-      OPTIONAL { ?e nostr:kind ?kind ; nostr:author ?author ; nostr:createdAt ?at }
+      ${notDeleted("?e")}
+      OPTIONAL { ?e nostr:kind ?kind }
+      OPTIONAL { ?e nostr:author ?author }
+      OPTIONAL { ?e nostr:createdAt ?at }
       OPTIONAL { ?e nostr:content ?content }
       OPTIONAL { ?e nostr:tags ?tags }
       OPTIONAL { ?e nostr:replyTo ?replyTo }
       OPTIONAL { ?e nostr:root ?root }
-      ${notDeleted("?e")}
       FILTER(!BOUND(?kind) || ?kind = 1)
     }`);
   const notes = new Map<string, NoteRow>();
@@ -635,7 +666,7 @@ export async function fetchCounts(
       { ?x nostr:replyTo ?target ; nostr:kind 1 . BIND("replies" AS ?type) }
       UNION {
         ?x nostr:reactsTo ?target .
-        FILTER NOT EXISTS { ?x nostr:content "-" }
+        MINUS { ?x nostr:content "-" }
         BIND("likes" AS ?type)
       }
       UNION { ?x nostr:reposts ?target . BIND("reposts" AS ?type) }
@@ -669,7 +700,7 @@ export async function fetchReactors(
       ?x nostr:reactsTo ${
     eventTerm(id)
   } ; nostr:author ?a ; nostr:createdAt ?at .
-      FILTER NOT EXISTS { ?x nostr:content "-" }
+      MINUS { ?x nostr:content "-" }
       ${notDeleted("?x")}
     } GROUP BY ?a ORDER BY DESC(?last) LIMIT ${int(limit)}`);
   return rows.flatMap((r) => keyOf(r.a) ?? []);
@@ -695,29 +726,54 @@ export async function fetchNotifications(
   const { until, limit = 20 } = options;
   const me = pubkeyTerm(viewer);
   return await windowed(until, limit, async (dates, bound, want) => {
-    const rows = await select(`
-      SELECT ?e ?kind ?a ?at ?content ?target ?tauthor ?tcontent WHERE {
-        { SELECT DISTINCT ?e ?kind ?a ?at WHERE {
-            ${values("date", dates)}
-            VALUES ?kind { 1 6 7 }
-            ?e nostr:date ?date ; nostr:kind ?kind ; nostr:author ?a ;
-               nostr:createdAt ?at .
-            FILTER(?a != ${me} && ?at <= ${int(bound)})
-            ${notDeleted("?e")}
-            {
-              ?e nostr:mentions ${me} ; nostr:kind 1 .
-            } UNION {
-              ?e nostr:replyTo|nostr:reactsTo|nostr:reposts ?hit .
-              ?hit nostr:author ${me} .
-            }
-          } ORDER BY DESC(?at) LIMIT ${int(want)} }
-        OPTIONAL { ?e nostr:content ?content }
-        OPTIONAL {
-          ?e nostr:replyTo|nostr:reactsTo|nostr:reposts ?target .
+    const keys = await select(`
+      SELECT DISTINCT ?e ?kind ?a ?at WHERE {
+        ${values("date", dates)}
+        ?e nostr:date ?date ; nostr:kind ?kind ; nostr:author ?a ;
+           nostr:createdAt ?at .
+        FILTER(?kind IN (1, 6, 7) && ?a != ${me} && ?at <= ${int(bound)})
+        ${notDeleted("?e")}
+        {
+          ?e nostr:mentions ${me} ; nostr:kind 1 .
+        } UNION {
+          ?e nostr:replyTo|nostr:reactsTo|nostr:reposts ?hit .
+          ?hit nostr:author ${me} .
+        }
+      } ORDER BY DESC(?at) LIMIT ${int(want)}`);
+    if (keys.length === 0) return [];
+    // The text of the page's events and of what they point at, for those ids only.
+    const ids = values("e", keys.map((r) => iriRef(r.e!)));
+    const [contents, targets] = await Promise.all([
+      select(`
+        SELECT ?e ?content WHERE {
+          ${ids}
+          OPTIONAL { ?e nostr:content ?content }
+        }`),
+      select(`
+        SELECT ?e ?target ?tauthor ?tcontent WHERE {
+          ${ids}
+          { ?e nostr:replyTo ?target } UNION { ?e nostr:reactsTo ?target }
+          UNION { ?e nostr:reposts ?target }
           OPTIONAL { ?target nostr:author ?tauthor }
           OPTIONAL { ?target nostr:content ?tcontent }
-        }
-      } ORDER BY DESC(?at)`);
+        }`),
+    ]);
+    const contentOf = new Map<string, string | undefined>();
+    for (const row of contents) {
+      if (!contentOf.has(row.e!)) contentOf.set(row.e!, row.content);
+    }
+    const targetsOf = new Map<string, Row[]>();
+    for (const row of targets) {
+      targetsOf.set(row.e!, [...targetsOf.get(row.e!) ?? [], row]);
+    }
+    // One row per target, as an `OPTIONAL` over the targets would give.
+    const rows: Row[] = keys.flatMap((key) =>
+      (targetsOf.get(key.e!) ?? [{}]).map((target) => ({
+        ...target,
+        content: contentOf.get(key.e!),
+        ...key,
+      }))
+    );
     const out: NotificationRow[] = [];
     for (const r of rows) {
       const id = idOf(r.e);
@@ -797,10 +853,9 @@ export async function hasNotificationsAfter(
   const rows = await select(`
     SELECT ?e WHERE {
       ${values("date", recentDates(days))}
-      VALUES ?kind { 1 6 7 }
       ?e nostr:date ?date ; nostr:kind ?kind ; nostr:author ?a ;
          nostr:createdAt ?at .
-      FILTER(?a != ${me} && ?at > ${int(since)})
+      FILTER(?kind IN (1, 6, 7) && ?a != ${me} && ?at > ${int(since)})
       ${notDeleted("?e")}
       {
         ?e nostr:mentions ${me} ; nostr:kind 1 .
@@ -845,7 +900,7 @@ export async function searchNotes(
     if (!tag) return [];
     const upper = until ?? Math.floor(Date.now() / 1000) + 3600;
     return toRows(
-      await select(pageQuery(
+      await pageRows(
         `
           ${values("tagValue", hashtagVariants(tag).map(str))}
           ?e ${iriRef(tagTerm("t"))} ?tagValue ;
@@ -853,13 +908,13 @@ export async function searchNotes(
           FILTER(?kind = 1 && ?at <= ${int(upper)})
           ${notDeleted("?e")}`,
         limit,
-      )),
+      ),
     );
   }
   const needle = str(query.toLowerCase());
   return await windowed(until, limit, async (dates, bound, want) =>
     toRows(
-      await select(pageQuery(
+      await pageRows(
         `
           ${values("date", dates)}
           ?e nostr:date ?date ; nostr:kind ?kind ; nostr:author ?author ;
@@ -868,7 +923,7 @@ export async function searchNotes(
           FILTER(CONTAINS(LCASE(?matched), ${needle}))
           ${notDeleted("?e")}`,
         want,
-      )),
+      ),
     ));
 }
 
@@ -1006,7 +1061,7 @@ export async function fetchPeopleNearYou(
       ?theirs nostr:author ?f ; nostr:kind 3 ; nostr:follows ?p .
       ${notSuperseded("?theirs")}
       FILTER(?p != ${me})
-      FILTER NOT EXISTS { ?mine nostr:follows ?p }
+      MINUS { ?mine nostr:follows ?p }
     } GROUP BY ?p HAVING (COUNT(DISTINCT ?f) >= ${int(min)})
     ORDER BY DESC(?n) ?p LIMIT ${int(limit)}`);
   return rows.flatMap((r) => {

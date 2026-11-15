@@ -21,6 +21,7 @@ import {
   addressTerm,
   eventTerm,
   int,
+  iriRef,
   notDeleted,
   notSuperseded,
   pubkeyTerm,
@@ -240,28 +241,41 @@ export async function fetchArticles(
     `?version nostr:kind ${ARTICLE_KIND} ; nostr:address ?address ; nostr:author ?author ; nostr:createdAt ?createdAt .`,
   );
   if (query.tag) clauses.push(`?version tag:t ${str(query.tag)} .`);
-  clauses.push(notSuperseded("?version"), notDeleted("?version"));
   clauses.push(
+    notSuperseded("?version"),
+    notDeleted("?version"),
     "OPTIONAL { ?version nostr:publishedAt ?publishedAt }",
-    "OPTIONAL { ?version nostr:title ?title }",
-    "OPTIONAL { ?version nostr:summary ?summary }",
-    "OPTIONAL { ?version nostr:image ?image }",
-    "OPTIONAL { ?version nostr:tags ?tagsJson }",
-    "OPTIONAL { ?version nostr:content ?content }",
     "BIND(COALESCE(?publishedAt, ?createdAt) AS ?sortAt)",
   );
   if (query.until !== undefined) {
     clauses.push(`FILTER(?sortAt < ${int(query.until)})`);
   }
-  const rows = await select(
-    `SELECT ?version ?address ?author ?createdAt ?publishedAt ?title ?summary ?image ?tagsJson ?content WHERE {
+  // The page is picked first, from the few columns it is sorted by; the text
+  // fields (the whole article body among them) are fetched for those rows only.
+  const keys = await select(
+    `SELECT ?version ?address ?author ?createdAt ?publishedAt WHERE {
     ${clauses.join("\n    ")}
   }
   ORDER BY DESC(?sortAt)
   LIMIT ${int(query.limit)}`,
   );
-  return rows.flatMap((row) => {
-    const parsed = articleRow(row);
+  if (keys.length === 0) return [];
+  const texts = await select(
+    `SELECT ?version ?title ?summary ?image ?tagsJson ?content WHERE {
+    ${values("version", keys.map((row) => iriRef(row.version!)))}
+    OPTIONAL { ?version nostr:title ?title }
+    OPTIONAL { ?version nostr:summary ?summary }
+    OPTIONAL { ?version nostr:image ?image }
+    OPTIONAL { ?version nostr:tags ?tagsJson }
+    OPTIONAL { ?version nostr:content ?content }
+  }`,
+  );
+  const textOf = new Map<string, Row>();
+  for (const row of texts) {
+    if (!textOf.has(row.version!)) textOf.set(row.version!, row);
+  }
+  return keys.flatMap((key) => {
+    const parsed = articleRow({ ...textOf.get(key.version!), ...key });
     return parsed ? [parsed] : [];
   });
 }

@@ -167,7 +167,7 @@ async function readState(
     });
     state.heads.set(key, heads);
   };
-  const notSuperseded = "FILTER NOT EXISTS { ?e nostr:supersededBy ?newer }";
+  const notSuperseded = "MINUS { ?e nostr:supersededBy ?newer }";
   const addressable = unique(
     coordinates.filter((c) => isAddressable(c.event.kind))
       .map((c) => iri(c.address)),

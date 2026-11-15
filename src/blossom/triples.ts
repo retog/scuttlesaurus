@@ -102,7 +102,7 @@ export async function liveReceipts(
       ?receipt nostr:blob ${iri(blobIri(sha256))} ;
                nostr:uploadedAt ?uploadedAt .
       ${byUploader}
-      FILTER NOT EXISTS { ?receipt nostr:removedAt ?removed }
+      MINUS { ?receipt nostr:removedAt ?removed }
     }`);
   return rows.map((row) => ({
     receipt: value(row, "receipt"),
@@ -143,7 +143,7 @@ export async function listLiveBlobs(
       ?receipt nostr:uploadedBy ${iri(pubkeyIri(uploader))} ;
                nostr:blob ?blob ;
                nostr:uploadedAt ?uploadedAt .
-      FILTER NOT EXISTS { ?receipt nostr:removedAt ?removed }
+      MINUS { ?receipt nostr:removedAt ?removed }
       ?blob nostr:blobSize ?size .
       OPTIONAL { ?blob nostr:blobType ?type }
       ${filter}

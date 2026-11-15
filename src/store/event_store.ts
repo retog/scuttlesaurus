@@ -404,8 +404,8 @@ class Store implements EventStore {
         `${PREFIXES}SELECT ?author ?target WHERE {
           VALUES ?author { ${values} }
           ?list nostr:author ?author ; nostr:kind ${kind} .
-          FILTER NOT EXISTS { ?list nostr:supersededBy ?newer }
-          FILTER NOT EXISTS { ?list nostr:deletedBy ?deletion }
+          MINUS { ?list nostr:supersededBy ?newer }
+          MINUS { ?list nostr:deletedBy ?deletion }
           OPTIONAL { ?list ${predicate} ?target }
         }`,
       (row, author) => {
@@ -435,8 +435,8 @@ class Store implements EventStore {
         `${PREFIXES}SELECT ?author ?direction ?relay WHERE {
           VALUES ?author { ${values} }
           ?list nostr:author ?author ; nostr:kind 10002 .
-          FILTER NOT EXISTS { ?list nostr:supersededBy ?newer }
-          FILTER NOT EXISTS { ?list nostr:deletedBy ?deletion }
+          MINUS { ?list nostr:supersededBy ?newer }
+          MINUS { ?list nostr:deletedBy ?deletion }
           { BIND("" AS ?direction) }
           UNION { ?list ${N("readRelay")} ?relay . BIND("read" AS ?direction) }
           UNION { ?list ${
@@ -465,7 +465,7 @@ class Store implements EventStore {
         `${PREFIXES}SELECT ?author ?relay (COUNT(DISTINCT ?e) AS ?n) WHERE {
           VALUES ?author { ${values} }
           ?e nostr:author ?author ; nostr:seenOn ?relay .
-          FILTER NOT EXISTS { ?e nostr:deletedBy ?deletion }
+          MINUS { ?e nostr:deletedBy ?deletion }
         } GROUP BY ?author ?relay`,
       (row, author) => {
         const relays = scores.get(author) ?? new Map<string, number>();

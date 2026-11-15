@@ -160,19 +160,34 @@ export function recentDates(days: number, until: Date = new Date()): string[] {
 
 // --- Universal exclusions ---------------------------------------------------------
 
-/** Exclude retracted events (NIP-09): every query needs this. */
+/*
+ * Exclusions are written as `MINUS { … }`, not `FILTER NOT EXISTS { … }`. The
+ * two give the same rows when the subtracted pattern shares a variable with
+ * what comes before it and holds no filter, which is the case for all of
+ * these. QLever answers a query with several `FILTER NOT EXISTS` slowly (the
+ * key query of the home feed took 7 s on a graph of 1.9 million triples, and
+ * runs into QLever's 30 s planning limit on a node with unmerged updates) and
+ * the same query with `MINUS` in 0.15 s. Oxigraph needs about the same for
+ * both.
+ *
+ * `MINUS` subtracts from what precedes it in the group, so put these helpers
+ * after the patterns that bind the variable, and give the variables used only
+ * inside a unique name.
+ */
+
+/**
+ * Exclude retracted events (NIP-09): every query needs this. Emits a `MINUS`,
+ * so `variable` must already be bound by an earlier pattern of the group.
+ */
 export function notDeleted(variable: string): string {
-  return `FILTER NOT EXISTS { ${variable} nostr:deletedBy ?_del${
-    variable.slice(1)
-  } }`;
+  return `MINUS { ${variable} nostr:deletedBy ?_del${variable.slice(1)} }`;
 }
 
 /**
  * Keep only the current version of a replaceable or addressable event
- * (kinds 0, 3, 10000–19999, 30000–39999).
+ * (kinds 0, 3, 10000–19999, 30000–39999). Emits a `MINUS`, so `variable` must
+ * already be bound by an earlier pattern of the group.
  */
 export function notSuperseded(variable: string): string {
-  return `FILTER NOT EXISTS { ${variable} nostr:supersededBy ?_new${
-    variable.slice(1)
-  } }`;
+  return `MINUS { ${variable} nostr:supersededBy ?_new${variable.slice(1)} }`;
 }

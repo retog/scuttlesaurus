@@ -529,7 +529,7 @@ curl -sS -G "http://127.0.0.1:7777/sparql" \
   --data-urlencode 'query=PREFIX nostr: <nostr:ontology:>
 SELECT ?note ?content ?created WHERE {
   ?note nostr:kind 1 ; nostr:content ?content ; nostr:createdAt ?created .
-  FILTER NOT EXISTS { ?note nostr:supersededBy ?newer }
+  MINUS { ?note nostr:supersededBy ?newer }
 }
 ORDER BY DESC(?created) LIMIT 5'
 ```

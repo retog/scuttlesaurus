@@ -124,7 +124,6 @@ export function buildQuery(
   if (filter.authors) {
     values("author", filter.authors.map((a) => iri(pubkeyIri(a))));
   }
-  if (filter.kinds) values("kind", filter.kinds.map(integer));
 
   lines.push("?e nostr:author ?author ; nostr:kind ?kind ;");
   lines.push("   nostr:createdAt ?createdAt ; nostr:sig ?sig .");
@@ -144,6 +143,14 @@ export function buildQuery(
   }
 
   const filters: string[] = [];
+  if (filter.kinds) {
+    const kinds = filter.kinds.map(integer);
+    filters.push(
+      kinds.length === 1
+        ? `?kind = ${kinds[0]}`
+        : `?kind IN (${kinds.join(", ")})`,
+    );
+  }
   if (since !== undefined) filters.push(`?createdAt >= ${Math.ceil(since)}`);
   if (until !== undefined) filters.push(`?createdAt <= ${Math.floor(until)}`);
   if (filters.length) lines.push(`FILTER(${filters.join(" && ")})`);
@@ -154,8 +161,8 @@ export function buildQuery(
       }))`,
     );
   }
-  lines.push("FILTER NOT EXISTS { ?e nostr:deletedBy ?deletion }");
-  lines.push("FILTER NOT EXISTS { ?e nostr:supersededBy ?newer }");
+  lines.push("MINUS { ?e nostr:deletedBy ?deletion }");
+  lines.push("MINUS { ?e nostr:supersededBy ?newer }");
 
   const select = options.projection === "events"
     ? "SELECT DISTINCT ?e ?author ?kind ?createdAt ?content ?tags ?sig"

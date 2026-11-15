@@ -44,7 +44,7 @@ function receiptsOf(triples: TripleStore, uploader: string) {
     SELECT ?receipt WHERE {
       ?receipt nostr:blob <urn:sha256:${HASH}> ;
                nostr:uploadedBy <${pubkeyIri(uploader)}> .
-      FILTER NOT EXISTS { ?receipt nostr:removedAt ?removed }
+      MINUS { ?receipt nostr:removedAt ?removed }
     }`);
 }
 

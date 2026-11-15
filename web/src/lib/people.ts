@@ -74,7 +74,7 @@ export async function fetchProfileStats(pubkey: string): Promise<ProfileStats> {
     select(`
       SELECT (COUNT(DISTINCT ?e) AS ?n) WHERE {
         ?e nostr:author ${me} ; nostr:kind 1 .
-        FILTER NOT EXISTS { ?e nostr:replyTo ?parent }
+        MINUS { ?e nostr:replyTo ?parent }
         ${notDeleted("?e")}
       }`),
   ]);

@@ -13,7 +13,7 @@ import { formatCount } from "../lib/format.ts";
 import { ownerPubkey } from "../lib/node.ts";
 import { routeForNip19 } from "../lib/nostr.ts";
 import { Link } from "../lib/router.tsx";
-import { PREFIXES, pubkeyTerm } from "../lib/sparql.ts";
+import { PREFIXES, pubkeyTerm, recentDates, values } from "../lib/sparql.ts";
 import { Button } from "./Button.tsx";
 
 /** One example query. `owner` is the owner's hex key, when there is one. */
@@ -30,19 +30,21 @@ interface Example {
 const EXAMPLES: readonly Example[] = [
   {
     id: "notes",
-    label: "Latest notes, with author names",
+    label: "Latest notes of the week, with author names",
     needsOwner: false,
     build: () =>
       `SELECT ?note ?content ?name ?createdAt WHERE {
-  ?note nostr:kind 1 ;
+  ${values("date", recentDates(7))}
+  ?note nostr:date ?date ;
+        nostr:kind 1 ;
         nostr:createdAt ?createdAt ;
         nostr:author ?author ;
         nostr:content ?content .
-  FILTER NOT EXISTS { ?note nostr:replyTo ?parent }
-  FILTER NOT EXISTS { ?note nostr:deletedBy ?deletion }
+  MINUS { ?note nostr:replyTo ?parent }
+  MINUS { ?note nostr:deletedBy ?deletion }
   OPTIONAL {
     ?profile nostr:author ?author ; nostr:kind 0 ; nostr:name ?name .
-    FILTER NOT EXISTS { ?profile nostr:supersededBy ?newer }
+    MINUS { ?profile nostr:supersededBy ?newer }
   }
 }
 ORDER BY DESC(?createdAt)
@@ -57,12 +59,12 @@ LIMIT 50`,
   ?own nostr:author ${
         pubkeyTerm(owner)
       } ; nostr:kind 3 ; nostr:follows ?friend .
-  FILTER NOT EXISTS { ?own nostr:supersededBy ?newOwn }
+  MINUS { ?own nostr:supersededBy ?newOwn }
   ?list nostr:author ?friend ; nostr:kind 3 ; nostr:follows ?followed .
-  FILTER NOT EXISTS { ?list nostr:supersededBy ?newList }
+  MINUS { ?list nostr:supersededBy ?newList }
   OPTIONAL {
     ?profile nostr:author ?followed ; nostr:kind 0 ; nostr:name ?followedName .
-    FILTER NOT EXISTS { ?profile nostr:supersededBy ?newer }
+    MINUS { ?profile nostr:supersededBy ?newer }
   }
 }
 LIMIT 200`,
@@ -76,8 +78,9 @@ LIMIT 200`,
   ?version nostr:kind 30023 ;
            nostr:address ?article ;
            nostr:createdAt ?createdAt .
-  FILTER NOT EXISTS { ?version nostr:deletedBy ?deletion }
-  BIND(NOT EXISTS { ?version nostr:supersededBy ?newer } AS ?current)
+  MINUS { ?version nostr:deletedBy ?deletion }
+  OPTIONAL { ?version nostr:supersededBy ?newer }
+  BIND(!BOUND(?newer) AS ?current)
   OPTIONAL { ?version nostr:title ?title }
 }
 ORDER BY ?article DESC(?createdAt)
@@ -90,7 +93,7 @@ LIMIT 100`,
     build: () =>
       `SELECT ?note ?content (COUNT(DISTINCT ?reaction) AS ?reactions) WHERE {
   ?reaction nostr:reactsTo ?note .
-  FILTER NOT EXISTS { ?reaction nostr:deletedBy ?deletion }
+  MINUS { ?reaction nostr:deletedBy ?deletion }
   OPTIONAL { ?note nostr:content ?content }
 }
 GROUP BY ?note ?content
@@ -127,7 +130,7 @@ ORDER BY DESC(?events)`,
       `SELECT ?blob ?type ?size ?uploader WHERE {
   ?receipt nostr:blob ?blob ;
            nostr:uploadedBy ?uploader .
-  FILTER NOT EXISTS { ?receipt nostr:removedAt ?removed }
+  MINUS { ?receipt nostr:removedAt ?removed }
   OPTIONAL { ?blob nostr:blobType ?type }
   OPTIONAL { ?blob nostr:blobSize ?size }
 }
