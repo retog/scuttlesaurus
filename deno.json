@@ -38,17 +38,20 @@
   "fmt": {
     "exclude": [
       "web/dist/",
-      "data/"
+      "data/",
+      ".claude/"
     ]
   },
   "lint": {
     "exclude": [
       "web/dist/",
-      "data/"
+      "data/",
+      ".claude/"
     ]
   },
   "exclude": [
     "web/dist/",
-    "data/"
+    "data/",
+    ".claude/"
   ]
 }
