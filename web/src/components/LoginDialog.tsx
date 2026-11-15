@@ -22,6 +22,8 @@ import { status } from "../lib/node.ts";
 import {
   chooseRelay,
   connectBunker,
+  connectGap,
+  connectionLog,
   normalizeRelayInput,
   type PendingConnection,
   signerAuthUrl,
@@ -95,6 +97,25 @@ export function ExtensionButton({ onLogin, busy }: ExtensionButtonProps) {
   );
 }
 
+/**
+ * The steps of the connection to the signer as they happen (relay connected,
+ * subscribed, a message arrived, why it could not be read, signer connected),
+ * for the person to read out when something does not work. It shows no
+ * secrets and no decrypted content.
+ */
+export function ConnectionDetails() {
+  const lines = connectionLog.value;
+  if (lines.length === 0) return null;
+  return (
+    <details class="signer__details" open>
+      <summary>Details</summary>
+      <ol class="signer__log mono" data-testid="connection-log">
+        {lines.slice(-12).map((line, i) => <li key={i}>{line}</li>)}
+      </ol>
+    </details>
+  );
+}
+
 /** Props of {@link SignerLogin}. */
 export interface SignerLoginProps {
   /**
@@ -122,6 +143,7 @@ export function SignerLogin({ onLogin, onBack }: SignerLoginProps) {
   const [relayInput, setRelayInput] = useState("");
   const [relayError, setRelayError] = useState<string>();
   const [uri, setUri] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState<string>();
   const [bunker, setBunker] = useState("");
   const [bunkerBusy, setBunkerBusy] = useState(false);
@@ -166,7 +188,7 @@ export function SignerLogin({ onLogin, onBack }: SignerLoginProps) {
       },
     );
     return () => attempt?.cancel();
-  }, [relay]);
+  }, [relay, attempt]);
 
   useEffect(() => () => bunkerAbort.current?.abort(), []);
 
@@ -252,6 +274,18 @@ export function SignerLogin({ onLogin, onBack }: SignerLoginProps) {
               Copy link
             </Button>
           </div>
+          {connectGap.value && (
+            <div class="form-note" role="alert">
+              <p>{connectGap.value}</p>
+              <Button onClick={() => setAttempt(attempt + 1)}>
+                Start again
+              </Button>
+            </div>
+          )}
+          <p class="muted signer__hint">
+            If the app does not return you here signed in, copy a bunker address
+            from the app and paste it below.
+          </p>
           <p class="signer__wait" role="status">
             <span class="spinner spinner--inline" aria-hidden="true" />
             <span>
@@ -266,6 +300,7 @@ export function SignerLogin({ onLogin, onBack }: SignerLoginProps) {
               )}
             </span>
           </p>
+          {!bunkerBusy && <ConnectionDetails />}
           <details class="signer__qr" open={wide}>
             <summary>Signing in from a computer? Scan a QR code</summary>
             <QrCode
@@ -355,20 +390,23 @@ export function SignerLogin({ onLogin, onBack }: SignerLoginProps) {
           This connects your browser to the relay named in the address.
         </p>
         {bunkerBusy && (
-          <p class="signer__wait" role="status">
-            <span class="spinner spinner--inline" aria-hidden="true" />
-            <span>
-              Waiting for your signer app… Approve the connection there.
-              {authUrl && (
-                <>
-                  {" "}
-                  <a href={authUrl} target="_blank" rel="noopener noreferrer">
-                    Your signer needs you to continue on its page.
-                  </a>
-                </>
-              )}
-            </span>
-          </p>
+          <>
+            <p class="signer__wait" role="status">
+              <span class="spinner spinner--inline" aria-hidden="true" />
+              <span>
+                Waiting for your signer app… Approve the connection there.
+                {authUrl && (
+                  <>
+                    {" "}
+                    <a href={authUrl} target="_blank" rel="noopener noreferrer">
+                      Your signer needs you to continue on its page.
+                    </a>
+                  </>
+                )}
+              </span>
+            </p>
+            <ConnectionDetails />
+          </>
         )}
         <div class="row">
           {bunkerBusy

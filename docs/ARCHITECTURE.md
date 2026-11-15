@@ -186,10 +186,16 @@ A NIP-01 relay on the WebSocket endpoint `/`.
   signer app's key and a client's connection key are outside the graph, so
   without the exception remote signing could not use this relay. The event is
   ephemeral, so it is relayed and never stored, and it is accepted even before
-  the node has an owner (so the first-run setup can use a signer app). Any other
-  event, and a 24133 event that does not meet the condition and whose author is
-  outside the graph, is refused as before. `NOSTR_CONNECT=off` removes the
-  exception and the NIP-11 entry.
+  the node has an owner (so the first-run setup can use a signer app). Accepted
+  Nostr Connect events are also kept in memory for two minutes (at most 20 per
+  `p`-tagged pubkey and 4000 in all, oldest dropped first; never written to the
+  graph) and are sent, like stored events and before `EOSE`, to a `REQ` whose
+  filters match them (`since`, `until` and `limit` apply). A phone browser
+  pushed to the background while the person is in the signer app may be
+  unsubscribed exactly when the answer is sent. Any other event, and a 24133
+  event that does not meet the condition and whose author is outside the graph,
+  is refused as before. `NOSTR_CONNECT=off` removes the exception and the NIP-11
+  entry.
 - `REQ`: stored events, `EOSE`, then live events matching the filters.
 - `CLOSE`, and `COUNT` (NIP-45).
 - Limits: number of subscriptions and filters per connection, `limit` capped at
@@ -338,6 +344,16 @@ exchanges NIP-44-encrypted kind 24133 events with the signer over a relay.
   and the connection is rebuilt in the background (a `ping`) and on the first
   signature. Signing out sends `logout`, closes the connection and discards the
   connection key.
+- _Transport (`lib/nip46_channel.ts`)._ The client does not use the library's
+  `BunkerSigner`, which subscribes with `limit: 0` and never asks for what it
+  missed. Its own channel re-subscribes with a `since` that covers the gap when
+  a socket closes, when the page becomes visible again (it replaces every socket
+  then, since one that looks open may be dead) and when the network returns; a
+  request is sent once and never resent for that reason. The wait of a request
+  does not run out while the page is hidden. A `nostrconnect://` answer is
+  accepted only when its `result` is the secret of the link and it is NIP-44
+  encrypted. A "Details" list shows the steps in plain words (no secrets, no
+  payloads).
 - Every signature may need a tap on the phone, so `signEvent` itself shows a
   "waiting for approval" indicator (any caller gets it), a request waits up to
   60 seconds (5 minutes after an `auth_url`, which is shown as a link) and the

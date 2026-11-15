@@ -18,7 +18,7 @@ import { Avatar } from "../components/Avatar.tsx";
 import { Button } from "../components/Button.tsx";
 import { CopyField } from "../components/CopyField.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
-import { copyText } from "../components/LoginDialog.tsx";
+import { ConnectionDetails, copyText } from "../components/LoginDialog.tsx";
 import { NodeSettingsForm } from "../components/NodeSettingsForm.tsx";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { Skeleton } from "../components/Spinner.tsx";
@@ -217,16 +217,19 @@ function SignerDetails() {
   const info = remoteInfo.value;
   if (!info) return null;
   return (
-    <dl class="settings-signer">
-      <dt>Way of signing</dt>
-      <dd>signer app (NIP-46 Nostr Connect)</dd>
-      <dt>Relay</dt>
-      <dd class="mono" data-testid="signer-relay">
-        {info.relays.join(", ")}
-      </dd>
-      <dt>Signer</dt>
-      <dd>{SIGNER_STATE_TEXT[signerState.value]}</dd>
-    </dl>
+    <>
+      <dl class="settings-signer">
+        <dt>Way of signing</dt>
+        <dd>signer app (NIP-46 Nostr Connect)</dd>
+        <dt>Relay</dt>
+        <dd class="mono" data-testid="signer-relay">
+          {info.relays.join(", ")}
+        </dd>
+        <dt>Signer</dt>
+        <dd>{SIGNER_STATE_TEXT[signerState.value]}</dd>
+      </dl>
+      <ConnectionDetails />
+    </>
   );
 }
 

@@ -26,13 +26,16 @@ import { computed, signal } from "@preact/signals";
 import type { Event, EventTemplate } from "@nostr/tools/core";
 import {
   type BunkerPointer,
-  BunkerSigner,
   createNostrConnectURI,
   parseBunkerInput,
 } from "@nostr/tools/nip46";
-import { SimplePool } from "@nostr/tools/pool";
-import { generateSecretKey, getPublicKey } from "@nostr/tools/pure";
+import {
+  generateSecretKey,
+  getPublicKey,
+  verifyEvent,
+} from "@nostr/tools/pure";
 import { bytesToHex, hexToBytes } from "@nostr/tools/utils";
+import { Nip46Channel, Nip46Error } from "./nip46_channel.ts";
 
 /** What is kept in the browser to reconnect to the signer without asking. */
 export interface RemoteConnectionData {
@@ -45,6 +48,34 @@ export interface RemoteConnectionData {
   /** Hex public key of the user, as answered by `get_public_key`. */
   userPubkey: string;
 }
+
+/**
+ * The steps of the connection in plain words, newest last, for the person to
+ * read on a phone when something does not work: relay connected, subscribed,
+ * a message arrived, why it could not be read, signer connected. It holds no
+ * secrets and no decrypted payloads.
+ */
+export const connectionLog = signal<string[]>([]);
+
+let logStart = Date.now();
+
+function logStep(text: string): void {
+  const seconds = Math.round((Date.now() - logStart) / 1000);
+  connectionLog.value = [...connectionLog.value, `+${seconds}s ${text}`]
+    .slice(-40);
+}
+
+function resetLog(): void {
+  logStart = Date.now();
+  connectionLog.value = [];
+}
+
+/**
+ * Set while a `nostrconnect://` link waits and the page was away for longer
+ * than relays keep an answer: nothing arrived, and an answer sent meanwhile
+ * may be lost, so the person is told to start again.
+ */
+export const connectGap = signal<string | undefined>(undefined);
 
 /** Whether the signer answered, as far as this page knows. */
 export type SignerState = "idle" | "connecting" | "ready" | "unreachable";
@@ -158,8 +189,7 @@ export class RemoteSignerError extends Error {
 
 interface Active {
   data: RemoteConnectionData;
-  signer?: BunkerSigner;
-  pool?: SimplePool;
+  channel?: Nip46Channel;
 }
 
 let active: Active | undefined;
@@ -198,7 +228,6 @@ export function normalizeRelayInput(input: string): string | undefined {
   }
 }
 
-/** What to offer for the relay of a `nostrconnect://` link. */
 export interface RelayChoice {
   /** The relay to use without asking, or `undefined` when the person must choose. */
   relay: string | undefined;
@@ -232,17 +261,6 @@ export function chooseRelay(
   return { relay: normalizeRelayInput(nodeRelayUrl) ?? nodeRelayUrl };
 }
 
-function newPool(): SimplePool {
-  // Reconnect and ping keep the subscription for answers alive on a phone
-  // that switches networks; the library re-subscribes after a reconnect.
-  const pool = new SimplePool({ enablePing: true, enableReconnect: true });
-  // The pool closes a relay after 20 s without an operation of its own, even
-  // with a subscription open. We wait for a person to tap in a signer app, so
-  // the answer would then be lost; keep the connection until we close it.
-  pool.idleTimeout = 0;
-  return pool;
-}
-
 /** A `nostrconnect://` connection attempt waiting for the signer. */
 export interface PendingConnection {
   /** The `nostrconnect://` URI to show as a link and a QR code. Contains the secret. */
@@ -253,15 +271,22 @@ export interface PendingConnection {
   cancel(): void;
 }
 
+/** How long to try before saying the relay cannot be reached at all. */
+const UNREACHABLE_AFTER_MS = 10_000;
+
 /**
  * Starts the client-initiated flow of NIP-46 on `relay`: generates a fresh
  * client key and a secret, builds the URI asking for permission to sign the
- * kinds in {@link SIGNED_KINDS}, and waits for the signer's `connect` answer.
+ * kinds in {@link SIGNED_KINDS}, and waits for the signer's `connect` answer
+ * (its `result` must be the secret). The wait survives the browser being in
+ * the background while the signer app is in front: see `nip46_channel.ts`.
  * Then asks `get_public_key` (the signer's key is not necessarily the user's).
- * `done` rejects with a {@link RemoteSignerError} when cancelled or the signer
- * does not answer within {@link CONNECT_WAIT_MS}.
+ * `done` rejects with a {@link RemoteSignerError} when cancelled, when the relay
+ * cannot be reached, or when no signer answers within {@link CONNECT_WAIT_MS}.
  */
 export function startNostrConnect(relay: string): PendingConnection {
+  resetLog();
+  connectGap.value = undefined;
   const clientSecret = generateSecretKey();
   const secret = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
   const uri = createNostrConnectURI({
@@ -272,64 +297,76 @@ export function startNostrConnect(relay: string): PendingConnection {
     name: CLIENT_NAME,
     url: globalThis.location.origin,
   });
+  const channel = new Nip46Channel({
+    clientSecret,
+    relays: [relay],
+    log: logStep,
+    onAuth: showAuthUrl,
+    onGap: (seconds) => {
+      connectGap.value =
+        `Nothing arrived while this page was away for ${seconds} seconds, and an answer sent in that time may be lost. If the app says it is connected, start again.`;
+    },
+  });
   const abort = new AbortController();
-  const pool = newPool();
-  let cancelled = false;
+  let endedBy: "cancel" | "unreachable" | "timeout" | undefined;
+  const end = (reason: typeof endedBy) => {
+    endedBy ??= reason;
+    abort.abort();
+  };
   signerState.value = "connecting";
+  channel.start();
+  const waitTimer = setTimeout(() => end("timeout"), CONNECT_WAIT_MS);
+  const reachTimer = setTimeout(() => {
+    if (!channel.everConnected) end("unreachable");
+  }, UNREACHABLE_AFTER_MS);
 
   const done = (async () => {
-    let signer: BunkerSigner | undefined;
     try {
-      signer = await BunkerSigner.fromURI(
-        clientSecret,
-        uri,
-        {
-          pool,
-          timeout: REQUEST_TIMEOUT_MS,
-          onauth: showAuthUrl,
-          // The relays stay the ones in the link and in storage.
-          skipSwitchRelays: true,
-        },
-        abort.signal,
+      const signerPubkey = await channel.awaitConnect(secret, abort.signal);
+      const userPubkey = await channel.request(
+        "get_public_key",
+        [],
+        REQUEST_TIMEOUT_MS,
       );
-      const userPubkey = await signer.getPublicKey();
       const data: RemoteConnectionData = {
         clientSecretKey: bytesToHex(clientSecret),
-        signerPubkey: signer.bp.pubkey,
-        relays: signer.bp.relays,
+        signerPubkey,
+        relays: [relay],
         userPubkey: checkedPubkey(userPubkey),
       };
-      adopt({ data, signer, pool });
+      adopt({ data, channel });
       return data;
     } catch (error) {
-      await signer?.close().catch(() => {});
-      pool.close([relay]);
+      channel.close();
       signerState.value = active ? "ready" : "idle";
-      if (cancelled) throw new RemoteSignerError("Cancelled.", "cancelled");
-      if (abort.signal.aborted) {
+      if (endedBy === "cancel") {
+        throw new RemoteSignerError("Cancelled.", "cancelled");
+      }
+      if (endedBy === "unreachable") {
+        throw new RemoteSignerError(
+          `Cannot reach the relay ${describeRelays([relay])} that carries ` +
+            "the link. Check your connection, or use another relay.",
+          "unreachable",
+        );
+      }
+      if (endedBy === "timeout") {
         throw new RemoteSignerError(
           "No signer answered the link in five minutes. Check that the " +
             `signer app is online and uses the relay ${
               describeRelays([relay])
-            }, then try again.`,
+            }, then try again. The details below show what arrived.`,
           "timeout",
         );
       }
       throw explain(error, [relay], "connect");
+    } finally {
+      clearTimeout(waitTimer);
+      clearTimeout(reachTimer);
+      connectGap.value = undefined;
     }
   })();
-  // Wait limit, as `fromURI` takes an abort signal rather than both.
-  const timer = setTimeout(() => abort.abort(), CONNECT_WAIT_MS);
-  done.then(() => clearTimeout(timer), () => clearTimeout(timer));
 
-  return {
-    uri,
-    done,
-    cancel() {
-      cancelled = true;
-      abort.abort();
-    },
-  };
+  return { uri, done, cancel: () => end("cancel") };
 }
 
 /**
@@ -370,43 +407,50 @@ export async function connectBunker(
       "rejected",
     );
   }
+  resetLog();
   const clientSecret = generateSecretKey();
-  const pool = newPool();
+  const channel = new Nip46Channel({
+    clientSecret,
+    relays,
+    peer: pointer.pubkey,
+    log: logStep,
+    onAuth: showAuthUrl,
+  });
   signerState.value = "connecting";
-  let signer: BunkerSigner | undefined;
-  try {
-    signer = BunkerSigner.fromBunker(
-      clientSecret,
-      { pubkey: pointer.pubkey, relays, secret: pointer.secret },
-      { pool, timeout: REQUEST_TIMEOUT_MS, onauth: showAuthUrl },
+  channel.start();
+  const aborted = new Promise<never>((_, reject) => {
+    options.signal?.addEventListener(
+      "abort",
+      () => reject(new RemoteSignerError("Cancelled.", "cancelled")),
+      { once: true },
     );
-    // NIP-46 `connect`: [signer pubkey, secret, permissions]. The library's
-    // own connect() cannot send the permissions.
-    const sending = signer.sendRequest("connect", [
-      pointer.pubkey,
-      pointer.secret ?? "",
-      REQUESTED_PERMISSIONS.join(","),
+  });
+  aborted.catch(() => {});
+  try {
+    // NIP-46 `connect`: [signer pubkey, secret, permissions].
+    await Promise.race([
+      channel.request(
+        "connect",
+        [pointer.pubkey, pointer.secret ?? "", REQUESTED_PERMISSIONS.join(",")],
+        REQUEST_TIMEOUT_MS,
+      ),
+      aborted,
     ]);
-    const aborted = new Promise<never>((_, reject) => {
-      options.signal?.addEventListener(
-        "abort",
-        () => reject(new RemoteSignerError("Cancelled.", "cancelled")),
-        { once: true },
-      );
-    });
-    await Promise.race([sending, aborted]);
-    const userPubkey = await signer.getPublicKey();
+    logStep("signer connected");
+    const userPubkey = await Promise.race([
+      channel.request("get_public_key", [], REQUEST_TIMEOUT_MS),
+      aborted,
+    ]);
     const data: RemoteConnectionData = {
       clientSecretKey: bytesToHex(clientSecret),
       signerPubkey: pointer.pubkey,
       relays,
       userPubkey: checkedPubkey(userPubkey),
     };
-    adopt({ data, signer, pool });
+    adopt({ data, channel });
     return data;
   } catch (error) {
-    await signer?.close().catch(() => {});
-    pool.close(relays);
+    channel.close();
     signerState.value = active ? "ready" : "idle";
     if (error instanceof RemoteSignerError) throw error;
     throw explain(error, relays, "connect");
@@ -460,126 +504,83 @@ export async function warmUpRemote(): Promise<void> {
   if (!current || signerState.value === "ready") return;
   signerState.value = "connecting";
   try {
-    const signer = ensureSigner(current);
-    await withTimeout(signer.ping(), PING_WAIT_MS);
+    await ensureChannel(current).request("ping", [], PING_WAIT_MS);
     if (active === current) signerState.value = "ready";
   } catch {
     if (active === current) signerState.value = "unreachable";
   }
 }
 
-function ensureSigner(current: Active): BunkerSigner {
-  if (current.signer) return current.signer;
-  current.pool = newPool();
-  current.signer = BunkerSigner.fromBunker(
-    hexToBytes(current.data.clientSecretKey),
-    {
-      pubkey: current.data.signerPubkey,
+function ensureChannel(current: Active): Nip46Channel {
+  if (!current.channel) {
+    resetLog();
+    current.channel = new Nip46Channel({
+      clientSecret: hexToBytes(current.data.clientSecretKey),
       relays: current.data.relays,
-      secret: null,
-    },
-    { pool: current.pool, timeout: REQUEST_TIMEOUT_MS, onauth: showAuthUrl },
-  );
-  return current.signer;
+      peer: current.data.signerPubkey,
+      log: logStep,
+      onAuth: showAuthUrl,
+    });
+    current.channel.start();
+  }
+  return current.channel;
 }
 
-async function dropSigner(current: Active): Promise<void> {
-  const { signer, pool } = current;
-  current.signer = undefined;
-  current.pool = undefined;
-  await signer?.close().catch(() => {});
-  pool?.close(current.data.relays);
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`nostr-tools/nip46: timeout after ${ms}ms`)),
-      ms,
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
-/** Library failures that mean the request never left this page. */
-const SEND_FAILURE = /failed to send|not open anymore|no relay was tried/i;
-
-/** Library failures that mean the connection to the relay was lost or never came up. */
-const CONNECTION_LOST =
-  /subscription to the remote signer was closed|subscription closed before connection/i;
-
-/** Turns a library or signer error into one that explains itself. */
+/** Turns a channel or signer error into one that explains itself. */
 function explain(
   error: unknown,
   relays: string[],
   doing: "sign" | "connect",
 ): RemoteSignerError {
   if (error instanceof RemoteSignerError) return error;
-  const message = error instanceof Error ? error.message : String(error);
   const where = describeRelays(relays);
-  if (/timeout after/i.test(message)) {
-    return new RemoteSignerError(
-      doing === "sign"
-        ? `Your signer app did not answer in ${
-          REQUEST_TIMEOUT_MS / 1000
-        } seconds. Open it, check that it is running and online (relay ${where}), then try again.`
-        : `The signer did not answer in ${
-          REQUEST_TIMEOUT_MS / 1000
-        } seconds. Check the address and that the signer is online, then try again.`,
-      "timeout",
-    );
+  if (error instanceof Nip46Error) {
+    switch (error.kind) {
+      case "timeout":
+        return new RemoteSignerError(
+          doing === "sign"
+            ? `Your signer app did not answer in ${
+              REQUEST_TIMEOUT_MS / 1000
+            } seconds. Open it, check that it is running and online (relay ${where}), then try again.`
+            : `The signer did not answer in ${
+              REQUEST_TIMEOUT_MS / 1000
+            } seconds. Check the address and that the signer is online, then try again.`,
+          "timeout",
+        );
+      case "send":
+        return new RemoteSignerError(
+          `Cannot reach the relay ${where} that connects to your signer app. ` +
+            "Check your connection and try again.",
+          "unreachable",
+        );
+      case "closed":
+        return new RemoteSignerError("Signing was cancelled.", "cancelled");
+      case "rejected": {
+        const reason = error.message.trim();
+        return new RemoteSignerError(
+          doing === "sign"
+            ? `Your signer app did not sign this${reason ? `: ${reason}` : "."}`
+            : `The signer refused the connection${
+              reason ? `: ${reason}` : "."
+            }`,
+          "rejected",
+        );
+      }
+    }
   }
-  if (/nip46: signer was closed/i.test(message)) {
-    return new RemoteSignerError("Signing was cancelled.", "cancelled");
-  }
-  if (SEND_FAILURE.test(message) || CONNECTION_LOST.test(message)) {
-    return new RemoteSignerError(
-      doing === "sign" && CONNECTION_LOST.test(message)
-        ? `The connection to the relay ${where} was lost while waiting for ` +
-          "your signer app. Try again."
-        : `Cannot reach the relay ${where} that connects to your signer app. ` +
-          "Check your connection and try again.",
-      "unreachable",
-    );
-  }
-  if (/requires auth/i.test(message)) {
-    return new RemoteSignerError(
-      "Your signer needs you to sign in on its page first.",
-      "rejected",
-    );
-  }
-  if (/improperly signed/i.test(message)) {
-    return new RemoteSignerError(
-      "The signer returned an event with a bad signature, so it was not used.",
-      "rejected",
-    );
-  }
-  // Anything else is the signer's own refusal.
-  const reason = message.replace(/^nostr-tools\/nip46:\s*/, "").trim();
   return new RemoteSignerError(
-    doing === "sign"
-      ? `Your signer app did not sign this${reason ? `: ${reason}` : "."}`
-      : `The signer refused the connection${reason ? `: ${reason}` : "."}`,
+    error instanceof Error ? error.message : String(error),
     "rejected",
   );
 }
 
 /**
  * Signs `template` through the remote signer as `expectedPubkey`. Shows the
- * wait in {@link pendingSignatures}. When the request could not be sent (the
- * connection went stale, say after the page slept) the signer is rebuilt and
- * the request sent once more. When the connection was lost while waiting, the
- * signer is rebuilt for the next attempt but the request is not repeated, so
- * the person is not asked twice. Throws a {@link RemoteSignerError}.
+ * wait in {@link pendingSignatures}. The request is sent once and never
+ * resent: if the connection drops or the page is in the background meanwhile,
+ * the channel reconnects and picks the answer up from the relay (see
+ * `nip46_channel.ts`), so the person is not asked twice. Throws a
+ * {@link RemoteSignerError}.
  */
 export async function signRemote(
   template: EventTemplate,
@@ -599,18 +600,25 @@ export async function signRemote(
   };
   pendingSignatures.value = [...pendingSignatures.value, entry];
   try {
+    const raw = await ensureChannel(current).request(
+      "sign_event",
+      [JSON.stringify(template)],
+      REQUEST_TIMEOUT_MS,
+    );
     let event: Event;
     try {
-      event = await ensureSigner(current).signEvent(template);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (CONNECTION_LOST.test(message)) await dropSigner(current);
-      if (!SEND_FAILURE.test(message)) throw error;
-      // The request did not leave this page (a stale connection after the
-      // page slept, say): reconnect once and send it again. The signer has
-      // not seen it, so the person is not asked twice.
-      await dropSigner(current);
-      event = await ensureSigner(current).signEvent(template);
+      event = JSON.parse(raw) as Event;
+    } catch {
+      throw new RemoteSignerError(
+        "The signer returned something that is not an event.",
+        "rejected",
+      );
+    }
+    if (!verifyEvent(event)) {
+      throw new RemoteSignerError(
+        "The signer returned an event with a bad signature, so it was not used.",
+        "rejected",
+      );
     }
     if (event.pubkey !== expectedPubkey) {
       throw new RemoteSignerError(
@@ -648,10 +656,10 @@ export function disconnectRemote(): void {
   if (!current) return;
   void (async () => {
     try {
-      await withTimeout(ensureSigner(current).logout(), LOGOUT_WAIT_MS);
+      await ensureChannel(current).request("logout", [], LOGOUT_WAIT_MS);
     } catch {
       // not acknowledged: the connection is closed below anyway
     }
-    await dropSigner(current);
+    current.channel?.close();
   })();
 }

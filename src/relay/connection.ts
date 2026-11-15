@@ -8,6 +8,7 @@ import { matchFilters } from "@nostr/tools/filter";
 import type { Filter } from "@nostr/tools/filter";
 import type { AddResult, NostrEvent } from "../types.ts";
 import type { RelayServerOptions } from "./mod.ts";
+import type { ReplayBuffer } from "./replay_buffer.ts";
 import {
   clampLimit,
   errorMessage,
@@ -41,6 +42,7 @@ export class ClientConnection {
   readonly #socket: WebSocket;
   readonly #options: RelayServerOptions;
   readonly #onGone: (connection: ClientConnection) => void;
+  readonly #replay: ReplayBuffer;
   readonly #subscriptions = new Map<string, Subscription>();
   #closed = false;
 
@@ -48,15 +50,18 @@ export class ClientConnection {
    * @param socket The upgraded server-side WebSocket.
    * @param options The relay options, read at the time of each use.
    * @param onGone Called once when the connection has ended.
+   * @param replay The relay's buffer of recent Nostr Connect events.
    */
   constructor(
     socket: WebSocket,
     options: RelayServerOptions,
     onGone: (connection: ClientConnection) => void,
+    replay: ReplayBuffer,
   ) {
     this.#socket = socket;
     this.#options = options;
     this.#onGone = onGone;
+    this.#replay = replay;
     socket.onmessage = (event) => this.#onFrame(event.data);
     socket.onclose = () => this.#finish();
     socket.onerror = () => this.#finish();
@@ -180,8 +185,16 @@ export class ClientConnection {
       return this.#send(["OK", id, false, `error: ${errorMessage(error)}`]);
     }
     switch (result.status) {
-      case "stored":
       case "ephemeral":
+        // A well-formed Nostr Connect event is also kept for a short while for
+        // clients that were not subscribed at that moment (see ReplayBuffer).
+        if (config.nostrConnect && nostrConnectProblem(event) === undefined) {
+          this.#replay.add(event);
+        }
+        this.#send(["OK", id, true, ""]);
+        this.#accepted(event);
+        return;
+      case "stored":
         this.#send(["OK", id, true, ""]);
         this.#accepted(event);
         return;
@@ -267,6 +280,14 @@ export class ClientConnection {
     for (const event of stored) {
       this.#send(["EVENT", id, event]);
       sent.add(event.id);
+    }
+    // Recent Nostr Connect events, as if stored. Empty when the toggle is off.
+    if (this.#options.config.nostrConnect) {
+      for (const event of this.#replay.match(filters)) {
+        if (sent.has(event.id)) continue;
+        this.#send(["EVENT", id, event]);
+        sent.add(event.id);
+      }
     }
     for (const event of subscription.buffer ?? []) {
       if (!sent.has(event.id)) this.#send(["EVENT", id, event]);

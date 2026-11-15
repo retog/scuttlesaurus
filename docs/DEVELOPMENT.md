@@ -126,15 +126,18 @@ On `localhost` the dialog asks for a relay, since a phone could not reach it:
 enter the node's own `ws://127.0.0.1:7777/`, which the fake signer can reach.
 Use the owner's `nsec` from `deno task seed` to sign as the owner.
 
-| Option             | Meaning                                                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `--nsec <key>`     | The user's key (nsec or hex). Generated, with its npub printed, when omitted.                              |
-| `--signer-key <k>` | The key that signs the NIP-46 messages. Random by default, so it differs from the user's, as in real apps. |
-| `--connect <uri>`  | Answer a `nostrconnect://` link (client-initiated flow).                                                   |
-| `--bunker`         | Print a `bunker://` address and wait (signer-initiated flow). Needs `--relay <url>`.                       |
-| `--reject`         | Answer every `sign_event` with an error, to see the refusal message.                                       |
-| `--delay <ms>`     | Answer every request except `connect` after this delay, to see the waiting state.                          |
-| `--auth-url <url>` | Answer a client's first `sign_event` with an `auth_url` challenge, then complete it two seconds later.     |
+| Option                 | Meaning                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--nsec <key>`         | The user's key (nsec or hex). Generated, with its npub printed, when omitted.                              |
+| `--signer-key <k>`     | The key that signs the NIP-46 messages. Random by default, so it differs from the user's, as in real apps. |
+| `--connect <uri>`      | Answer a `nostrconnect://` link (client-initiated flow).                                                   |
+| `--bunker`             | Print a `bunker://` address and wait (signer-initiated flow). Needs `--relay <url>`.                       |
+| `--reject`             | Answer every `sign_event` with an error, to see the refusal message.                                       |
+| `--delay <ms>`         | Answer every request except `connect` after this delay, to see the waiting state.                          |
+| `--ack`                | Answer a `nostrconnect://` link with `"ack"` instead of its secret. The client must refuse it.             |
+| `--nip04`              | Encrypt the answers with NIP-04. The client must not be able to read them.                                 |
+| `--connect-delay <ms>` | Answer the `nostrconnect://` link after this delay.                                                        |
+| `--auth-url <url>`     | Answer a client's first `sign_event` with an `auth_url` challenge, then complete it two seconds later.     |
 
 It answers `connect`, `get_public_key`, `ping`, `sign_event` and `logout`, and
 prints each request (for `sign_event` the kind and the content). To see a lost

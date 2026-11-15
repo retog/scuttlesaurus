@@ -175,9 +175,10 @@ graph in QLever through qlever-dir, set `QLEVER_DIR_URL`; see
 - A deletion request stops an event being served, and deleted blob files are
   removed. The event itself stays in the append-only log.
 - There is no NIP-42 authentication, no direct messages and no zaps.
-- Signing in with a signer app (NIP-46) has been tested only against the
-  stand-in signer in `scripts/fake_signer.ts`, not against Amber or another real
-  app. Each signature may wait for a tap on the phone.
+- Signing in with a signer app (NIP-46) has been tested against the stand-in
+  signer in `scripts/fake_signer.ts`. Pasting a `bunker://` address worked with
+  Amber on a phone; the "Open signer app" link is under test. Each signature may
+  wait for a tap on the phone.
 - A key created in the browser is kept in that browser's local storage. Anybody
   who can read that storage can use the key.
 

@@ -15,6 +15,7 @@ import type {
 } from "../types.ts";
 import { ClientConnection } from "./connection.ts";
 import { relayInformation } from "./nip11.ts";
+import { ReplayBuffer } from "./replay_buffer.ts";
 
 export interface RelayServerOptions {
   events: EventStore;
@@ -35,6 +36,7 @@ export interface RelayServerOptions {
 export function createRelayServer(options: RelayServerOptions): RelayServer {
   const connections = new Set<ClientConnection>();
   let closed = false;
+  const replay = new ReplayBuffer();
 
   const unsubscribe = options.events.subscribe((event) => {
     for (const connection of [...connections]) connection.deliver(event);
@@ -55,6 +57,7 @@ export function createRelayServer(options: RelayServerOptions): RelayServer {
         upgrade.socket,
         options,
         (gone) => connections.delete(gone),
+        replay,
       );
       connections.add(connection);
       return upgrade.response;

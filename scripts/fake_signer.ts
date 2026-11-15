@@ -21,6 +21,12 @@
  *   same bunker address).
  * - `--reject`: answer `sign_event` with an error.
  * - `--delay <ms>`: answer every request except `connect` after this delay.
+ * - `--ack`: answer the `connect` of a `nostrconnect://` link with `"ack"`
+ *   instead of the link's secret (the client must refuse it).
+ * - `--nip04`: encrypt the answers with NIP-04 instead of NIP-44 (the client
+ *   must not be able to read them).
+ * - `--connect-delay <ms>`: answer the `nostrconnect://` link after this
+ *   delay (the client may be offline or in the background meanwhile).
  * - `--auth-url <url>`: answer the first `sign_event` of each client with an
  *   `auth_url` challenge, then complete it two seconds later.
  *
@@ -36,6 +42,7 @@ import { parseArgs } from "@std/cli/parse-args";
 import { delay } from "@std/async";
 import type { Event, EventTemplate } from "@nostr/tools/core";
 import * as nip19 from "@nostr/tools/nip19";
+import * as nip04 from "@nostr/tools/nip04";
 import { decrypt, encrypt, getConversationKey } from "@nostr/tools/nip44";
 import {
   finalizeEvent,
@@ -61,6 +68,8 @@ interface Options {
   reject: boolean;
   delayMs: number;
   authUrl?: string;
+  /** Encrypt answers with NIP-04 (a signer the client cannot read). */
+  nip04: boolean;
   /** Secret a `connect` must present (bunker flow). */
   bunkerSecret?: string;
 }
@@ -113,11 +122,18 @@ class FakeSigner {
   /** Sends a response (or a first message) to `clientPubkey`. */
   async send(clientPubkey: string, payload: object): Promise<void> {
     const key = getConversationKey(this.#options.transportKey, clientPubkey);
+    const content = this.#options.nip04
+      ? await nip04.encrypt(
+        this.#options.transportKey,
+        clientPubkey,
+        JSON.stringify(payload),
+      )
+      : encrypt(JSON.stringify(payload), key);
     const event = finalizeEvent({
       kind: NOSTR_CONNECT,
       created_at: Math.floor(Date.now() / 1000),
       tags: [["p", clientPubkey]],
-      content: encrypt(JSON.stringify(payload), key),
+      content,
     }, this.#options.transportKey);
     await this.#relay.publish(event);
   }
@@ -222,8 +238,16 @@ class FakeSigner {
 
 async function main(): Promise<number> {
   const args = parseArgs(Deno.args, {
-    string: ["nsec", "signer-key", "connect", "relay", "delay", "auth-url"],
-    boolean: ["bunker", "reject", "help"],
+    string: [
+      "nsec",
+      "signer-key",
+      "connect",
+      "relay",
+      "delay",
+      "connect-delay",
+      "auth-url",
+    ],
+    boolean: ["bunker", "reject", "ack", "nip04", "help"],
   });
   if (args.help || (!args.connect && !args.bunker)) {
     console.log(USAGE);
@@ -243,6 +267,7 @@ async function main(): Promise<number> {
     reject: args.reject,
     delayMs: args.delay ? Number(args.delay) : 0,
     authUrl: args["auth-url"] || undefined,
+    nip04: args.nip04,
   };
   if (!Number.isFinite(options.delayMs) || options.delayMs < 0) {
     console.error("fake_signer: --delay needs a number of milliseconds");
@@ -302,9 +327,14 @@ async function main(): Promise<number> {
 
   if (clientPubkey) {
     signer.authorize(clientPubkey);
+    const wait = Number(args["connect-delay"] ?? 0);
+    if (wait > 0) {
+      console.log(`answering the nostrconnect link in ${wait} ms`);
+      await delay(wait);
+    }
     await signer.send(clientPubkey, {
       id: crypto.randomUUID(),
-      result: connectSecret,
+      result: args.ack ? "ack" : connectSecret,
     });
     console.log("answered the nostrconnect link; waiting for requests");
   } else {

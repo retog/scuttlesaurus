@@ -593,3 +593,86 @@ Deno.test("NIP-11 lists 46 only when Nostr Connect is on", () =>
     ).json();
     assertFalse(document.supported_nips.includes(46));
   }, { configOverrides: { nostrConnect: false } }));
+
+// Replay buffer: a subscriber that was not connected when the event arrived.
+
+async function publishConnect(
+  harness: Parameters<Parameters<typeof withRelay>[0]>[0],
+  to: string,
+  options: { from?: "outsider" | "friend"; createdAt?: number } = {},
+) {
+  const sender = await harness.connect();
+  const event = signedEvent(harness[options.from ?? "outsider"], {
+    kind: 24133,
+    tags: [["p", to]],
+    createdAt: options.createdAt,
+  });
+  sender.send(["EVENT", event]);
+  assertEquals(await sender.next(), ["OK", event.id, true, ""]);
+  return event;
+}
+
+Deno.test("Nostr Connect replay: a late subscriber gets the event before EOSE, never stored", () =>
+  withRelay(async (harness) => {
+    const to = harness.friend.pubkey;
+    const event = await publishConnect(harness, to);
+    const late = await harness.connect();
+    late.send(["REQ", "late", { kinds: [24133], "#p": [to] }]);
+    const messages = await late.until("EOSE");
+    assertEquals(messages.map((m) => m[0]), ["EVENT", "EOSE"]);
+    assertEquals(eventOf(messages[0]).id, event.id);
+    assertFalse(harness.store.has(event.id));
+
+    // Another recipient does not get it; a filter that does not match neither.
+    late.send(["REQ", "other", { kinds: [24133], "#p": [hex(77)] }]);
+    assertEquals((await late.until("EOSE")).length, 1);
+    late.send(["REQ", "kind", { kinds: [1] }]);
+    assertEquals((await late.until("EOSE")).length, 1);
+  }));
+
+Deno.test("Nostr Connect replay: since and limit are honoured, and an event is sent once", () =>
+  withRelay(async (harness) => {
+    const to = harness.friend.pubkey;
+    const now = NOW();
+    const older = await publishConnect(harness, to, { createdAt: now - 50 });
+    const newer = await publishConnect(harness, to, { createdAt: now - 10 });
+    const late = await harness.connect();
+    late.send(["REQ", "since", { kinds: [24133], since: now - 20 }]);
+    const sinceMessages = await late.until("EOSE");
+    assertEquals(sinceMessages.map((m) => m[0]), ["EVENT", "EOSE"]);
+    assertEquals(eventOf(sinceMessages[0]).id, newer.id);
+    late.send(["REQ", "limit", { kinds: [24133], limit: 1 }]);
+    const limited = await late.until("EOSE");
+    assertEquals(limited.length, 2);
+    assertEquals(eventOf(limited[0]).id, newer.id);
+    late.send(["REQ", "all", { kinds: [24133], "#p": [to] }]);
+    const all = await late.until("EOSE");
+    assertEquals(all.slice(0, 2).map((m) => eventOf(m).id), [
+      newer.id,
+      older.id,
+    ]);
+    // limit 0 is the live-only subscription the library uses: nothing replayed.
+    late.send(["REQ", "live", { kinds: [24133], limit: 0 }]);
+    assertEquals((await late.until("EOSE")).length, 1);
+  }));
+
+Deno.test("Nostr Connect replay: other ephemeral kinds are not buffered", () =>
+  withRelay(async ({ friend, connect }) => {
+    const sender = await connect();
+    const event = signedEvent(friend, { kind: 20001 });
+    sender.send(["EVENT", event]);
+    assertEquals(await sender.next(), ["OK", event.id, true, ""]);
+    const late = await connect();
+    late.send(["REQ", "eph", { kinds: [20001] }]);
+    assertEquals((await late.until("EOSE")).length, 1);
+  }));
+
+Deno.test("Nostr Connect replay: nothing is buffered or replayed when the toggle is off", () =>
+  withRelay(async (harness) => {
+    // A graph member's 24133 is accepted under the normal policy.
+    const event = await publishConnect(harness, hex(5), { from: "friend" });
+    const late = await harness.connect();
+    late.send(["REQ", "off", { kinds: [24133] }]);
+    assertEquals((await late.until("EOSE")).length, 1);
+    assertFalse(harness.store.has(event.id));
+  }, { configOverrides: { nostrConnect: false } }));
