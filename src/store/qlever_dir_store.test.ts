@@ -519,7 +519,10 @@ Deno.test("qlever-dir: a file whose insert timed out is checked at the next open
     await first.close();
     const [, timedOut] = await f.files();
     const written = (await Deno.stat(join(f.graphDir, timedOut))).mtime!;
-    assert(await readConfirmed(f) < written.getTime());
+    // The kernel stamps files with a coarser clock than Date.now(), so the
+    // file may appear a few milliseconds older than it is; the safety margin
+    // is there for that.
+    assert(await readConfirmed(f) < written.getTime() + 50);
     const logs: string[] = [];
     const second = await f.open(
       withState(f, { safetyMarginMs: 5000, log: (m) => logs.push(m) }),
