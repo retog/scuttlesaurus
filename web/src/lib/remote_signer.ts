@@ -211,12 +211,25 @@ export function isLoopbackHost(host: string): boolean {
 
 /**
  * Normalizes what a person typed as a relay into a `ws://` or `wss://` URL, or
- * returns `undefined`. A bare host gets `wss://`; `http(s)://` is converted.
+ * returns `undefined`. `http(s)://` is converted. A bare host gets `wss://`,
+ * except where that cannot work: an IP address, `localhost`, or the host of
+ * this page when the page itself is served without TLS get `ws://`.
  */
-export function normalizeRelayInput(input: string): string | undefined {
+export function normalizeRelayInput(
+  input: string,
+  page: { protocol: string; host: string } | undefined = globalThis.location,
+): string | undefined {
   let text = input.trim();
   if (!text) return undefined;
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) text = `wss://${text}`;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+    const host = text.split(/[/?#]/)[0].toLowerCase();
+    const name = host.replace(/:\d+$/, "");
+    const plain = isLoopbackHost(host) ||
+      /^\d{1,3}(\.\d{1,3}){3}$/.test(name) ||
+      name.startsWith("[") ||
+      (page?.protocol === "http:" && host === page.host.toLowerCase());
+    text = `${plain ? "ws" : "wss"}://${text}`;
+  }
   text = text.replace(/^http(s?):\/\//i, "ws$1://");
   try {
     const url = new URL(text);
@@ -316,9 +329,23 @@ export function startNostrConnect(relay: string): PendingConnection {
   signerState.value = "connecting";
   channel.start();
   const waitTimer = setTimeout(() => end("timeout"), CONNECT_WAIT_MS);
-  const reachTimer = setTimeout(() => {
-    if (!channel.everConnected) end("unreachable");
-  }, UNREACHABLE_AFTER_MS);
+  // Only time with the page in front counts: while the signer app is in
+  // front the browser may hold the socket back, which says nothing about the
+  // relay.
+  let reachTimer: ReturnType<typeof setTimeout> | undefined;
+  const armReachTimer = () => {
+    clearTimeout(reachTimer);
+    if (globalThis.document?.visibilityState === "hidden") return;
+    const armedAt = Date.now();
+    reachTimer = setTimeout(() => {
+      if (channel.everConnected) return;
+      // A timer that fires late was held back while the page was suspended.
+      if (Date.now() - armedAt > UNREACHABLE_AFTER_MS + 2_000) armReachTimer();
+      else end("unreachable");
+    }, UNREACHABLE_AFTER_MS);
+  };
+  armReachTimer();
+  globalThis.document?.addEventListener("visibilitychange", armReachTimer);
 
   const done = (async () => {
     try {
@@ -344,8 +371,8 @@ export function startNostrConnect(relay: string): PendingConnection {
       }
       if (endedBy === "unreachable") {
         throw new RemoteSignerError(
-          `Cannot reach the relay ${describeRelays([relay])} that carries ` +
-            "the link. Check your connection, or use another relay.",
+          `Cannot reach the relay ${relay} that carries the link. ` +
+            "Check your connection, or use another relay.",
           "unreachable",
         );
       }
@@ -362,6 +389,10 @@ export function startNostrConnect(relay: string): PendingConnection {
     } finally {
       clearTimeout(waitTimer);
       clearTimeout(reachTimer);
+      globalThis.document?.removeEventListener(
+        "visibilitychange",
+        armReachTimer,
+      );
       connectGap.value = undefined;
     }
   })();
@@ -398,7 +429,7 @@ export async function connectBunker(
       "rejected",
     );
   }
-  const relays = pointer.relays.map(normalizeRelayInput).filter((r) =>
+  const relays = pointer.relays.map((r) => normalizeRelayInput(r)).filter((r) =>
     r !== undefined
   );
   if (relays.length === 0) {

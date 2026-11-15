@@ -56,6 +56,21 @@ Deno.test("relay input is normalized to ws or wss", () => {
     "wss://relay.nsec.app/",
   );
   assertEquals(normalizeRelayInput("relay.nsec.app"), "wss://relay.nsec.app/");
+  assertEquals(
+    normalizeRelayInput("192.168.2.102:7777"),
+    "ws://192.168.2.102:7777/",
+  );
+  assertEquals(
+    normalizeRelayInput("box.lan:7777", {
+      protocol: "http:",
+      host: "box.lan:7777",
+    }),
+    "ws://box.lan:7777/",
+  );
+  assertEquals(
+    normalizeRelayInput("box.lan", { protocol: "https:", host: "box.lan" }),
+    "wss://box.lan/",
+  );
   assertEquals(normalizeRelayInput("https://a.example/x"), "wss://a.example/x");
   assertEquals(
     normalizeRelayInput("ws://127.0.0.1:7881/"),
