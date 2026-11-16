@@ -17,6 +17,8 @@ services:
     volumes:
       - graph:/data/graph
     depends_on:
+      # The qlever-dir image brings its own health check (an ASK query against
+      # port 7001), so no `healthcheck` is needed on the service below.
       qlever:
         condition: service_healthy
 

@@ -19,17 +19,35 @@ export interface TagInputProps {
   placeholder?: string;
 }
 
+/**
+ * `current` plus the topics in `raw`, split at commas and line breaks,
+ * normalized, without duplicates and capped at `max`.
+ */
+export function addTopics(
+  current: string[],
+  raw: string,
+  max: number,
+): string[] {
+  const next = [...current];
+  for (const part of raw.split(/[,\n\r]+/)) {
+    if (next.length >= max) break;
+    const tag = normalizeTopic(part);
+    if (tag && !next.includes(tag)) next.push(tag);
+  }
+  return next;
+}
+
 /** Topics as removable chips with a text field to add more. */
 export function TagInput(
   { value, onChange, label, max = 8, placeholder }: TagInputProps,
 ) {
   const [draft, setDraft] = useState("");
 
+  /** Adds every topic in `raw`, which may hold several separated by commas or lines. */
   const add = (raw: string) => {
-    const tag = normalizeTopic(raw);
     setDraft("");
-    if (!tag || value.includes(tag) || value.length >= max) return;
-    onChange([...value, tag]);
+    const next = addTopics(value, raw, max);
+    if (next.length > value.length) onChange(next);
   };
 
   return (
@@ -59,7 +77,7 @@ export function TagInput(
               maxLength={48}
               onInput={(e) => {
                 const text = (e.target as HTMLInputElement).value;
-                if (/[,\n]/.test(text)) add(text.replace(/[,\n]/g, ""));
+                if (/[,\n]/.test(text)) add(text);
                 else setDraft(text);
               }}
               onKeyDown={(e) => {

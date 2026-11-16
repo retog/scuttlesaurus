@@ -4,6 +4,7 @@
  * @module
  */
 import oxigraph from "oxigraph";
+import { queryForm, resultType } from "../store/sparql_form.ts";
 import type {
   Config,
   SocialGraph,
@@ -32,10 +33,7 @@ export class MemoryTripleStore implements TripleStore {
   }
 
   query(sparql: string): Promise<{ contentType: string; body: string }> {
-    const isGraphQuery = /^\s*(CONSTRUCT|DESCRIBE)\b/im.test(sparql);
-    const contentType = isGraphQuery
-      ? "application/n-triples"
-      : "application/sparql-results+json";
+    const contentType = resultType(queryForm(sparql));
     const body = this.#store.query(sparql, {
       results_format: contentType,
     }) as string;
