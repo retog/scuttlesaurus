@@ -132,6 +132,9 @@ function invalidReason(
   return undefined;
 }
 
+/** How long after a failed insert the repair is tried without a new event. */
+const REPAIR_RETRY_MS = 30_000;
+
 class Store implements EventStore {
   readonly triples: TripleStore;
   readonly #config: Config;
@@ -154,6 +157,7 @@ class Store implements EventStore {
    * events but not their bookkeeping). The next commit repairs first.
    */
   #needsRepair = false;
+  #repairTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(triples: TripleStore, config: Config, group: GroupOptions) {
     this.triples = triples;
@@ -295,11 +299,33 @@ class Store implements EventStore {
         // but lack their bookkeeping. They are not in `#ids`, so offering
         // them again plans them afresh, but nothing promises that anybody
         // does; the repair finds the missing bookkeeping from the graph.
-        if (inserting) this.#needsRepair = true;
+        if (inserting) {
+          this.#needsRepair = true;
+          this.#scheduleRepair();
+        }
         for (const pending of group) pending.reject(error);
       }
     }
     this.#committing = false;
+  }
+
+  /**
+   * On a quiet node no next group may come for a long time, so the repair is
+   * also tried on a timer until it has succeeded.
+   */
+  #scheduleRepair(): void {
+    if (this.#repairTimer !== undefined || this.#closed) return;
+    this.#repairTimer = setTimeout(() => {
+      this.#repairTimer = undefined;
+      if (this.#closed || !this.#needsRepair) return;
+      if (!this.#committing) {
+        this.#committing = true;
+        this.#committer = this.#repair().then(() => this.#commitLoop());
+      }
+      // Still needed if the repair fails or a commit is running right now.
+      this.#scheduleRepair();
+    }, REPAIR_RETRY_MS);
+    Deno.unrefTimer(this.#repairTimer as unknown as number);
   }
 
   /**
@@ -311,6 +337,8 @@ class Store implements EventStore {
     try {
       const { superseded, deleted } = await repairBookkeeping(this.triples);
       this.#needsRepair = false;
+      clearTimeout(this.#repairTimer);
+      this.#repairTimer = undefined;
       if (superseded + deleted > 0) {
         console.log(
           `store: repaired bookkeeping after a failed insert: ${superseded} supersededBy, ${deleted} deletedBy`,
@@ -563,6 +591,8 @@ class Store implements EventStore {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
+    clearTimeout(this.#repairTimer);
+    this.#repairTimer = undefined;
     await this.#committer;
     await this.triples.close();
   }
