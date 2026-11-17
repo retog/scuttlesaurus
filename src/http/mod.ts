@@ -6,6 +6,7 @@
  * the CORS preflight answer carries the CORS headers.
  * @module
  */
+import { rememberClient } from "../client_address.ts";
 import type { Node } from "../types.ts";
 import { createApiContext } from "./api.ts";
 import { preflightResponse, withCorsHeaders } from "./cors.ts";
@@ -26,13 +27,14 @@ export { DEFAULT_WEB_DIR } from "./static.ts";
 export function createHttpHandler(
   node: Node,
   webDir: string = DEFAULT_WEB_DIR,
-): (request: Request) => Promise<Response> {
+): (request: Request, info?: Deno.ServeHandlerInfo) => Promise<Response> {
   const context: RouterContext = {
     node,
     webDir,
     api: createApiContext(node),
   };
-  return async (request) => {
+  return async (request, info) => {
+    rememberClient(request, info?.remoteAddr);
     if (request.method === "OPTIONS") return preflightResponse();
     const response = await answer(request, context);
     // The WebSocket upgrade response is returned untouched.

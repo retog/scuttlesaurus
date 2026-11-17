@@ -49,6 +49,7 @@ src/types.ts            the interfaces between modules
 src/vocab.ts            RDF vocabulary and IRI helpers (shared with the web client)
 src/config.ts           configuration
 src/base_url.ts         the node's external base URL (public URL or forwarding headers)
+src/client_address.ts   the client address of a request, for per-client limits
 src/nostr_auth.ts       the `Authorization: Nostr …` header shared by NIP-98 and Blossom
 src/store/              TripleStore implementations, event ⇄ triples, filter → SPARQL, EventStore
 src/social/             SocialGraph
