@@ -20,6 +20,7 @@ export function openTripleStore(config: Config): Promise<TripleStore> {
     case "embedded":
       return openEmbeddedStore(config.dataDir, {
         untrustedTimeoutMs: config.sparqlTimeoutMs,
+        workers: config.sparqlWorkers,
       });
     case "sparql":
       return Promise.resolve(openEndpointStore(store, {

@@ -77,6 +77,7 @@ Deno.test("defaults with an empty environment", () =>
     });
     assertEquals(config.publicSparql, true);
     assertEquals(config.sparqlTimeoutMs, 10_000);
+    assertEquals(config.sparqlWorkers, 1);
     assertEquals(config.nostrConnect, true);
     assertEquals(config.maxLimit, 500);
     assertEquals(manager.locked.size, 0);
@@ -110,6 +111,7 @@ Deno.test("each environment variable sets its setting", () =>
       ALLOW_PRIVATE_RELAYS: "on",
       SPARQL_PUBLIC: "0",
       SPARQL_TIMEOUT_SECONDS: "3",
+      SPARQL_WORKERS: "2",
       NOSTR_CONNECT: "off",
       BLOSSOM: "false",
       BLOSSOM_MAX_SIZE_MB: "10",
@@ -138,6 +140,7 @@ Deno.test("each environment variable sets its setting", () =>
     });
     assertEquals(c.publicSparql, false);
     assertEquals(c.sparqlTimeoutMs, 3000);
+    assertEquals(c.sparqlWorkers, 2);
     assertEquals(c.nostrConnect, false);
     assertEquals(c.blossom, { enabled: false, maxBlobSize: 10 * 1024 * 1024 });
     assertEquals(c.maxLimit, 100);
@@ -210,6 +213,9 @@ Deno.test("invalid environment values throw, naming the variable", async () => {
     ["MAX_LIMIT", "0"],
     ["SPARQL_TIMEOUT_SECONDS", "0"],
     ["SPARQL_TIMEOUT_SECONDS", "1.5"],
+    ["SPARQL_WORKERS", "0"],
+    ["SPARQL_WORKERS", "5"],
+    ["SPARQL_WORKERS", "two"],
     ["SPARQL_ENDPOINT_QUERY", "ftp://example.org/query"],
     ["SPARQL_ENDPOINT_CREDENTIALS", "nocolon"],
     ["QLEVER_DIR_URL", "ftp://qlever:7001/"],

@@ -106,43 +106,84 @@ also serves inserts, relay `REQ`s and the social graph busy for minutes.
 on every request, and each store keeps such a query from stalling the node.
 Everything inside the node (`select`, `ask`, `EventStore`) is unchanged.
 
-- **Embedded store**: an untrusted query runs in a second worker, the replica,
-  which holds a read-only copy of the graph. The replica is created by the first
-  untrusted query (a node nobody queries over `/sparql` pays nothing): it reads
-  `graph.nt`, and from then on every batch the primary accepted is loaded into
-  it before `insert` returns. Only the primary writes `graph.nt`. The replica
-  runs one query at a time; at most 32 more wait (`maxQueuedQueries`), the rest
-  fail at once, and a query that has waited as long as the time limit fails too.
-  The time limit (`SPARQL_TIMEOUT_SECONDS`, default 10) starts when a query
-  starts to run. When it passes, the replica worker is terminated, the query
-  fails, queries waiting behind it fail as busy, and a new replica is built in
-  the background from `graph.nt`. While it is built, untrusted queries fail
-  immediately as busy. Batches inserted during a build are kept and loaded into
-  the new replica in the same step that makes it available, so none is missed;
-  one that is both in the log and in that list is loaded twice, which does
-  nothing because the graph is a set. The first build, started by the first
-  query, is waited for, within the same time limit.
+- **Embedded store**: an untrusted query runs in a further worker, a replica,
+  which holds a read-only copy of the graph. Replicas are created by the first
+  untrusted query (a node nobody queries over `/sparql` pays nothing): each
+  reads `graph.nt`, and from then on every batch the primary accepted is loaded
+  into every replica before `insert` returns. Only the primary writes
+  `graph.nt`. There is one replica by default; `SPARQL_WORKERS` (1 to 4) sets
+  more. Each replica runs one query at a time, so with N replicas N queries run
+  at once. At most 32 more wait (`maxQueuedQueries`), the rest fail at once, and
+  a query that has waited as long as the time limit fails too. Waiting queries
+  are served client by client in turn (the client is the request's
+  `clientAddress`), not first come, first served: a client that queues eight
+  queries waits behind one query of every other client, and a client whose query
+  has just run goes behind clients that have not been served yet. The time limit
+  (`SPARQL_TIMEOUT_SECONDS`, default 10) starts when a query starts to run. When
+  it passes, the worker that ran it is terminated, the query fails, and a new
+  replica is built in its place in the background from `graph.nt`; the other
+  replicas keep answering. A replica whose worker fails for any other reason (it
+  crashed, or it could not load a batch) is dropped and rebuilt the same way, at
+  once, even if nobody is querying. When no replica is usable, queries waiting
+  fail as busy, and new untrusted queries fail immediately as busy until one is
+  back. A rebuild that itself fails (for example a damaged `graph.nt`) leaves
+  the replica empty; it is tried again only when a query arrives, after a pause
+  of 1 s that doubles with each failure up to 30 s, so a broken build does not
+  loop. Batches inserted during a build are kept per replica and loaded into the
+  new replica in the same step that makes it available, so none is missed; one
+  that is both in the log and in that list is loaded twice, which does nothing
+  because the graph is a set. The first build, started by the first query, is
+  waited for, within the same time limit.
+- **Per-client budget** (all store kinds; `src/http/client_budget.ts`): before a
+  query reaches the store, `/sparql` checks the client's address. A client may
+  use at most 20 seconds of query time per 60 seconds (sliding window) and may
+  have at most 12 queries running or waiting at once (the web client sends up to
+  about eight in parallel on its busiest page). The time charged is the query's
+  run time, from the moment the store starts it (waiting in a queue is free),
+  and includes queries that time out; a query refused as busy costs nothing. A
+  client over budget gets 429 with `Retry-After` at once and its query never
+  reaches the store; a query that is still waiting when its client runs out is
+  refused when its turn comes, without running. Addresses are the TCP peer, or
+  the last `X-Forwarded-For` entry when the peer is on this machine or a private
+  network (`src/client_address.ts`). The table is kept small: a client is
+  forgotten a window after its last query, and at most 4096 clients are
+  remembered.
 - **SPARQL endpoint and QLever stores**: the request gets the same time limit
   and is never retried (trusted queries on the QLever store are retried on
   502/503/504 and connection failures, but never after their own timeout).
   Stopping a query that is still running at the endpoint is that endpoint's own
   setting.
-- A limit is reported as `QueryLimitError` (`timeout` or `busy`), which
-  `/sparql` answers with 503: for a timeout, and for busy with a `Retry-After`
-  header. A query the store rejects stays a 400.
+- A limit is reported as `QueryLimitError` (`timeout`, `busy` or `budget`),
+  which `/sparql` answers with 503 for a timeout (no `Retry-After`: asking again
+  does not help), 503 with `Retry-After` for busy, and 429 with `Retry-After`
+  for a client over its budget. A query the store rejects stays a 400.
 
-Cost: once `/sparql` has been used, the embedded graph is held twice, so memory
-roughly doubles (measured: 0.8 GB to 1.5 GB resident for a million triples, and
-a build of that graph takes about four seconds). The replica is not released
+Cost: once `/sparql` has been used, the embedded graph is held once more for
+every replica, so memory grows by one graph per `SPARQL_WORKERS` (measured with
+a million triples: 0.57 GB with the primary alone, 1.09 GB with one replica,
+1.60 GB with two; a build takes about three seconds). Replicas are not released
 again; a restart does. The memory of a replica that was terminated is returned
 by the runtime later, so memory can be higher than that while one is being
-rebuilt. What an attacker can still do: keep the public endpoint busy with slow
-queries (each costs the rebuild, during which everybody else's `/sparql`
-requests fail with 503), or fill its queue. The relay, inserts and the web
-client's reads through the relay stay responsive. A query with an enormous
-result can still use a lot of memory in the replica before the time limit ends
-it. Run the node with `SPARQL_PUBLIC=off` or put a rate limit in front if that
-matters.
+rebuilt.
+
+What still can and cannot happen. Every `/sparql` request, including the web
+client's reads of feeds, articles, profiles and people, uses these lanes. A
+single address cannot take them over: it is held to its time budget, and its
+waiting queries are interleaved with everybody else's, so one slow query delays
+another client by at most the remainder of the query that is running (up to the
+time limit, 10 s by default), plus at most one more of that client's queries
+that was already admitted when its budget ran out. A slow query from one address
+does not hold the lane for longer than that, however often it is repeated. What
+the budget cannot stop: many addresses (a botnet, or many addresses of one IPv6
+range, which are counted one by one) each use their own budget and can keep
+every lane busy, and a timeout still costs a rebuild during which the node has
+fewer lanes; with the default single replica everybody's `/sparql` requests then
+fail with 503 for a few seconds. Extra replicas buy parallelism, so that one
+runaway query does not stop the others, at the price of one graph of memory
+each. The relay, inserts and trusted queries inside the node are never affected.
+A query with an enormous result can still use a lot of memory in a replica
+before the time limit ends it. Run the node with `SPARQL_PUBLIC=off` or put a
+rate limit in front if that matters.
 
 `EventStore` implements Nostr semantics on top:
 
@@ -333,8 +374,10 @@ event in the `Authorization: Nostr <base64>` header, signed by the owner.
 `application/n-triples`. Updates are refused: the graph is written only through
 events. When `publicSparql` is false the endpoint requires the owner's NIP-98
 authorization. Every query is bounded by `sparqlTimeoutMs`, whoever sends it: a
-query that runs out of time is answered with 503, and so is one the store has no
-capacity for at the moment, with a `Retry-After` header; see
+query that runs out of time is answered with 503, one the store has no capacity
+for at the moment with 503 and a `Retry-After` header, and one from an address
+that has used up its share of query time or has too many queries going at once
+with 429 and a `Retry-After` header; see
 [Untrusted queries](#untrusted-queries). A query the store rejects is a 400.
 Error bodies here are plain text.
 
@@ -369,6 +412,7 @@ the environment is locked: the settings page shows it but cannot change it.
 | `QLEVER_DIR_BASE_URI`         | `store.qleverBaseUri`                           | `https://example.org/data/`                                                                 |
 | `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                      |
 | `SPARQL_TIMEOUT_SECONDS`      | `sparqlTimeoutMs` (given in seconds)            | `10`                                                                                        |
+| `SPARQL_WORKERS`              | `sparqlWorkers` (1 to 4)                        | `1`                                                                                         |
 | `NOSTR_CONNECT`               | `nostrConnect` (`off` disables)                 | on                                                                                          |
 | `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                          |
 | `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                        |

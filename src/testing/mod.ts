@@ -83,6 +83,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     blossom: { enabled: true, maxBlobSize: 50 * 1024 * 1024 },
     publicSparql: true,
     sparqlTimeoutMs: 10_000,
+    sparqlWorkers: 1,
     nostrConnect: true,
     maxLimit: 500,
     ...overrides,

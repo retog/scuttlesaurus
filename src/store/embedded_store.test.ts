@@ -308,10 +308,11 @@ function settle<T>(promise: Promise<T>) {
 async function untrustedWhenReady(
   store: TripleStore,
   sparql: string,
+  onStart?: () => void,
 ): Promise<{ contentType: string; body: string }> {
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
-      return await store.query(sparql, { untrusted: true });
+      return await store.query(sparql, { untrusted: true, onStart });
     } catch (error) {
       if (!(error instanceof QueryLimitError) || error.reason !== "busy") {
         throw error;
@@ -559,5 +560,242 @@ Deno.test("embedded store: a log cut inside a group is harmless, the retry compl
       ["cd".repeat(32)],
     );
     await events.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A crashed replica, waiting in turn, several replicas
+// ---------------------------------------------------------------------------
+
+/** Waits until `ready()` holds, polling; fails after `ms`. */
+async function until(ready: () => boolean, ms = 10_000): Promise<void> {
+  const deadline = performance.now() + ms;
+  while (!ready()) {
+    if (performance.now() > deadline) throw new Error("timed out waiting");
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+Deno.test("embedded store: a replica whose worker crashed is rebuilt without any query asking", async () => {
+  await withDir(async (dir) => {
+    const replicas: { crash(): void }[] = [];
+    const store = await openEmbeddedStore(dir, {
+      untrustedTimeoutMs: SHORT,
+      onReplicaStart: (r) => replicas.push(r),
+    });
+    try {
+      await store.insert(many(0, 500));
+      assertEquals(
+        subjects((await store.query(SUBJECTS, { untrusted: true })).body)
+          .length,
+        500,
+      );
+      assertEquals(replicas.length, 1);
+
+      replicas[0].crash();
+      // The node is quiet: nobody queries, yet the replica is rebuilt.
+      await until(() => replicas.length === 2);
+      await store.insert(triple(9000));
+      const after = await untrustedWhenReady(store, SUBJECTS);
+      assertEquals(subjects(after.body).length, 501);
+      // One crash, one rebuild.
+      assertEquals(replicas.length, 2);
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: a rebuild that keeps failing is not retried in a loop", async () => {
+  await withDir(async (dir) => {
+    const replicas: { crash(): void }[] = [];
+    const store = await openEmbeddedStore(dir, {
+      untrustedTimeoutMs: SHORT,
+      rebuildBackoffMs: 150,
+      onReplicaStart: (r) => replicas.push(r),
+    });
+    try {
+      await store.insert(many(0, 100));
+      await store.query(SUBJECTS, { untrusted: true });
+      const log = await Deno.readTextFile(dir + "/graph.nt");
+      await Deno.writeTextFile(dir + "/graph.nt", log + "not n-triples\n");
+      replicas[0].crash();
+      await until(() => replicas.length === 2);
+      // The rebuild fails; nothing else is started while nobody asks.
+      await new Promise((r) => setTimeout(r, 400));
+      assertEquals(replicas.length, 2);
+
+      // A query inside the pause fails at once, without a new build.
+      await Deno.writeTextFile(dir + "/graph.nt", log);
+      const error = await store.query(SUBJECTS, { untrusted: true }).then(
+        () => undefined,
+        (e) => e,
+      );
+      assertInstanceOf(error, QueryLimitError);
+      assertEquals(error.reason, "busy");
+
+      // Later a query starts one build, and it succeeds.
+      await new Promise((r) => setTimeout(r, 400));
+      const answer = await untrustedWhenReady(store, SUBJECTS);
+      assertEquals(subjects(answer.body).length, 100);
+      assertEquals(replicas.length, 3);
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: waiting queries are served client by client in turn", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, { untrustedTimeoutMs: 5_000 });
+    try {
+      await store.insert(many(0, 50));
+      const order: string[] = [];
+      const ask = (client: string, n: number) =>
+        store.query(SUBJECTS, {
+          untrusted: true,
+          client,
+          onStart: () => order.push(`${client}${n}`),
+        });
+      // All wait for the first build, then run one at a time.
+      const all = [
+        ask("a", 1),
+        ask("a", 2),
+        ask("a", 3),
+        ask("b", 1),
+        ask("c", 1),
+        ask("b", 2),
+      ];
+      await Promise.all(all);
+      assertEquals(order, ["a1", "b1", "c1", "a2", "b2", "a3"]);
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: a query refused by onStart never runs and the next one does", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, { untrustedTimeoutMs: 5_000 });
+    try {
+      await store.insert(many(0, 5));
+      const refused = settle(store.query(SUBJECTS, {
+        untrusted: true,
+        client: "x",
+        onStart: () => {
+          throw new QueryLimitError("budget", "no", 3);
+        },
+      }));
+      const served = store.query(SUBJECTS, { untrusted: true, client: "y" });
+      await refused.finished;
+      assertInstanceOf(refused.outcome.error, QueryLimitError);
+      assertEquals(refused.outcome.error.reason, "budget");
+      assertEquals(subjects((await served).body).length, 5);
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: with two workers a runaway query does not delay the other worker", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, {
+      untrustedTimeoutMs: 2500,
+      workers: 2,
+    });
+    try {
+      await store.insert(many(0, 3000));
+      // Warm up both replicas: two queries at once use one each.
+      await Promise.all(
+        [0, 1].map(() => store.query(SUBJECTS, { untrusted: true })),
+      );
+
+      const slow = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      const started = performance.now();
+      for (let i = 0; i < 3; i++) {
+        const fast = await store.query(SUBJECTS, { untrusted: true });
+        assertEquals(subjects(fast.body).length, 3000);
+      }
+      assert(
+        performance.now() - started < 1500,
+        "the second worker waited",
+      );
+      assert(!slow.outcome.done, "the runaway query was still running");
+      await slow.finished;
+      assertEquals(
+        (slow.outcome.error as QueryLimitError).reason,
+        "timeout",
+      );
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: every replica matches the primary after inserts, also during one's rebuild", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, {
+      untrustedTimeoutMs: SHORT,
+      workers: 2,
+    });
+    try {
+      await store.insert(many(0, 3000));
+      /** Two queries at once, compared with the primary. */
+      const bothReplicas = async () => {
+        const answers = await Promise.all(
+          [0, 1].map(() => untrustedWhenReady(store, SUBJECTS)),
+        );
+        const expected = (await store.select(SUBJECTS)).map((r) => r.s.value);
+        for (const answer of answers) {
+          assertEquals(subjects(answer.body), expected);
+        }
+        return expected.length;
+      };
+      assertEquals(await bothReplicas(), 3000);
+      await store.insert(triple(10_000));
+      assertEquals(await bothReplicas(), 3001);
+
+      // Lose one replica, insert while it is rebuilt.
+      const slow = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+      await store.insert(triple(10_001));
+      await store.insert(many(20_000, 20_040));
+      await slow.finished;
+      assertEquals(
+        (slow.outcome.error as QueryLimitError).reason,
+        "timeout",
+      );
+      await store.insert(triple(10_002));
+      await store.insert(many(30_000, 30_010));
+
+      // Wait for both to be back: two simultaneous queries start together
+      // only when two replicas are free.
+      let together = false;
+      for (let i = 0; i < 200 && !together; i++) {
+        const starts: number[] = [];
+        const pair = await Promise.all(
+          [0, 1].map(() =>
+            untrustedWhenReady(
+              store,
+              SUBJECTS,
+              () => starts.push(performance.now()),
+            )
+          ),
+        );
+        together = starts.length === 2 && Math.abs(starts[1] - starts[0]) < 5;
+        if (together) {
+          const expected = (await store.select(SUBJECTS)).map((r) => r.s.value);
+          for (const answer of pair) {
+            assertEquals(subjects(answer.body), expected);
+          }
+          assertEquals(expected.length, 3001 + 1 + 40 + 1 + 10);
+        } else await new Promise((r) => setTimeout(r, 50));
+      }
+      assert(together, "the rebuilt replica never came back");
+      await store.insert(triple(10_003));
+      assertEquals(await bothReplicas(), 3001 + 1 + 40 + 1 + 10 + 1);
+    } finally {
+      await store.close();
+    }
   });
 });

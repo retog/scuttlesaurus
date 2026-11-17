@@ -540,9 +540,25 @@ A query may run for 10 seconds; set `SPARQL_TIMEOUT_SECONDS` to change that. A
 query that takes longer is answered with HTTP 503. With the embedded store the
 node answers queries from a second copy of the graph, so that a slow query never
 delays the relay: after the first query over `/sparql` it uses about twice the
-memory for the graph, and after a query ran out of time the copy is rebuilt,
-which takes a few seconds per million triples; queries in that time get 503 with
-`Retry-After`. For the vocabulary, see [DATA-MODEL.md](DATA-MODEL.md).
+memory for the graph (0.6 GB became 1.1 GB for a million triples). After a query
+ran out of time, or the copy's worker crashed, the copy is rebuilt, which takes
+a few seconds per million triples; queries in that time get 503 with
+`Retry-After`.
+
+The copy answers one query at a time, and everybody who reads the node through
+the web client shares it. To keep one visitor from using it up, each address may
+use 20 seconds of query time per minute and have 12 queries going at once;
+beyond that it gets HTTP 429 with `Retry-After` until its share recovers. One
+slow query therefore delays the others by at most the rest of its own run (up to
+the time limit), but many addresses together can still keep the node busy. If
+that is a concern, or you simply want queries to run in parallel, set
+`SPARQL_WORKERS` to 2, 3 or 4: the node then keeps that many copies of the
+graph, so memory grows by **one more whole graph per worker** (a million
+triples: about 1.1 GB with one worker, 1.6 GB with two), and that many queries
+run at once; a query that runs out of time only restarts the worker that ran it.
+With a small graph the extra memory is small; with a large one, check that the
+machine has it. `SPARQL_PUBLIC=off` (owner only) avoids the problem altogether.
+For the vocabulary, see [DATA-MODEL.md](DATA-MODEL.md).
 
 ## Troubleshooting
 

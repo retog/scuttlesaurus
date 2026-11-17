@@ -20,7 +20,9 @@ export type WorkerOperation =
   | { op: "load"; ntriples: string }
   | { op: "query"; sparql: string; format: string }
   | { op: "size" }
-  | { op: "close" };
+  | { op: "close" }
+  /** Tests only: fail with an uncaught error, as a crashing worker does. */
+  | { op: "crash" };
 
 /** A {@link WorkerOperation} tagged with the id its response will carry. */
 export type WorkerRequest = WorkerOperation & { id: number };
@@ -115,6 +117,11 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       return store.query(request.sparql, { results_format: request.format });
     case "size":
       return store.size;
+    case "crash":
+      setTimeout(() => {
+        throw new Error("crash requested by a test");
+      }, 0);
+      return undefined;
     case "close":
       log?.close();
       log = undefined;

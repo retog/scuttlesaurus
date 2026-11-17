@@ -61,6 +61,7 @@ const DEFAULTS: Raw = {
   blossom: { enabled: true, maxBlobSize: 50 * MEGABYTE },
   publicSparql: true,
   sparqlTimeoutMs: 10_000,
+  sparqlWorkers: 1,
   nostrConnect: true,
   maxLimit: 500,
 };
@@ -155,6 +156,7 @@ const ENV_SETTINGS: readonly EnvSetting[] = [
     key: "sparqlTimeoutMs",
     parse: parseSeconds,
   },
+  { variable: "SPARQL_WORKERS", key: "sparqlWorkers", parse: parseInteger },
   { variable: "NOSTR_CONNECT", key: "nostrConnect", parse: parseToggle },
   { variable: "BLOSSOM", key: "blossom.enabled", parse: parseToggle },
   {
@@ -189,6 +191,7 @@ const CHECKS: Record<string, Check> = {
   "store.qleverBaseUri": checkBaseUri,
   publicSparql: checkBoolean,
   sparqlTimeoutMs: checkRange(1000, 3600 * 1000),
+  sparqlWorkers: checkRange(1, 4),
   nostrConnect: checkBoolean,
   "blossom.enabled": checkBoolean,
   "blossom.maxBlobSize": checkRange(1, Number.MAX_SAFE_INTEGER),
@@ -434,6 +437,7 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
     },
     publicSparql: at("publicSparql"),
     sparqlTimeoutMs: at("sparqlTimeoutMs"),
+    sparqlWorkers: at("sparqlWorkers"),
     nostrConnect: at("nostrConnect"),
     maxLimit: at("maxLimit"),
   };

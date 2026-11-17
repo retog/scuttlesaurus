@@ -274,7 +274,16 @@ Deno.test("queries are untrusted; limits answer 503, other failures 400", async 
       );
 
     assertEquals((await ask()).status, 200);
-    assertEquals(seen, [{ untrusted: true }]);
+    assertEquals(seen.length, 1);
+    const options = seen[0] as {
+      untrusted: boolean;
+      client: string;
+      onStart: unknown;
+    };
+    assertEquals(options.untrusted, true);
+    // The handler is called directly here, so the peer is not known.
+    assertEquals(options.client, "unknown");
+    assertEquals(typeof options.onStart, "function");
 
     failure = new QueryLimitError("timeout", "the query took too long");
     const timeout = await ask();
@@ -291,6 +300,12 @@ Deno.test("queries are untrusted; limits answer 503, other failures 400", async 
     assertEquals(busy.status, 503);
     assertEquals(busy.headers.get("retry-after"), "7");
     assertEquals(await busy.text(), "restarting");
+
+    failure = new QueryLimitError("budget", "over budget", 12);
+    const budget = await ask();
+    assertEquals(budget.status, 429);
+    assertEquals(budget.headers.get("retry-after"), "12");
+    assertEquals(await budget.text(), "over budget");
 
     failure = new Error("syntax error");
     const bad = await ask();

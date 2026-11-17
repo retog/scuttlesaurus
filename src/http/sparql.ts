@@ -8,7 +8,9 @@
  * rest of the API.
  * @module
  */
+import { clientAddress } from "../client_address.ts";
 import { type Node, QueryLimitError } from "../types.ts";
+import { ClientBudget } from "./client_budget.ts";
 import { authorizeOwner } from "./nip98.ts";
 import { MAX_QUERY, NO_BODY, readBody } from "./body.ts";
 import {
@@ -28,6 +30,9 @@ interface SparqlRequest {
   update: boolean;
 }
 
+/** One budget per node, created by its first request. */
+const budgets = new WeakMap<Node, ClientBudget>();
+
 /**
  * Answer a request to `/sparql`: `GET ?query=…`, `POST` with the query as the
  * body (`application/sparql-query`), or `POST` with a form that has a `query`
@@ -36,6 +41,7 @@ interface SparqlRequest {
 export async function handleSparql(
   node: Node,
   request: Request,
+  budget?: ClientBudget,
 ): Promise<Response> {
   if (request.method !== "GET" && request.method !== "POST") {
     return methodNotAllowed(["GET", "POST"]);
@@ -48,7 +54,11 @@ export async function handleSparql(
       if (typeof owner !== "string") return owner;
     }
     const query = checkQuery(sparql);
-    return await run(node, query);
+    if (!budget) {
+      budget = budgets.get(node);
+      if (!budget) budgets.set(node, budget = new ClientBudget());
+    }
+    return await run(node, query, clientAddress(request), budget);
   } catch (error) {
     if (error instanceof HttpError) {
       return plainText(error.status, error.message);
@@ -122,13 +132,27 @@ function checkQuery(sparql: SparqlRequest): string {
 
 /**
  * Evaluate the query. Every query here is untrusted, whoever sent it, so the
- * store bounds it. A query the store rejects is a 400 with its message; one
- * that ran out of time is a 503, and one the store has no capacity for is a
- * 503 with `Retry-After`.
+ * store bounds it and the client's budget bounds how much of the store one
+ * address can take. A query the store rejects is a 400 with its message; one
+ * that ran out of time is a 503; one the store has no capacity for is a 503
+ * with `Retry-After`; one from an address that is over its budget is a 429
+ * with `Retry-After`, and never reaches the store.
  */
-async function run(node: Node, query: string): Promise<Response> {
+async function run(
+  node: Node,
+  query: string,
+  client: string,
+  budget: ClientBudget,
+): Promise<Response> {
+  let ran = true;
+  let ticket;
   try {
-    const result = await node.events.triples.query(query, { untrusted: true });
+    ticket = budget.admit(client);
+    const result = await node.events.triples.query(query, {
+      untrusted: true,
+      client,
+      onStart: ticket.start,
+    });
     return new Response(result.body, {
       headers: {
         "Content-Type": result.contentType,
@@ -137,13 +161,17 @@ async function run(node: Node, query: string): Promise<Response> {
     });
   } catch (error) {
     if (error instanceof QueryLimitError) {
-      const response = plainText(503, error.message);
-      if (error.reason === "busy") {
+      ran = error.reason !== "busy" && error.reason !== "budget";
+      const budgeted = error.reason === "budget";
+      const response = plainText(budgeted ? 429 : 503, error.message);
+      if (error.reason !== "timeout") {
         response.headers.set("Retry-After", String(error.retryAfter ?? 5));
       }
       return response;
     }
     return plainText(400, messageOf(error));
+  } finally {
+    ticket?.finish(ran);
   }
 }
 

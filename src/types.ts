@@ -113,6 +113,11 @@ export interface Config {
    */
   sparqlTimeoutMs: number;
   /**
+   * Number of replica workers that answer untrusted queries with the embedded
+   * store (1 to 4). Each holds its own copy of the graph.
+   */
+  sparqlWorkers: number;
+  /**
    * Whether kind 24133 events (NIP-46 Nostr Connect) are relayed for any
    * author. Off: they get the normal write policy.
    */
@@ -162,17 +167,31 @@ export type SparqlBinding = Record<string, SparqlTerm>;
 export interface QueryOptions {
   /** The query text comes from outside (a `/sparql` request). */
   untrusted?: boolean;
+  /**
+   * Who sent an untrusted query (`clientAddress` of the request). A store
+   * that queues queries serves the clients that wait in turn, so that one
+   * client's burst does not sit in front of everyone else.
+   */
+  client?: string;
+  /**
+   * Called when an untrusted query is about to start running, after any wait
+   * in a queue. It may throw a {@link QueryLimitError}, which then fails the
+   * query without running it. Stores without a queue need not call it.
+   */
+  onStart?: () => void;
 }
 
 /**
  * An untrusted query was not answered because of a resource limit, not
  * because it is wrong: `timeout` when it ran longer than the configured time
  * limit, `busy` when the store has no capacity for it now (a replica is being
- * rebuilt, or too many queries are waiting) and it may be tried again.
+ * rebuilt, or too many queries are waiting) and it may be tried again, and
+ * `budget` when the client that sent it has used up its share (too much query
+ * time lately, or too many queries at once; `retryAfter` says when to retry).
  */
 export class QueryLimitError extends Error {
   constructor(
-    readonly reason: "timeout" | "busy",
+    readonly reason: "timeout" | "busy" | "budget",
     message: string,
     /** For `busy`: seconds after which a retry is sensible. */
     readonly retryAfter?: number,
