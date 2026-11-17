@@ -6,8 +6,11 @@
 import { assertEquals } from "@std/assert";
 import type { NostrEvent } from "../types.ts";
 import {
+  INTEREST_LINGER_MS,
   MAX_PER_PUBKEY,
   MAX_TOTAL,
+  MAX_TOTAL_BYTES,
+  MAX_UNWATCHED,
   REPLAY_WINDOW_MS,
   ReplayBuffer,
 } from "./replay_buffer.ts";
@@ -58,11 +61,81 @@ Deno.test("at most 20 events are kept per p-tagged pubkey, oldest first dropped"
 
 Deno.test("the total is bounded and the oldest are dropped first", () => {
   const buffer = new ReplayBuffer(() => 0);
-  const first = event(hex(100000));
+  const recipients = Array.from(
+    { length: MAX_TOTAL / MAX_PER_PUBKEY + 1 },
+    (_, i) => hex(100000 + i),
+  );
+  buffer.watch(recipients);
+  const first = event(recipients[0]);
   buffer.add(first);
-  for (let i = 1; i <= MAX_TOTAL; i++) buffer.add(event(hex(100000 + i)));
+  for (const to of recipients) {
+    for (let i = 0; i < MAX_PER_PUBKEY; i++) buffer.add(event(to));
+  }
   assertEquals(buffer.size, MAX_TOTAL);
   assertEquals(buffer.match([{ ids: [first.id] }]), []);
+});
+
+Deno.test("the bytes held are bounded", () => {
+  const buffer = new ReplayBuffer(() => 0);
+  const recipients = Array.from({ length: 40 }, (_, i) => hex(200000 + i));
+  buffer.watch(recipients);
+  for (const to of recipients) {
+    for (let i = 0; i < MAX_PER_PUBKEY; i++) {
+      buffer.add({ ...event(to), content: "x".repeat(60_000) });
+    }
+  }
+  assertEquals(buffer.bytes <= MAX_TOTAL_BYTES, true);
+  assertEquals(buffer.size < 40 * MAX_PER_PUBKEY, true);
+});
+
+Deno.test("a flood to pubkeys nobody asked for only displaces itself", () => {
+  const buffer = new ReplayBuffer(() => 0);
+  buffer.watch([hex(1)]);
+  const wanted = event(hex(1));
+  buffer.add(wanted);
+  const stray = event(hex(300000));
+  buffer.add(stray);
+  for (let i = 1; i <= 3 * MAX_UNWATCHED; i++) {
+    buffer.add(event(hex(300000 + i)));
+  }
+  assertEquals(buffer.size, MAX_UNWATCHED + 1);
+  assertEquals(buffer.match([{ "#p": [hex(1)] }]), [wanted]);
+  assertEquals(buffer.match([{ ids: [stray.id] }]), []);
+});
+
+Deno.test("only the first few p tags count, however many an event has", () => {
+  const buffer = new ReplayBuffer(() => 0);
+  const e = event(hex(1));
+  e.tags = Array.from({ length: 900 }, (_, i) => ["p", hex(400000 + i)]);
+  buffer.add(e);
+  assertEquals(buffer.match([{ "#p": [hex(400000)] }]), [e]);
+  assertEquals(buffer.match([{ "#p": [hex(400899)] }]), []);
+});
+
+Deno.test("interest lasts while a connection watches and lingers after it", () => {
+  let now = 0;
+  const buffer = new ReplayBuffer(() => now);
+  const release = buffer.watch([hex(1)]);
+  now = 10 * INTEREST_LINGER_MS;
+  // Still watched: a full set of unwatched events does not displace it.
+  const kept = event(hex(1));
+  buffer.add(kept);
+  release();
+  release();
+  now += INTEREST_LINGER_MS - 1;
+  const lingering = event(hex(1));
+  buffer.add(lingering);
+  for (let i = 0; i <= MAX_UNWATCHED; i++) buffer.add(event(hex(500000 + i)));
+  assertEquals(buffer.match([{ "#p": [hex(1)] }]), [lingering]);
+  now += 2;
+  // Interest is over: the next one is an unwatched event like any other.
+  const late = event(hex(1));
+  buffer.add(late);
+  for (let i = 0; i <= MAX_UNWATCHED; i++) buffer.add(event(hex(600000 + i)));
+  assertEquals(
+    buffer.match([{ "#p": [hex(1)] }]).some((e) => e.id === late.id),
+    false,
+  );
 });
 
 Deno.test("since, until and limit of each filter are honoured; duplicates are ignored", () => {

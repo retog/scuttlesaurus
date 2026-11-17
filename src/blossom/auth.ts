@@ -3,8 +3,10 @@
  * `Authorization: Nostr <base64>` header.
  * @module
  */
-import { decodeBase64 } from "@std/encoding/base64";
-import { validateEvent, verifyEvent } from "@nostr/tools/pure";
+import {
+  NostrAuthorizationError,
+  parseNostrAuthorization,
+} from "../nostr_auth.ts";
 import type { NostrEvent } from "../types.ts";
 import { BlossomError } from "./errors.ts";
 
@@ -37,17 +39,14 @@ export function authorize(
   action: Action,
   now: number,
 ): Authorization {
-  const header = headers.get("authorization");
-  if (header === null) {
-    throw new BlossomError(401, "missing authorization");
-  }
-  const match = /^Nostr\s+(\S+)$/i.exec(header);
-  if (!match) {
-    throw new BlossomError(401, "authorization is not a Nostr event");
-  }
-  const event = decodeEvent(match[1]);
-  if (!isSignedEvent(event)) {
-    throw new BlossomError(401, "invalid authorization signature");
+  let event: NostrEvent;
+  try {
+    event = parseNostrAuthorization(headers.get("authorization"));
+  } catch (error) {
+    if (error instanceof NostrAuthorizationError) {
+      throw new BlossomError(401, error.message);
+    }
+    throw error;
   }
   if (event.kind !== AUTH_KIND) {
     throw new BlossomError(401, "authorization is not kind 24242");
@@ -75,26 +74,4 @@ export function tagValues(event: NostrEvent, name: string): string[] {
   return event.tags
     .filter((tag) => tag[0] === name && typeof tag[1] === "string")
     .map((tag) => tag[1]);
-}
-
-function decodeEvent(base64: string): unknown {
-  try {
-    return JSON.parse(new TextDecoder().decode(decodeBase64(base64)));
-  } catch {
-    throw new BlossomError(401, "authorization is not valid base64 JSON");
-  }
-}
-
-/**
- * Whether the value is a well-formed Nostr event with a valid signature.
- * `validateEvent` checks the structure; `id` and `sig` are checked here
- * because it does not require them.
- */
-function isSignedEvent(value: unknown): value is NostrEvent {
-  if (typeof value !== "object" || value === null) return false;
-  if (!validateEvent(value)) return false;
-  if (!("id" in value) || typeof value.id !== "string") return false;
-  if (!("sig" in value) || typeof value.sig !== "string") return false;
-  // The structure and the id/sig strings were checked above.
-  return verifyEvent(value as NostrEvent);
 }

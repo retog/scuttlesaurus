@@ -4,6 +4,7 @@
  * @module
  */
 import { extension } from "@std/media-types";
+import { externalBase } from "../base_url.ts";
 import type { Config } from "../types.ts";
 
 /** The media type of a blob whose type is not known. */
@@ -30,27 +31,12 @@ export interface BlobDescriptor {
 }
 
 /**
- * The base URL of blob descriptors (BUD-02): `config.publicUrl` if set, otherwise the
- * origin of the request, honouring `X-Forwarded-Proto` and `X-Forwarded-Host`.
- * Read at each call, since the configuration can change at runtime.
+ * The base URL of blob descriptors (BUD-02): the node's external base URL, by
+ * the same rules as the rest of the node (see `externalBase`). Read at each
+ * call, since the configuration can change at runtime.
  */
 export function publicBase(config: Config, request: Request): string {
-  if (config.publicUrl) return config.publicUrl.replace(/\/+$/, "");
-  const url = new URL(request.url);
-  const proto = firstValue(request.headers.get("x-forwarded-proto")) ??
-    url.protocol.slice(0, -1);
-  const host = firstValue(request.headers.get("x-forwarded-host")) ??
-    url.host;
-  try {
-    return new URL(`${proto}://${host}`).origin;
-  } catch {
-    return url.origin;
-  }
-}
-
-function firstValue(header: string | null): string | undefined {
-  const value = header?.split(",")[0].trim();
-  return value ? value : undefined;
+  return externalBase(request, config);
 }
 
 /**

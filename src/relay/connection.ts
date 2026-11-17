@@ -16,13 +16,18 @@ import {
   isSubscriptionId,
   MAX_BUFFERED_BYTES,
   MAX_SUBSCRIPTIONS,
+  NOSTR_CONNECT_BURST,
   NOSTR_CONNECT_KIND,
+  NOSTR_CONNECT_PER_SECOND,
   nostrConnectProblem,
   parseFilters,
   parseFrame,
   parseSignedEvent,
   withMachinePrefix,
 } from "./protocol.ts";
+
+/** Most Nostr Connect recipients one connection can ask the buffer to keep. */
+const MAX_WATCHED_PER_CONNECTION = 16;
 
 /** A REQ subscription on one connection. */
 interface Subscription {
@@ -44,6 +49,13 @@ export class ClientConnection {
   readonly #onGone: (connection: ClientConnection) => void;
   readonly #replay: ReplayBuffer;
   readonly #subscriptions = new Map<string, Subscription>();
+  /** Ends this connection's interest in Nostr Connect recipients. */
+  readonly #unwatch: (() => void)[] = [];
+  /** Pubkeys this connection has declared interest in. */
+  readonly #watching = new Set<string>();
+  /** Token bucket for Nostr Connect events from outside the graph. */
+  #connectTokens = NOSTR_CONNECT_BURST;
+  #connectRefilled = Date.now();
   #closed = false;
 
   /**
@@ -100,6 +112,8 @@ export class ClientConnection {
     if (this.#closed) return;
     this.#closed = true;
     this.#subscriptions.clear();
+    for (const release of this.#unwatch) release();
+    this.#unwatch.length = 0;
     this.#onGone(this);
   }
 
@@ -161,6 +175,18 @@ export class ClientConnection {
     const connectProblem = config.nostrConnect
       ? nostrConnectProblem(event)
       : "disabled";
+    if (
+      connectProblem === undefined &&
+      graph.distance(event.pubkey) === undefined &&
+      !this.#takeConnectToken()
+    ) {
+      return this.#send([
+        "OK",
+        id,
+        false,
+        "rate-limited: too many Nostr Connect events, slow down",
+      ]);
+    }
     if (connectProblem !== undefined) {
       if (config.owner === undefined) {
         return this.#send([
@@ -262,6 +288,7 @@ export class ClientConnection {
   async #runSubscription(id: string, filters: Filter[]): Promise<void> {
     const subscription: Subscription = { filters, buffer: [] };
     this.#subscriptions.set(id, subscription);
+    if (this.#options.config.nostrConnect) this.#watchRecipients(filters);
 
     let stored: NostrEvent[];
     try {
@@ -294,6 +321,42 @@ export class ClientConnection {
     }
     subscription.buffer = undefined;
     this.#send(["EOSE", id]);
+  }
+
+  /**
+   * Tells the replay buffer which Nostr Connect recipients this connection
+   * listens for, so that their messages are kept if the connection drops.
+   * Interest lasts until the connection ends; a connection can declare
+   * {@link MAX_WATCHED_PER_CONNECTION} pubkeys.
+   */
+  #watchRecipients(filters: Filter[]): void {
+    const fresh: string[] = [];
+    for (const filter of filters) {
+      const recipients = filter["#p"];
+      if (!Array.isArray(recipients)) continue;
+      if (filter.kinds && !filter.kinds.includes(NOSTR_CONNECT_KIND)) continue;
+      for (const pubkey of recipients) {
+        if (this.#watching.size >= MAX_WATCHED_PER_CONNECTION) break;
+        if (typeof pubkey !== "string" || this.#watching.has(pubkey)) continue;
+        this.#watching.add(pubkey);
+        fresh.push(pubkey);
+      }
+    }
+    if (fresh.length > 0) this.#unwatch.push(this.#replay.watch(fresh));
+  }
+
+  /** Whether this connection may send one more Nostr Connect event now. */
+  #takeConnectToken(): boolean {
+    const now = Date.now();
+    this.#connectTokens = Math.min(
+      NOSTR_CONNECT_BURST,
+      this.#connectTokens +
+        (now - this.#connectRefilled) / 1000 * NOSTR_CONNECT_PER_SECOND,
+    );
+    this.#connectRefilled = now;
+    if (this.#connectTokens < 1) return false;
+    this.#connectTokens--;
+    return true;
   }
 
   /** `COUNT` (NIP-45): the number of events the filters match. */

@@ -5,7 +5,7 @@
  * @module
  */
 import type { Config } from "../types.ts";
-import { externalBase, relayUrlOf } from "./base_url.ts";
+import { externalBase, relayUrlOf } from "../base_url.ts";
 import { jsonResponse } from "./respond.ts";
 
 /**

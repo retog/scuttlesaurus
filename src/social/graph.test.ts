@@ -316,3 +316,33 @@ Deno.test("onChange fires only when the graph changed and survives a throwing li
     await f.events.close();
   }
 });
+
+Deno.test("deleting a mute list or a follow list recomputes the graph by itself", async () => {
+  const f = await fixture(3);
+  const [owner, a, b] = f.people;
+  try {
+    await follow(f.events, owner, [a, b]);
+    const muteList = sign(owner, 10000, { tags: [["p", b.pubkey]] });
+    await f.events.add(muteList);
+    await f.graph.recompute();
+    assertEquals(f.graph.distance(b.pubkey), undefined);
+
+    // NIP-09 by event id: the muted author comes back without a restart.
+    await f.events.add(
+      sign(owner, 5, { tags: [["e", muteList.id]], created_at: NOW + 1 }),
+    );
+    await until(() => f.graph.distance(b.pubkey) === 1, "the unmute");
+
+    // NIP-09 by coordinate: the owner's follow list goes, and the graph with it.
+    await f.events.add(
+      sign(owner, 5, {
+        tags: [["a", `3:${owner.pubkey}:`]],
+        created_at: NOW + 2,
+      }),
+    );
+    await until(() => f.graph.authors().size === 1, "the emptied graph");
+  } finally {
+    f.graph.close();
+    await f.events.close();
+  }
+});

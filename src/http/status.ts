@@ -11,7 +11,7 @@ import type {
   ReplicationStatus,
   StoreStats,
 } from "../types.ts";
-import { externalBase, relayUrlOf } from "./base_url.ts";
+import { externalBase, relayUrlOf } from "../base_url.ts";
 
 /** The document of `GET /api/status`. */
 export interface StatusDocument {

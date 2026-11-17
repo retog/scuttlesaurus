@@ -2,11 +2,20 @@
  * End-to-end tests of the relay over real WebSocket connections on localhost.
  * @module
  */
-import { assert, assertEquals, assertFalse } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertStringIncludes,
+} from "@std/assert";
 import { delay } from "@std/async";
 import denoJson from "../../deno.json" with { type: "json" };
 import type { NostrEvent } from "../types.ts";
-import { MAX_MESSAGE_BYTES, MAX_NOSTR_CONNECT_BYTES } from "./protocol.ts";
+import {
+  MAX_MESSAGE_BYTES,
+  MAX_NOSTR_CONNECT_BYTES,
+  NOSTR_CONNECT_BURST,
+} from "./protocol.ts";
 import { signedEvent, withRelay } from "./test_helpers.ts";
 
 const NOW = () => Math.floor(Date.now() / 1000);
@@ -676,3 +685,35 @@ Deno.test("Nostr Connect replay: nothing is buffered or replayed when the toggle
     assertEquals((await late.until("EOSE")).length, 1);
     assertFalse(harness.store.has(event.id));
   }, { configOverrides: { nostrConnect: false } }));
+
+Deno.test("Nostr Connect: too many p tags are refused, and a flood from one connection is rate-limited", () =>
+  withRelay(async (harness) => {
+    const sender = await harness.connect();
+    const crowded = signedEvent(harness.outsider, {
+      kind: 24133,
+      tags: Array.from({ length: 5 }, (_, i) => ["p", hex(900 + i)]),
+    });
+    sender.send(["EVENT", crowded]);
+    const refused = await sender.next();
+    assertEquals(refused.slice(0, 3), ["OK", crowded.id, false]);
+    assertStringIncludes(String(refused[3]), "at most 4 p tags");
+
+    let limited = 0;
+    for (let i = 0; i < NOSTR_CONNECT_BURST + 10; i++) {
+      const event = signedEvent(harness.outsider, {
+        kind: 24133,
+        tags: [["p", hex(1000 + i)]],
+        content: String(i),
+      });
+      sender.send(["EVENT", event]);
+      const answer = await sender.next();
+      if (answer[2] === false) {
+        assertStringIncludes(String(answer[3]), "rate-limited:");
+        limited++;
+      }
+    }
+    assertEquals(limited >= 8, true);
+
+    // Another connection is not affected.
+    await publishConnect(harness, harness.friend.pubkey);
+  }));

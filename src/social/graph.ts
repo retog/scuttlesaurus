@@ -19,6 +19,7 @@ export interface SocialGraphOptions {
 
 const FOLLOW_LIST = 3;
 const MUTE_LIST = 10000;
+const DELETION = 5;
 
 /** A promise that is settled from outside. */
 interface Deferred {
@@ -107,15 +108,36 @@ export class StoreSocialGraph implements SocialGraph {
   /**
    * A follow list matters when its author is within reach of the next hop (or
    * is the owner, whose list may arrive before the graph knows anybody); the
-   * owner's mute list matters because it removes authors.
+   * owner's mute list matters because it removes authors. A deletion by one
+   * of these authors matters because it may retract such a list.
    */
   #isRelevant(event: NostrEvent): boolean {
-    const { owner, replication } = this.#config;
+    const { owner } = this.#config;
     if (!owner) return false;
     if (event.kind === MUTE_LIST) return event.pubkey === owner;
+    if (event.kind === DELETION) {
+      // NIP-09: a deletion can retract a follow or mute list, which changes
+      // what the store reports as current. An `e` tag does not say what it
+      // points at, so any deletion by an author whose lists matter counts;
+      // deletions are rare and recomputation is debounced.
+      if (event.pubkey !== owner && !this.#listsMatter(event.pubkey)) {
+        return false;
+      }
+      return event.tags.some((tag) =>
+        tag[0] === "e" ||
+        (tag[0] === "a" && typeof tag[1] === "string" &&
+          /^(3|10000):/.test(tag[1]))
+      );
+    }
     if (event.kind !== FOLLOW_LIST) return false;
-    if (event.pubkey === owner) return replication.hops > 0;
-    const distance = this.#distances.get(event.pubkey);
+    return this.#listsMatter(event.pubkey);
+  }
+
+  /** Whether this author's follow list (or, for the owner, mute list) is read. */
+  #listsMatter(pubkey: string): boolean {
+    const { owner, replication } = this.#config;
+    if (pubkey === owner) return replication.hops > 0;
+    const distance = this.#distances.get(pubkey);
     return distance !== undefined && distance < replication.hops;
   }
 

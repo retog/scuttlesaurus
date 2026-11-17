@@ -1,9 +1,9 @@
 /**
  * The base URL under which the node is seen from outside, and the relay URL
- * derived from it. Used by the API, NIP-05 and NIP-98 URL checks.
+ * derived from it. Used by the API, NIP-05, the NIP-98 URL checks and Blossom blob descriptors.
  * @module
  */
-import type { Config } from "../types.ts";
+import type { Config } from "./types.ts";
 
 /**
  * The external base URL without a trailing slash: the configured public URL

@@ -9,11 +9,13 @@
  * external base URL behind a reverse proxy.
  * @module
  */
-import { decodeBase64 } from "@std/encoding/base64";
 import { encodeHex } from "@std/encoding/hex";
-import { validateEvent, verifyEvent } from "@nostr/tools/pure";
 import type { Config, NostrEvent } from "../types.ts";
-import { externalBase } from "./base_url.ts";
+import { externalBase } from "../base_url.ts";
+import {
+  NostrAuthorizationError,
+  parseNostrAuthorization,
+} from "../nostr_auth.ts";
 import { errorResponse, HttpError } from "./respond.ts";
 
 /** The kind of HTTP authorization events (NIP-98). */
@@ -59,31 +61,19 @@ export async function authorizeOwner(
 }
 
 /**
- * Decode and verify the signature of the event in the `Authorization` header.
+ * The verified event of the `Authorization` header.
  *
  * @throws {HttpError} 401 when the header is missing, malformed or unsigned.
  */
 function parseAuthorization(header: string | null): NostrEvent {
-  if (header === null) throw new HttpError(401, "missing authorization");
-  const match = /^Nostr\s+(\S+)$/i.exec(header);
-  if (match === null) {
-    throw new HttpError(401, "authorization is not a Nostr event");
-  }
-
-  let value: unknown;
   try {
-    value = JSON.parse(new TextDecoder().decode(decodeBase64(match[1])));
-  } catch {
-    throw new HttpError(401, "authorization is not base64-encoded JSON");
+    return parseNostrAuthorization(header);
+  } catch (error) {
+    if (error instanceof NostrAuthorizationError) {
+      throw new HttpError(401, error.message);
+    }
+    throw error;
   }
-  if (!validateEvent(value)) {
-    throw new HttpError(401, "authorization is not a valid event");
-  }
-  const event = value as NostrEvent;
-  if (!verifyEvent(event)) {
-    throw new HttpError(401, "invalid authorization signature");
-  }
-  return event;
 }
 
 /**

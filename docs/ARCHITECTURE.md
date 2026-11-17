@@ -48,6 +48,8 @@ main.ts                 entry point: wires the modules together
 src/types.ts            the interfaces between modules
 src/vocab.ts            RDF vocabulary and IRI helpers (shared with the web client)
 src/config.ts           configuration
+src/base_url.ts         the node's external base URL (public URL or forwarding headers)
+src/nostr_auth.ts       the `Authorization: Nostr …` header shared by NIP-98 and Blossom
 src/store/              TripleStore implementations, event ⇄ triples, filter → SPARQL, EventStore
 src/social/             SocialGraph
 src/replication/        Replicator: relay selection, backfill, live subscriptions, publishing
@@ -182,20 +184,26 @@ A NIP-01 relay on the WebSocket endpoint `/`.
   with `["OK", id, false, "blocked: …"]`. Ephemeral events are relayed to
   matching subscriptions without being stored. One exception to the rule on
   authors: a kind 24133 event (NIP-46 Nostr Connect) is accepted from any author
-  when it has at least one `p` tag with a valid pubkey and is at most 64 KiB. A
-  signer app's key and a client's connection key are outside the graph, so
-  without the exception remote signing could not use this relay. The event is
-  ephemeral, so it is relayed and never stored, and it is accepted even before
-  the node has an owner (so the first-run setup can use a signer app). Accepted
-  Nostr Connect events are also kept in memory for two minutes (at most 20 per
-  `p`-tagged pubkey and 4000 in all, oldest dropped first; never written to the
-  graph) and are sent, like stored events and before `EOSE`, to a `REQ` whose
-  filters match them (`since`, `until` and `limit` apply). A phone browser
-  pushed to the background while the person is in the signer app may be
-  unsubscribed exactly when the answer is sent. Any other event, and a 24133
-  event that does not meet the condition and whose author is outside the graph,
-  is refused as before. `NOSTR_CONNECT=off` removes the exception and the NIP-11
-  entry.
+  when it has at least one `p` tag with a valid pubkey, at most four `p` tags,
+  and is at most 64 KiB. A signer app's key and a client's connection key are
+  outside the graph, so without the exception remote signing could not use this
+  relay. The event is ephemeral, so it is relayed and never stored, and it is
+  accepted even before the node has an owner (so the first-run setup can use a
+  signer app). Accepted Nostr Connect events are also kept in memory for two
+  minutes (never written to the graph) and are sent, like stored events and
+  before `EOSE`, to a `REQ` whose filters match them (`since`, `until` and
+  `limit` apply). A phone browser pushed to the background while the person is
+  in the signer app may be unsubscribed exactly when the answer is sent. Because
+  anyone can send these events, the buffer is bounded: at most 20 per `p`-tagged
+  pubkey, 4000 events and 16 MiB in all, oldest dropped first. Events for a
+  pubkey that no connection has subscribed to with `#p` (now or in the last four
+  minutes) share a smaller allowance of 200 events and 2 MiB, so a flood to
+  random pubkeys displaces only itself. A connection whose author is outside the
+  graph may send 30 such events at once and two per second after that. Someone
+  who knows a recipient's pubkey can still push that recipient's real messages
+  out of its 20 slots. Any other event, and a 24133 event that does not meet the
+  condition and whose author is outside the graph, is refused as before.
+  `NOSTR_CONNECT=off` removes the exception and the NIP-11 entry.
 - `REQ`: stored events, `EOSE`, then live events matching the filters.
 - `CLOSE`, and `COUNT` (NIP-45).
 - Limits: number of subscriptions and filters per connection, `limit` capped at

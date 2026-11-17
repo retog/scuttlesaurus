@@ -61,6 +61,44 @@ Deno.test("nothing is handled while blossom is disabled, and it is read at each 
     await response!.body?.cancel();
   }));
 
+Deno.test("descriptor URLs follow the forwarding headers only when both are valid", () =>
+  withFixture({ [ALICE.pubkey]: 1 }, async ({ server }) => {
+    const urlWith = async (forwarded: Record<string, string>) => {
+      const response = await server.handle(
+        new Request(`${BASE}/upload`, {
+          method: "PUT",
+          body: BYTES,
+          headers: {
+            "Content-Type": "image/png",
+            Authorization: authorization(ALICE, "upload", { hashes: [HASH] }),
+            ...forwarded,
+          },
+        }),
+      );
+      return (await response!.json()).url;
+    };
+    assertEquals(
+      await urlWith({
+        "X-Forwarded-Proto": "https",
+        "X-Forwarded-Host": "saurus.example.org",
+      }),
+      `https://saurus.example.org/${HASH}.png`,
+    );
+    // A host with credentials, or only one of the two headers: the request's
+    // own origin is used.
+    assertEquals(
+      await urlWith({
+        "X-Forwarded-Proto": "https",
+        "X-Forwarded-Host": "x@evil.example",
+      }),
+      `${BASE}/${HASH}.png`,
+    );
+    assertEquals(
+      await urlWith({ "X-Forwarded-Host": "evil.example" }),
+      `${BASE}/${HASH}.png`,
+    );
+  }));
+
 Deno.test("descriptor URLs use publicUrl when it is set", () =>
   withFixture({ [ALICE.pubkey]: 1 }, async ({ server, config }) => {
     config.publicUrl = "https://saurus.example.org/";
