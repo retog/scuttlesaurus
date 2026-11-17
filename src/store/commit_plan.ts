@@ -22,11 +22,13 @@ import {
 import {
   coordinateIri,
   eventCoordinate,
+  eventSigTriple,
   eventToTriples,
   isAddressable,
   isHex64,
   isReplaceable,
   parseCoordinate,
+  relayIri,
 } from "./event_triples.ts";
 import { integer, iri, Triples } from "./ntriples.ts";
 
@@ -48,17 +50,34 @@ export interface GroupItem {
   seenOn?: string;
 }
 
+/** At most this many `nostr:seenOn` relays are recorded per event. */
+export const MAX_SEEN_RELAYS = 4;
+
+/** Event IRI → the relay IRIs the graph holds `nostr:seenOn` triples for. */
+export type SeenCache = Map<string, Set<string>>;
+
 /** What committing a group will do. */
 export interface Plan {
   /** The result of each item, in the order of the group. */
   outcomes: AddResult[];
   /** The items that will be stored, in arrival order. */
   stored: GroupItem[];
-  /** All triples of the group; empty when nothing is stored. */
+  /**
+   * All triples of the group; empty when there is nothing to write. Besides
+   * the stored events this holds the `nostr:seenOn` triples of known events
+   * that were received from another relay.
+   */
   ntriples: string;
+  /**
+   * What the graph will say about `nostr:seenOn` once `ntriples` is inserted,
+   * for the known events the group looked at and the stored events that have
+   * a relay. To be merged into the {@link SeenCache} after the insert.
+   */
+  seen: SeenCache;
 }
 
-interface Head {
+/** The newest version of a key as the planner sees it. */
+export interface Head {
   id: string;
   created_at: number;
 }
@@ -76,6 +95,20 @@ function wins(a: Head, b: Head): boolean {
   return a.created_at !== b.created_at
     ? a.created_at > b.created_at
     : a.id < b.id;
+}
+
+/**
+ * The versions of one replaceable or addressable key that are current at the
+ * same time: the newest one wins (NIP-01), every other gets
+ * `nostr:supersededBy <winner>`. The one rule shared by a group commit and the
+ * start-up repair.
+ */
+export function resolveHeads(
+  versions: Head[],
+): { best: Head; losers: Head[] } {
+  let best = versions[0];
+  for (const head of versions) if (wins(head, best)) best = head;
+  return { best, losers: versions.filter((head) => head.id !== best.id) };
 }
 
 /** What the graph says about the events of a group, read before the walk. */
@@ -159,19 +192,41 @@ async function readState(
   }
 
   // Current heads of every replaceable and addressable key.
+  state.heads = await readHeads(
+    triples,
+    unique(
+      coordinates.filter((c) => isAddressable(c.event.kind))
+        .map((c) => iri(c.address)),
+    ),
+    coordinates.filter((c) => isReplaceable(c.event.kind)).map((c) => c.event),
+  );
+
+  await readDeletionTargets(triples, events, state);
+  return state;
+}
+
+/**
+ * The current versions (complete events without `nostr:supersededBy`) of the
+ * given addresses (serialized IRI terms) and of the replaceable keys of the
+ * given events, by address IRI. Replaceable keys are read per author and kind,
+ * so a result may hold a few more keys than were asked for.
+ */
+export async function readHeads(
+  triples: TripleStore,
+  addressable: string[],
+  replaceable: { pubkey: string; kind: number }[],
+): Promise<Map<string, Head[]>> {
+  const heads = new Map<string, Head[]>();
   const addHead = (key: string, row: Record<string, { value: string }>) => {
-    const heads = state.heads.get(key) ?? [];
-    heads.push({
+    const list = heads.get(key) ?? [];
+    list.push({
       id: eventIdFromIri(row.e.value),
       created_at: Number(row.c.value),
     });
-    state.heads.set(key, heads);
+    heads.set(key, list);
   };
-  const notSuperseded = "MINUS { ?e nostr:supersededBy ?newer }";
-  const addressable = unique(
-    coordinates.filter((c) => isAddressable(c.event.kind))
-      .map((c) => iri(c.address)),
-  );
+  // `nostr:sig` is written last: an event without it is not stored yet.
+  const current = "nostr:sig ?sig . MINUS { ?e nostr:supersededBy ?newer }";
   for (
     const row of await select(
       triples,
@@ -179,22 +234,20 @@ async function readState(
       (values) =>
         `SELECT ?addr ?e ?c WHERE {
           VALUES ?addr { ${values} }
-          ?e nostr:address ?addr ; nostr:createdAt ?c . ${notSuperseded}
+          ?e nostr:address ?addr ; nostr:createdAt ?c ; ${current}
         }`,
     )
   ) addHead(row.addr.value, row);
-  const replaceable = coordinates.filter((c) => isReplaceable(c.event.kind));
+  const kinds = unique(replaceable.map((c) => integer(c.kind))).join(" ");
   for (
     const row of await select(
       triples,
-      unique(replaceable.map((c) => iri(pubkeyIri(c.event.pubkey)))),
+      unique(replaceable.map((c) => iri(pubkeyIri(c.pubkey)))),
       (values) =>
         `SELECT ?a ?k ?e ?c WHERE {
           VALUES ?a { ${values} }
-          VALUES ?k { ${
-          unique(replaceable.map((c) => integer(c.event.kind))).join(" ")
-        } }
-          ?e nostr:author ?a ; nostr:kind ?k ; nostr:createdAt ?c . ${notSuperseded}
+          VALUES ?k { ${kinds} }
+          ?e nostr:author ?a ; nostr:kind ?k ; nostr:createdAt ?c ; ${current}
         }`,
     )
   ) {
@@ -205,9 +258,7 @@ async function readState(
     });
     if (address) addHead(address, row);
   }
-
-  await readDeletionTargets(triples, events, state);
-  return state;
+  return heads;
 }
 
 /** Look up what the kind 5 events of the group name. */
@@ -296,13 +347,53 @@ function coordinatesOf(deletion: NostrEvent) {
 }
 
 /**
+ * Which relays the graph already holds `nostr:seenOn` for, for the known
+ * events of the group that arrived with a relay and are not in `seen` yet.
+ */
+async function readSeenOn(
+  triples: TripleStore,
+  events: string[],
+): Promise<SeenCache> {
+  const out: SeenCache = new Map(events.map((e) => [e, new Set<string>()]));
+  for (
+    const row of await select(
+      triples,
+      events.map(iri),
+      (values) =>
+        `SELECT ?e ?r WHERE { VALUES ?e { ${values} } ?e nostr:seenOn ?r }`,
+    )
+  ) out.get(row.e.value)?.add(row.r.value);
+  return out;
+}
+
+/**
  * Decide a group of events. `known` tells which ids the graph already holds.
  * Reads the graph but never writes to it.
+ *
+ * A known event offered again with a relay it was not recorded on yet (at most
+ * {@link MAX_SEEN_RELAYS} relays per event) yields just a `nostr:seenOn`
+ * triple and the outcome `duplicate`. `seen` is the caller's memory of what
+ * the graph holds, which saves the lookup.
+ *
+ * Order of the document, which decides what a reader sees if the insert is
+ * cut off anywhere (the embedded log after a crash, the requests of the
+ * endpoint store): the events' triples without their `nostr:sig`, then the
+ * `supersededBy` / `deletedBy` bookkeeping, then all the `nostr:sig` triples.
+ * An event counts as stored once it has its signature, so a stored event never
+ * lacks the bookkeeping that came with it; the events not yet stored are
+ * simply offered again and planned afresh. The other order leaves both
+ * versions of a profile or follow list current for good (the event is a known
+ * duplicate afterwards), the follow lists merged into the social graph. The
+ * price is that after such a cut the older version is superseded by an event
+ * that is not complete, so a reader sees no version until the newer one is
+ * received again; that is the lesser harm, and it heals with the retry.
+ * No reader sees the new event before the old one is superseded.
  */
 export async function planGroup(
   triples: TripleStore,
   known: (id: string) => boolean,
   items: GroupItem[],
+  seen: SeenCache = new Map(),
 ): Promise<Plan> {
   const fresh = unique(
     items.filter((i) => !known(i.event.id)).map((i) => i.event.id),
@@ -314,6 +405,28 @@ export async function planGroup(
     ? await readState(triples, freshEvents)
     : undefined;
 
+  // `nostr:seenOn` of the group's events, as the graph will have it.
+  const relayOf = (item: GroupItem) =>
+    item.seenOn === undefined ? undefined : relayIri(item.seenOn);
+  const unseen = unique(
+    items.filter((i) => known(i.event.id) && relayOf(i)).map((i) =>
+      eventIri(i.event.id)
+    ).filter((e) => !seen.has(e)),
+  );
+  const looked: SeenCache = unseen.length
+    ? await readSeenOn(triples, unseen)
+    : new Map();
+  const seenOnText = new Triples();
+  // Working copies, so that nothing in `seen` changes before the insert.
+  const relays: SeenCache = new Map();
+  const relaysOf = (e: string) => {
+    if (!relays.has(e)) {
+      const recorded = looked.get(e) ?? seen.get(e);
+      if (recorded) relays.set(e, new Set(recorded));
+    }
+    return relays.get(e);
+  };
+
   // The overlay: everything the group has stored so far.
   const groupEvents = new Map<string, { author: string; kind: number }>();
   const groupVersions = new Map<string, Version[]>();
@@ -324,6 +437,7 @@ export async function planGroup(
   );
 
   const eventText: string[] = [];
+  const sigText: string[] = [];
   const bookkeeping = new Triples();
   const outcomes: AddResult[] = [];
   const stored: GroupItem[] = [];
@@ -333,6 +447,12 @@ export async function planGroup(
     const eventIriValue = eventIri(event.id);
     if (known(event.id) || groupEvents.has(eventIriValue)) {
       outcomes.push({ status: "duplicate" });
+      const relay = relayOf(item);
+      const recorded = relay && relaysOf(eventIriValue);
+      if (recorded && !recorded.has(relay) && recorded.size < MAX_SEEN_RELAYS) {
+        recorded.add(relay);
+        seenOnText.add(iri(eventIriValue), N("seenOn"), iri(relay));
+      }
       continue;
     }
     const authorIri = pubkeyIri(event.pubkey);
@@ -355,10 +475,11 @@ export async function planGroup(
 
     if (address) {
       const current = heads.get(address) ?? [];
-      let best: Head = { id: event.id, created_at: event.created_at };
-      for (const head of current) if (wins(head, best)) best = head;
-      for (const old of [{ id: event.id }, ...current]) {
-        if (old.id === best.id) continue;
+      const { best, losers } = resolveHeads([
+        { id: event.id, created_at: event.created_at },
+        ...current,
+      ]);
+      for (const old of losers) {
         bookkeeping.add(
           iri(eventIri(old.id)),
           N("supersededBy"),
@@ -372,7 +493,13 @@ export async function planGroup(
     }
 
     if (event.kind === 5) {
-      markDeletions(event, state!, groupEvents, groupVersions, bookkeeping);
+      markDeletions(
+        event,
+        state!,
+        groupEvents,
+        groupVersions,
+        (target, by) => bookkeeping.add(iri(target), N("deletedBy"), iri(by)),
+      );
       for (const tag of event.tags) {
         if (tag[0] === "e" && isHex64(tag[1])) {
           overlayIds.add(`${authorIri}|${eventIri(tag[1])}`);
@@ -390,14 +517,26 @@ export async function planGroup(
     }
 
     groupEvents.set(eventIriValue, { author: authorIri, kind: event.kind });
-    eventText.push(eventToTriples(event, { seenOn: item.seenOn }));
+    eventText.push(
+      eventToTriples(event, { seenOn: item.seenOn, withoutSig: true }),
+    );
+    sigText.push(eventSigTriple(event));
+    const relay = relayOf(item);
+    relays.set(eventIriValue, new Set(relay ? [relay] : []));
     stored.push(item);
     outcomes.push({ status: "stored" });
+  }
+  // What the caller may remember: events with a relay, and the known events
+  // that were looked up (even without one, so that it need not look again).
+  const remember: SeenCache = new Map();
+  for (const [e, set] of relays) {
+    if (set.size > 0 || looked.has(e)) remember.set(e, set);
   }
   return {
     outcomes,
     stored,
-    ntriples: stored.length ? eventText.join("") + bookkeeping : "",
+    ntriples: eventText.join("") + seenOnText + bookkeeping + sigText.join(""),
+    seen: remember,
   };
 }
 
@@ -407,7 +546,7 @@ function markDeletions(
   state: State,
   groupEvents: Map<string, { author: string; kind: number }>,
   groupVersions: Map<string, Version[]>,
-  out: Triples,
+  out: (target: string, by: string) => void,
 ): void {
   const author = pubkeyIri(deletion.pubkey);
   const targets = new Set<string>();
@@ -428,6 +567,32 @@ function markDeletions(
       if (version.created_at <= deletion.created_at) targets.add(version.iri);
     }
   }
-  const by = iri(eventIri(deletion.id));
-  for (const target of targets) out.add(iri(target), N("deletedBy"), by);
+  const by = eventIri(deletion.id);
+  for (const target of targets) out(target, by);
+}
+
+/**
+ * The `deletedBy` pairs `[target IRI, deletion IRI]` that the given kind 5
+ * events call for according to the graph as it is now, by the rules of
+ * {@link planGroup}, whether or not the graph has them already.
+ */
+export async function planDeletions(
+  triples: TripleStore,
+  deletions: NostrEvent[],
+): Promise<[target: string, by: string][]> {
+  const state: State = {
+    deletedIds: new Set(),
+    deletedAddresses: new Map(),
+    heads: new Map(),
+    named: new Map(),
+    versions: new Map(),
+  };
+  await readDeletionTargets(triples, deletions, state);
+  const pairs: [string, string][] = [];
+  for (const deletion of deletions) {
+    markDeletions(deletion, state, new Map(), new Map(), (target, by) => {
+      pairs.push([target, by]);
+    });
+  }
+  return pairs;
 }

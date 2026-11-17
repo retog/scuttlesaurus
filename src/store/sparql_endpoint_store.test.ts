@@ -16,6 +16,7 @@ function mockEndpoint(credentials?: string) {
     accept: string;
     body: string;
   }[] = [];
+  const fail = { updatesBeforeFailure: Infinity };
   const server = Deno.serve(
     { port: 0, onListen: () => {} },
     async (request) => {
@@ -36,6 +37,9 @@ function mockEndpoint(credentials?: string) {
       }
       try {
         if (url.pathname === "/update") {
+          if (fail.updatesBeforeFailure-- <= 0) {
+            return new Response("unavailable", { status: 503 });
+          }
           const match = /^INSERT DATA \{\n([\s\S]*)\n\}$/.exec(body);
           if (
             !match ||
@@ -60,6 +64,8 @@ function mockEndpoint(credentials?: string) {
   return {
     store,
     log,
+    /** Updates that succeed before every further one fails with 503. */
+    fail,
     queryUrl: base + "/query",
     updateUrl: base + "/update",
     close: () => server.shutdown(),
@@ -225,5 +231,67 @@ Deno.test("queryForm skips comments and the prologue", () => {
     } catch (error) {
       assert((error as Error).message.startsWith("Only SPARQL queries"), bad);
     }
+  }
+});
+
+Deno.test("endpoint store: a group cut off between requests is harmless, the retry completes it", async () => {
+  const [alice, bob] = identities(2);
+  const oldList = sign(bob, 3, {
+    tags: [["p", alice.pubkey]],
+    created_at: 1_700_000_000,
+  });
+  const newList = sign(bob, 3, {
+    tags: [["p", "ab".repeat(32)]],
+    created_at: 1_700_000_100,
+  });
+  const notes = Array.from(
+    { length: 700 },
+    (_, i) =>
+      sign(alice, 1, {
+        content: `n${i}`,
+        tags: [..."abcdefgh"].map((t) => [t, `${i}`]),
+        created_at: 1_700_000_200 + i,
+      }),
+  );
+  const endpoint = mockEndpoint();
+  try {
+    const cfg = config(endpoint);
+    await (await openEventStore(await openTripleStore(cfg), cfg)).add(oldList);
+    let events = await openEventStore(await openTripleStore(cfg), cfg, {
+      maxEvents: 1000,
+    });
+    // One group of more than one request; the last request fails.
+    const updates = endpoint.log.filter((l) => l.path === "/update").length;
+    endpoint.fail.updatesBeforeFailure = 1;
+    const results = await Promise.allSettled(
+      [newList, ...notes].map((event) => events.add(event)),
+    );
+    assert(results.every((r) => r.status === "rejected"));
+    assertEquals(
+      endpoint.log.filter((l) => l.path === "/update").length - updates,
+      2,
+    );
+    // After a restart no stored event lacks its bookkeeping: nothing of the
+    // failed group counts as stored (the first request held only the events'
+    // triples without signatures), and the follow list is still the old one.
+    endpoint.fail.updatesBeforeFailure = Infinity;
+    events = await openEventStore(await openTripleStore(cfg), cfg);
+    assertEquals(events.has(newList.id), false);
+    assertEquals(events.has(notes[0].id), false);
+    assertEquals(
+      (await events.follows([bob.pubkey])).get(bob.pubkey),
+      [alice.pubkey],
+    );
+    // The retry stores everything, with one current follow list.
+    for (const event of [newList, ...notes]) {
+      assertEquals((await events.add(event)).status, "stored");
+    }
+    assertEquals(
+      (await events.follows([bob.pubkey])).get(bob.pubkey),
+      ["ab".repeat(32)],
+    );
+    await events.close();
+  } finally {
+    await endpoint.close();
   }
 });

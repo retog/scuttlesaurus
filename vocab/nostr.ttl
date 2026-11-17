@@ -103,7 +103,7 @@ nostr:sig a rdf:Property ;
 
 nostr:seenOn a rdf:Property ;
     rdfs:label "seen on" ;
-    rdfs:comment "The relay from which the event was first received. Absent for events published to this node." ;
+    rdfs:comment "A relay the event was received from: the first one, and up to three more that delivered it later. Absent for events published to this node and not seen on a relay." ;
     rdfs:domain nostr:Event ;
     rdfs:range nostr:Relay .
 

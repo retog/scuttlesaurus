@@ -31,10 +31,17 @@ import {
 import {
   chunks,
   type GroupItem,
+  MAX_SEEN_RELAYS,
   planGroup,
+  type SeenCache,
   VALUES_CHUNK,
 } from "./commit_plan.ts";
-import { eventFromBinding, isEphemeral, isHex64 } from "./event_triples.ts";
+import {
+  eventFromBinding,
+  isEphemeral,
+  isHex64,
+  relayIri,
+} from "./event_triples.ts";
 import {
   buildQuery,
   isSelective,
@@ -42,6 +49,7 @@ import {
   parseFilter,
 } from "./filter_sparql.ts";
 import { dateLiteral, dayNumberToIso, iri } from "./ntriples.ts";
+import { repairBookkeeping } from "./repair.ts";
 
 /** Events may be at most this far ahead of the clock (seconds). */
 const MAX_FUTURE_SECONDS = 15 * 60;
@@ -57,6 +65,10 @@ const DEFAULT_GROUP_EVENTS = 500;
 const DEFAULT_GROUP_BYTES = 4 * 1024 * 1024;
 /** Estimated size of an event's triples apart from content and tags. */
 const SIZE_OVERHEAD = 1200;
+/** Estimated size of the one triple a known event gets for another relay. */
+const SEEN_ON_SIZE = 200;
+/** Events whose `seenOn` relays are remembered; the memory is dropped when full. */
+const SEEN_CACHE_EVENTS = 50_000;
 
 /** Limits of one group commit. */
 export interface GroupOptions {
@@ -125,6 +137,8 @@ class Store implements EventStore {
   readonly #config: Config;
   /** IRIs of all event ids in the graph (cheaper to load than hex ids). */
   readonly #ids = new Set<string>();
+  /** The relays `nostr:seenOn` is known to hold, for events seen again. */
+  #seen: SeenCache = new Map();
   readonly #listeners = new Set<
     (event: NostrEvent, info: EventListenerInfo) => void
   >();
@@ -189,12 +203,30 @@ class Store implements EventStore {
 
   add(event: NostrEvent, options: AddOptions = {}): Promise<AddResult> {
     if (this.#closed) return Promise.reject(new Error("Event store is closed"));
+    const alreadyKnown = typeof event === "object" && event !== null &&
+      this.has(event.id);
+    const relay = alreadyKnown && options.seenOn !== undefined
+      ? relayIri(options.seenOn)
+      : undefined;
+    if (alreadyKnown) {
+      // Nothing to record: the relay is on the event already, or the event has
+      // all the relays it may have, or it came without a usable relay.
+      const recorded = this.#seen.get(eventIri(event.id));
+      if (
+        !relay || recorded?.has(relay) ||
+        (recorded && recorded.size >= MAX_SEEN_RELAYS)
+      ) return Promise.resolve({ status: "duplicate" });
+    }
+    // The signature of a known event is not looked at again: only that the
+    // event really is the one stored, so that a relay cannot earn `seenOn`
+    // credit with an id alone (the id is a hash of all the other fields).
     const reason = invalidReason(
       event,
-      options.verified === true,
+      alreadyKnown || options.verified === true,
       Date.now() / 1000,
     );
     if (reason) return Promise.resolve({ status: "rejected", reason });
+    if (alreadyKnown && !relay) return Promise.resolve({ status: "duplicate" });
     if (isEphemeral(event.kind)) {
       this.#notify(event, { seenOn: options.seenOn, stored: false });
       return Promise.resolve({ status: "ephemeral" });
@@ -202,8 +234,8 @@ class Store implements EventStore {
     return new Promise((resolve, reject) => {
       this.#pending.push({
         item: { event, seenOn: options.seenOn },
-        size: SIZE_OVERHEAD + event.content.length * 2 +
-          JSON.stringify(event.tags).length * 2,
+        size: alreadyKnown ? SEEN_ON_SIZE : SIZE_OVERHEAD +
+          event.content.length * 2 + JSON.stringify(event.tags).length * 2,
         resolve,
         reject,
       });
@@ -225,8 +257,11 @@ class Store implements EventStore {
           this.triples,
           (id) => this.has(id),
           group.map((p) => p.item),
+          this.#seen,
         );
         if (plan.ntriples) await this.triples.insert(plan.ntriples);
+        if (this.#seen.size > SEEN_CACHE_EVENTS) this.#seen = new Map();
+        for (const [e, relays] of plan.seen) this.#seen.set(e, relays);
         for (const item of plan.stored) {
           const day = dayOf(item.event.created_at);
           this.#ids.add(eventIri(item.event.id));
@@ -403,7 +438,7 @@ class Store implements EventStore {
       (values) =>
         `${PREFIXES}SELECT ?author ?target WHERE {
           VALUES ?author { ${values} }
-          ?list nostr:author ?author ; nostr:kind ${kind} .
+          ?list nostr:author ?author ; nostr:kind ${kind} ; nostr:sig ?sig .
           MINUS { ?list nostr:supersededBy ?newer }
           MINUS { ?list nostr:deletedBy ?deletion }
           OPTIONAL { ?list ${predicate} ?target }
@@ -434,7 +469,7 @@ class Store implements EventStore {
       (values) =>
         `${PREFIXES}SELECT ?author ?direction ?relay WHERE {
           VALUES ?author { ${values} }
-          ?list nostr:author ?author ; nostr:kind 10002 .
+          ?list nostr:author ?author ; nostr:kind 10002 ; nostr:sig ?sig .
           MINUS { ?list nostr:supersededBy ?newer }
           MINUS { ?list nostr:deletedBy ?deletion }
           { BIND("" AS ?direction) }
@@ -503,7 +538,8 @@ function daysBetween(from: number, to: number): string[] {
 
 /**
  * Open an {@link EventStore} on `triples`, reading the ids of the events it
- * already holds. `config.maxLimit` caps the number of events per filter.
+ * already holds and writing the `supersededBy` / `deletedBy` triples that an
+ * interrupted insert left out (see `repair.ts`). `config.maxLimit` caps the number of events per filter.
  * Closing the event store closes the triple store.
  */
 export async function createEventStore(
@@ -513,5 +549,11 @@ export async function createEventStore(
 ): Promise<EventStore> {
   const store = new Store(triples, config, group);
   await store.load();
+  const { superseded, deleted } = await repairBookkeeping(triples);
+  if (superseded + deleted > 0) {
+    console.log(
+      `store: repaired bookkeeping left by an interrupted write: ${superseded} supersededBy, ${deleted} deletedBy`,
+    );
+  }
   return store;
 }

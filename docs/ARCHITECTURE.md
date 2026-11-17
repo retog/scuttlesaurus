@@ -148,7 +148,14 @@ matters.
 - `add` validates (structure, id, signature unless `verified`, `created_at` not
   more than 15 minutes in the future), ignores duplicates, refuses retracted
   events, writes the event's triples and the `supersededBy` / `deletedBy`
-  bookkeeping, then notifies subscribers.
+  bookkeeping, then notifies subscribers. An event that is already stored and
+  arrives with a relay it was not seen on (at most four relays per event) gets
+  that one `nostr:seenOn` triple, without a second signature check but with a
+  check of its id; the result is still `duplicate` and nobody is notified. The
+  triples of a group are ordered so that an interrupted insert cannot leave a
+  stored event without its bookkeeping, and the store repairs bookkeeping that
+  is missing at start (see
+  [DATA-MODEL.md](DATA-MODEL.md#bookkeeping-added-by-the-store)).
 - Adds are committed in groups, on every backend. Adds issued in the same turn
   form one group, of at most 500 events and an estimated 4 MiB of N-Triples;
   adds that arrive while a group is being stored wait for the next one. A group
@@ -195,9 +202,10 @@ current relay list (NIP-65), or the bootstrap relays if they have none. Relays
 are chosen greedily so that every author is covered by up to two relays with at
 most `maxRelays` connections; among equally useful relays the one that has
 delivered more of the authors' events before (`nostr:seenOn`, the heir of
-Scuttlesaurus' peer ranking table) is preferred. Bootstrap relays are always
-asked for everybody's profile, follow list and relay list, because that is how
-the graph is discovered in the first place.
+Scuttlesaurus' peer ranking table: every relay an event was received from, up to
+four per event, counts, not only the first) is preferred. Bootstrap relays are
+always asked for everybody's profile, follow list and relay list, because that
+is how the graph is discovered in the first place.
 
 **What is fetched** depends on the distance:
 

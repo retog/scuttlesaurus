@@ -7,6 +7,7 @@ import {
 import { testConfig } from "../testing/mod.ts";
 import { QueryLimitError, type TripleStore } from "../types.ts";
 import { openEmbeddedStore } from "./embedded_store.ts";
+import { eventToTriples } from "./event_triples.ts";
 import { openEventStore, openTripleStore } from "./mod.ts";
 import { DAY, identities, sign } from "./test_util.ts";
 
@@ -479,5 +480,76 @@ Deno.test("embedded store: the replica is only built for untrusted queries, and 
       Error,
       "closed",
     );
+  });
+});
+
+Deno.test("embedded store: a log cut between the events and their bookkeeping is repaired at start", async () => {
+  const [bob] = identities(1);
+  const oldList = sign(bob, 3, {
+    tags: [["p", alice.pubkey]],
+    created_at: 1_700_000_000,
+  });
+  const newList = sign(bob, 3, {
+    tags: [["p", "ab".repeat(32)]],
+    created_at: 1_700_000_100,
+  });
+  await withDir(async (dir) => {
+    const cfg = testConfig({ dataDir: dir });
+    // The log as an earlier version left it: both events complete, the
+    // bookkeeping that follows them cut off in its first line.
+    const log = eventToTriples(oldList) + eventToTriples(newList);
+    await Deno.writeTextFile(dir + "/graph.nt", log + "<nostr:note1x> <nos");
+    let events = await openEventStore(await openTripleStore(cfg), cfg);
+    assertEquals(
+      (await events.follows([bob.pubkey])).get(bob.pubkey),
+      ["ab".repeat(32)],
+    );
+    await events.close();
+    const repaired = await Deno.readTextFile(dir + "/graph.nt");
+    assert(repaired.startsWith(log));
+    assertEquals(repaired.slice(log.length).trim().split("\n").length, 1);
+    assert(repaired.includes("supersededBy"));
+
+    // Nothing left to repair: the second start writes nothing.
+    events = await openEventStore(await openTripleStore(cfg), cfg);
+    await events.close();
+    assertEquals(await Deno.readTextFile(dir + "/graph.nt"), repaired);
+  });
+});
+
+Deno.test("embedded store: a log cut inside a group is harmless, the retry completes it", async () => {
+  const [bob] = identities(1);
+  const group = [
+    sign(bob, 3, { tags: [["p", alice.pubkey]], created_at: 1_700_000_000 }),
+    sign(bob, 3, { tags: [["p", "cd".repeat(32)]], created_at: 1_700_000_100 }),
+    sign(bob, 1, { content: "note", created_at: 1_700_000_200 }),
+  ];
+  await withDir(async (dir) => {
+    const cfg = testConfig({ dataDir: dir });
+    let events = await openEventStore(await openTripleStore(cfg), cfg);
+    await Promise.all(group.map((event) => events.add(event)));
+    await events.close();
+    const lines = (await Deno.readTextFile(dir + "/graph.nt")).split("\n");
+    // Cut after the first signature line: bookkeeping is in, so is event one.
+    const firstSig = lines.findIndex((l) => l.includes("<nostr:ontology:sig>"));
+    assert(
+      lines.findIndex((l) => l.includes("<nostr:ontology:supersededBy>")) <
+        firstSig,
+    );
+    await Deno.writeTextFile(
+      dir + "/graph.nt",
+      lines.slice(0, firstSig + 1).join("\n") + "\n",
+    );
+    events = await openEventStore(await openTripleStore(cfg), cfg);
+    assertEquals(events.has(group[0].id), true);
+    assertEquals(events.has(group[1].id), false);
+    // The older list is superseded; the newer one is not complete yet.
+    assertEquals((await events.follows([bob.pubkey])).size, 0);
+    for (const event of group) await events.add(event);
+    assertEquals(
+      (await events.follows([bob.pubkey])).get(bob.pubkey),
+      ["cd".repeat(32)],
+    );
+    await events.close();
   });
 });

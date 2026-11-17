@@ -831,7 +831,7 @@ export function defineEventStoreTests(label: string, open: OpenStore): void {
     });
   });
 
-  test("relayScores counts first-seen relays per author", async () => {
+  test("relayScores counts the relays events were seen on, per author", async () => {
     await withStore(async (store) => {
       await store.add(sign(alice, 1, { content: "1" }), {
         seenOn: "wss://A.example.com",
@@ -863,6 +863,21 @@ export function defineEventStoreTests(label: string, open: OpenStore): void {
         new Map([["wss://b.example.com/", 1]]),
       );
       assertEquals(scores.has(carol.pubkey), false);
+    });
+  });
+
+  test("relayScores: a stored event from another relay counts for that relay too", async () => {
+    await withStore(async (store) => {
+      const note = sign(alice, 1, { content: "seen twice" });
+      await store.add(note, { seenOn: "wss://a.example.com" });
+      assertEquals(
+        await store.add(note, { seenOn: "wss://b.example.com" }),
+        { status: "duplicate" },
+      );
+      assertEquals(
+        (await store.relayScores([alice.pubkey])).get(alice.pubkey),
+        new Map([["wss://a.example.com/", 1], ["wss://b.example.com/", 1]]),
+      );
     });
   });
 

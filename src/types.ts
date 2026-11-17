@@ -226,7 +226,12 @@ export type AddResult =
   | { status: "rejected"; reason: string };
 
 export interface AddOptions {
-  /** URL of the relay the event was received from, recorded as provenance. */
+  /**
+   * URL of the relay the event was received from, recorded as provenance. For
+   * an event that is already stored the relay is added to the event's `seenOn`
+   * (up to four relays per event) and the result is `duplicate`; the signature
+   * of such an event is not verified again, but its id must match its fields.
+   */
   seenOn?: string;
   /** The signature has already been verified by the caller. */
   verified?: boolean;
@@ -272,8 +277,11 @@ export interface EventStore {
     pubkeys: string[],
   ): Promise<Map<string, { read: string[]; write: string[] }>>;
   /**
-   * For the given authors, how many of their events were first received from
-   * which relay: `Map<pubkey, Map<relayUrl, count>>`. Derived from `seenOn`.
+   * For the given authors, how many of their events were seen on which relay:
+   * `Map<pubkey, Map<relayUrl, count>>`. Derived from `seenOn`, which is
+   * recorded for the relay an event was first received from and for a few
+   * further relays that delivered it later (at most four per event), so an
+   * event can count for several relays.
    */
   relayScores(pubkeys: string[]): Promise<Map<string, Map<string, number>>>;
   /**

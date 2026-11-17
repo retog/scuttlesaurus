@@ -18,7 +18,7 @@ export interface PlanInput {
   authors: ReadonlyMap<string, number>;
   /** Current NIP-65 relay lists, for the authors that have one. */
   relayLists: ReadonlyMap<string, { read: string[]; write: string[] }>;
-  /** Per author, how many of their events were first seen on which relay. */
+  /** Per author, how many of their events were seen on which relay. */
   scores: ReadonlyMap<string, ReadonlyMap<string, number>>;
   /** Relays for discovery and for authors without a relay list. */
   bootstrapRelays: readonly string[];

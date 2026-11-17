@@ -68,16 +68,25 @@ else is a plain string unless marked IRI.
 
 ### Every event
 
-| Predicate         | Object                                                                                 |
-| ----------------- | -------------------------------------------------------------------------------------- |
-| `nostr:author`    | Pubkey IRI                                                                             |
-| `nostr:kind`      | Integer                                                                                |
-| `nostr:createdAt` | Integer, unix seconds                                                                  |
-| `nostr:date`      | UTC day of `created_at`, e.g. `"2026-11-13"^^xsd:date`                                 |
-| `nostr:content`   | The content. Omitted when empty.                                                       |
-| `nostr:tags`      | The `tags` array as compact JSON, verbatim. Omitted when the array is empty.           |
-| `nostr:sig`       | Hex signature                                                                          |
-| `nostr:seenOn`    | Relay IRI the event was first received from. Absent for events published to this node. |
+| Predicate         | Object                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `nostr:author`    | Pubkey IRI                                                                                  |
+| `nostr:kind`      | Integer                                                                                     |
+| `nostr:createdAt` | Integer, unix seconds                                                                       |
+| `nostr:date`      | UTC day of `created_at`, e.g. `"2026-11-13"^^xsd:date`                                      |
+| `nostr:content`   | The content. Omitted when empty.                                                            |
+| `nostr:tags`      | The `tags` array as compact JSON, verbatim. Omitted when the array is empty.                |
+| `nostr:sig`       | Hex signature                                                                               |
+| `nostr:seenOn`    | Relay IRI the event was received from, see below. Absent for events published to this node. |
+
+`nostr:seenOn` is written for the relay an event is first received from, and
+again, as the only new triple, when a stored event is received from another
+relay (its signature is not verified again, but its id is recomputed from its
+fields and must match). An event has at most four `seenOn` relays; later ones
+are not recorded. It is the provenance that relay planning counts: for an
+author, the number of their events seen on each relay (`relayScores`), so a
+relay that delivers an author's notes later than a faster one still gets its
+credit.
 
 The id is in the event IRI and the pubkey in the author IRI, so these triples
 are sufficient to reconstruct the signed event exactly. The relay serves events
@@ -177,6 +186,18 @@ that are not newer than the deletion request. A retracted event that is offered
 again is rejected, whichever arrived first.
 
 **Ephemeral events** (kinds 20000–29999) are never stored.
+
+**Order and repair.** A group of events is inserted as one document: the events'
+triples without `nostr:sig`, then the bookkeeping, then the `nostr:sig` triples.
+An event with `nostr:sig` counts as stored, so an insert that is cut off
+anywhere (the embedded log after a crash, the requests of a SPARQL endpoint)
+never leaves a stored event without the bookkeeping that came with it; events
+without `nostr:sig` are offered and planned again. Stores written by earlier
+versions can still hold events without their bookkeeping. At start-up the event
+store therefore looks for replaceable and addressable keys with more than one
+current version and for deletion requests whose same-author targets lack
+`nostr:deletedBy`, writes the missing triples by the rules above and logs how
+many it wrote (nothing when there was nothing to write).
 
 ## Blobs
 

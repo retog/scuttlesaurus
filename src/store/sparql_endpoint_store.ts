@@ -29,6 +29,10 @@ class EndpointBackend implements Backend {
   }
 
   async insert(ntriples: string): Promise<void> {
+    // The requests are not atomic together: if one fails, the earlier ones
+    // stay. The group commit orders its document so that this is harmless
+    // (events without `nostr:sig`, then bookkeeping, then the signatures, see
+    // `planGroup`), so the lines must be sent in the order given.
     const lines = ntriples.split("\n").filter((line) => line !== "");
     for (let i = 0; i < lines.length; i += INSERT_BATCH_LINES) {
       const batch = lines.slice(i, i + INSERT_BATCH_LINES).join("\n");

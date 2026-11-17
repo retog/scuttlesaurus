@@ -50,7 +50,7 @@ export const TERMS = {
   tags: "tags",
   /** event → string, hex signature */
   sig: "sig",
-  /** event → relay IRI the event was first received from */
+  /** event → relay IRI the event was received from (up to four per event) */
   seenOn: "seenOn",
 
   // --- links derived from tags -------------------------------------------

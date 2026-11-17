@@ -1,7 +1,9 @@
 /**
- * The way events enter the store: an event whose id is already known is
- * skipped before its signature is looked at (NIP-01), every other event is
- * verified exactly once and stored with the relay it came from as provenance.
+ * The way events enter the store: an event whose id is already known is never
+ * verified again (NIP-01); the store only records the relay it came from as one
+ * more `nostr:seenOn`, after checking that it is the event it claims to be.
+ * Every other event is verified exactly once and stored with the relay it came
+ * from as provenance.
  * @module
  */
 import { validateEvent, verifyEvent } from "@nostr/tools/pure";
@@ -26,7 +28,7 @@ export type IngestOutcome = "stored" | "known" | "invalid" | "rejected";
 /** Verifies and stores events received from relays. */
 export class Ingest {
   readonly #events: EventStore;
-  readonly #inFlight = new Set<string>();
+  readonly #inFlight = new Map<string, Promise<IngestOutcome>>();
   readonly #running = new Set<Promise<unknown>>();
 
   constructor(events: EventStore) {
@@ -34,20 +36,44 @@ export class Ingest {
   }
 
   /**
-   * Store an event received from `relay` unless it is already known.
-   * Never rejects.
+   * Store an event received from `relay` unless it is already known, in which
+   * case only the relay is recorded (`known`). Never rejects.
    */
   handle(relay: string, event: NostrEvent): Promise<IngestOutcome> {
-    // The same event often arrives from two relays at once; the in-flight set
-    // makes sure only the first is verified.
-    if (this.#events.has(event.id) || this.#inFlight.has(event.id)) {
-      return Promise.resolve("known");
+    if (this.#events.has(event.id)) return this.#again(relay, event);
+    // The same event often arrives from two relays at once; the in-flight map
+    // makes sure only the first is verified. The other one is recorded as a
+    // further relay once the first is stored.
+    const first = this.#inFlight.get(event.id);
+    if (first) {
+      return first.then(() =>
+        this.#events.has(event.id) ? this.#again(relay, event) : "known"
+      );
     }
-    this.#inFlight.add(event.id);
     const work = this.#store(relay, event).finally(() => {
       this.#inFlight.delete(event.id);
       this.#running.delete(work);
     });
+    this.#inFlight.set(event.id, work);
+    this.#running.add(work);
+    return work;
+  }
+
+  /** An event already in the store, offered by another (or the same) relay. */
+  #again(relay: string, event: NostrEvent): Promise<IngestOutcome> {
+    const work = this.#events.add(event, { seenOn: relay, verified: true })
+      .then((result): IngestOutcome =>
+        // Not the event it claims to be: its id does not match its fields.
+        result.status === "rejected" ? "invalid" : "known"
+      )
+      .catch((error): IngestOutcome => {
+        console.error(
+          `replication: could not record a relay:`,
+          describe(error),
+        );
+        return "rejected";
+      })
+      .finally(() => this.#running.delete(work));
     this.#running.add(work);
     return work;
   }
