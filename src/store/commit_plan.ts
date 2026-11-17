@@ -22,7 +22,6 @@ import {
 import {
   coordinateIri,
   eventCoordinate,
-  eventSigTriple,
   eventToTriples,
   isAddressable,
   isHex64,
@@ -225,7 +224,6 @@ export async function readHeads(
     });
     heads.set(key, list);
   };
-  // `nostr:sig` is written last: an event without it is not stored yet.
   const current = "nostr:sig ?sig . MINUS { ?e nostr:supersededBy ?newer }";
   for (
     const row of await select(
@@ -377,17 +375,22 @@ async function readSeenOn(
  *
  * Order of the document, which decides what a reader sees if the insert is
  * cut off anywhere (the embedded log after a crash, the requests of the
- * endpoint store): the events' triples without their `nostr:sig`, then the
- * `supersededBy` / `deletedBy` bookkeeping, then all the `nostr:sig` triples.
- * An event counts as stored once it has its signature, so a stored event never
- * lacks the bookkeeping that came with it; the events not yet stored are
- * simply offered again and planned afresh. The other order leaves both
- * versions of a profile or follow list current for good (the event is a known
- * duplicate afterwards), the follow lists merged into the social graph. The
- * price is that after such a cut the older version is superseded by an event
- * that is not complete, so a reader sees no version until the newer one is
- * received again; that is the lesser harm, and it heals with the retry.
- * No reader sees the new event before the old one is superseded.
+ * endpoint store): each event's triples complete with its `nostr:sig`, then
+ * the `nostr:seenOn` additions, then the `supersededBy` / `deletedBy`
+ * bookkeeping last.
+ *
+ * The graph only grows, so the two kinds of damage a cut can leave are not
+ * equal. Bookkeeping that is missing can be added later: the intermediate
+ * state "event stored, bookkeeping missing" shows two current versions of a
+ * profile or follow list (a merged follow list) until the repair has run, and
+ * the repair (`repairBookkeeping`, at start and after a failed insert)
+ * finds it from the graph alone. Bookkeeping that points at an event which
+ * never became complete cannot be taken back; it would hide the older version
+ * for good while nothing offers the newer one again. So a bookkeeping triple
+ * is written only after the event it points at is complete, and the only
+ * acceptable intermediate state is "stored, bookkeeping missing". Nothing
+ * here relies on an event being offered again. Readers see the new event
+ * before the old one is superseded for the moment between the two writes.
  */
 export async function planGroup(
   triples: TripleStore,
@@ -437,7 +440,6 @@ export async function planGroup(
   );
 
   const eventText: string[] = [];
-  const sigText: string[] = [];
   const bookkeeping = new Triples();
   const outcomes: AddResult[] = [];
   const stored: GroupItem[] = [];
@@ -517,10 +519,7 @@ export async function planGroup(
     }
 
     groupEvents.set(eventIriValue, { author: authorIri, kind: event.kind });
-    eventText.push(
-      eventToTriples(event, { seenOn: item.seenOn, withoutSig: true }),
-    );
-    sigText.push(eventSigTriple(event));
+    eventText.push(eventToTriples(event, { seenOn: item.seenOn }));
     const relay = relayOf(item);
     relays.set(eventIriValue, new Set(relay ? [relay] : []));
     stored.push(item);
@@ -535,7 +534,7 @@ export async function planGroup(
   return {
     outcomes,
     stored,
-    ntriples: eventText.join("") + seenOnText + bookkeeping + sigText.join(""),
+    ntriples: eventText.join("") + seenOnText + bookkeeping,
     seen: remember,
   };
 }

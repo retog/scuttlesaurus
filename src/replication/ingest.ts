@@ -22,8 +22,18 @@ export function parseEvent(raw: unknown): NostrEvent | undefined {
     : undefined;
 }
 
-/** What became of an event offered to {@link Ingest.handle}. */
-export type IngestOutcome = "stored" | "known" | "invalid" | "rejected";
+/**
+ * What became of an event offered to {@link Ingest.handle}. `error` means the
+ * store failed, as opposed to `invalid` and `rejected`, which are verdicts on
+ * the event: offering it again later may succeed, so the caller must not treat
+ * it as fetched.
+ */
+export type IngestOutcome =
+  | "stored"
+  | "known"
+  | "invalid"
+  | "rejected"
+  | "error";
 
 /** Verifies and stores events received from relays. */
 export class Ingest {
@@ -97,7 +107,7 @@ export class Ingest {
         : "known";
     } catch (error) {
       console.error(`replication: could not store an event:`, describe(error));
-      return "rejected";
+      return "error";
     }
   }
 }

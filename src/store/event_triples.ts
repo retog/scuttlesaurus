@@ -186,12 +186,10 @@ function addArticle(out: Triples, e: string, tags: string[][]): void {
  * output: values that are not valid link targets only yield the tag index
  * triple. The signature triple is written last so that a log truncated in the
  * middle of a batch leaves an event without `nostr:sig`, which readers ignore.
- * With `withoutSig` it is left out and the group commit writes it itself,
- * after the bookkeeping (see `planGroup`).
  */
 export function eventToTriples(
   event: NostrEvent,
-  options: { seenOn?: string; withoutSig?: boolean } = {},
+  options: { seenOn?: string } = {},
 ): string {
   const out = new Triples();
   const e = iri(eventIri(event.id));
@@ -314,15 +312,8 @@ export function eventToTriples(
     }
   }
 
-  if (!options.withoutSig) out.add(e, P("sig"), literal(event.sig));
+  out.add(e, P("sig"), literal(event.sig));
   return out.toString();
-}
-
-/** The `nostr:sig` triple of an event, which marks it as completely stored. */
-export function eventSigTriple(event: NostrEvent): string {
-  return new Triples()
-    .add(iri(eventIri(event.id)), P("sig"), literal(event.sig))
-    .toString();
 }
 
 /**

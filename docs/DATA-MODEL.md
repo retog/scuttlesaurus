@@ -187,17 +187,41 @@ again is rejected, whichever arrived first.
 
 **Ephemeral events** (kinds 20000–29999) are never stored.
 
-**Order and repair.** A group of events is inserted as one document: the events'
-triples without `nostr:sig`, then the bookkeeping, then the `nostr:sig` triples.
-An event with `nostr:sig` counts as stored, so an insert that is cut off
-anywhere (the embedded log after a crash, the requests of a SPARQL endpoint)
-never leaves a stored event without the bookkeeping that came with it; events
-without `nostr:sig` are offered and planned again. Stores written by earlier
-versions can still hold events without their bookkeeping. At start-up the event
-store therefore looks for replaceable and addressable keys with more than one
-current version and for deletion requests whose same-author targets lack
-`nostr:deletedBy`, writes the missing triples by the rules above and logs how
-many it wrote (nothing when there was nothing to write).
+**Order and repair.** A group of events is inserted as one document: each
+event's triples complete with its `nostr:sig` (written last, so an event counts
+as stored once it has it), then the `nostr:seenOn` additions, then the
+`supersededBy` / `deletedBy` bookkeeping.
+
+The invariant: **a bookkeeping triple is only written after the event it points
+at is complete.** The graph only grows, so bookkeeping that points at an event
+which never became complete cannot be taken back, and would hide the older
+version for good (no version of a profile, no follow list) while nothing offers
+the newer event again. Bookkeeping that is missing can be added later. So the
+only intermediate state an insert that is cut off can leave (the embedded log
+after a crash, a failed request of a SPARQL endpoint) is "events stored,
+bookkeeping missing": two versions of a key are current for a while, a follow
+list is briefly the merge of both, a retracted event is still served. Events
+that are not complete are not stored; they are offered and planned again.
+
+The repair (`src/store/repair.ts`) finds the missing bookkeeping from the graph
+alone: replaceable and addressable keys with more than one current version (only
+versions with `nostr:sig` count, and the newest of them wins, so a version
+without it is never a winner) and kind 5 events (with `nostr:sig`) whose
+same-author targets lack `nostr:deletedBy`. It writes the missing triples by the
+rules above and logs how many it wrote (nothing when there was nothing to
+write). It runs at start-up and again before the next commit after an insert
+failed, without a restart; if the repair itself fails it is logged and tried
+again before the next commit, and does not reject events. A healthy graph costs
+five queries however many deletion requests it holds: a deletion naming a
+replaceable event by `a` tag is a candidate only if its author has an undeleted
+event of the kind in the coordinate (the kind is read from the `tag:a` value).
+
+A store written by the first version of this order (events without `nostr:sig`,
+bookkeeping, then signatures) and cut before the signatures can hold
+`supersededBy` / `deletedBy` triples that point at an event without `nostr:sig`.
+They cannot be removed and the queries do not look for them; the repair does not
+treat such an event as a winner, and once the event is received again it is the
+current version.
 
 ## Blobs
 

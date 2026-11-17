@@ -22,6 +22,7 @@ import type {
   NostrEvent,
   Replicator,
   SocialGraph,
+  TripleStore,
 } from "../types.ts";
 import { createReplicator } from "./mod.ts";
 import type { ReplicatorOptions } from "./options.ts";
@@ -195,6 +196,8 @@ export async function startDownstream(
     tuning?: ReplicatorOptions;
     dataDir?: string;
     start?: boolean;
+    /** The triple store to use instead of a fresh in-process one. */
+    triples?: TripleStore;
   } = {},
 ): Promise<Downstream> {
   const dataDir = options.dataDir ?? await Deno.makeTempDir();
@@ -210,7 +213,10 @@ export async function startDownstream(
       ...options.replication,
     },
   });
-  const events = await openEventStore(new MemoryTripleStore(), config);
+  const events = await openEventStore(
+    options.triples ?? new MemoryTripleStore(),
+    config,
+  );
   const graph = createSocialGraph(events, config, { debounceMs: 20 });
   const replicator = createReplicator(events, graph, config, {
     ...FAST,

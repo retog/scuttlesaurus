@@ -17,7 +17,7 @@ import {
   RelayConnection,
   type Subscription,
 } from "./connection.ts";
-import { type Ingest, parseEvent } from "./ingest.ts";
+import { type Ingest, type IngestOutcome, parseEvent } from "./ingest.ts";
 import type { ResolvedOptions } from "./options.ts";
 import { missingRanges, type SyncState } from "./sync_state.ts";
 import {
@@ -444,6 +444,7 @@ export class RelayFeed {
       const lowest = task.type === "range" ? task.from : 0;
       const highest = filter.until ?? Number.MAX_SAFE_INTEGER;
       const stored: Promise<unknown>[] = [];
+      let storeFailed = false;
       let count = 0;
       let oldest = Number.MAX_SAFE_INTEGER;
       let settled = false;
@@ -456,8 +457,14 @@ export class RelayFeed {
         subscription?.close();
         if (error) this.#lastError = error;
         if (!complete) return resolve(undefined);
-        // Coverage may only be recorded once every event of the page is stored.
-        Promise.allSettled(stored).then(() => resolve({ count, oldest }));
+        // Coverage may only be recorded once every event of the page is
+        // stored, and not at all if the store failed on one of them: that
+        // event is not fetched yet, so the page is planned again later.
+        Promise.allSettled(stored).then(() => {
+          if (!storeFailed) return resolve({ count, oldest });
+          this.#lastError = "the store failed on an event of the page";
+          resolve(undefined);
+        });
       };
       const timer = setTimeout(
         () => finish(false, "timed out waiting for EOSE"),
@@ -473,7 +480,11 @@ export class RelayFeed {
           ) return;
           count++;
           oldest = Math.min(oldest, event.created_at);
-          stored.push(this.#receive(event, wanted));
+          stored.push(
+            this.#receive(event, wanted).then((outcome) => {
+              if (outcome === "error") storeFailed = true;
+            }),
+          );
         },
         onEose: () => finish(true),
         onClosed: (reason) => finish(false, `request closed: ${reason}`),
@@ -508,11 +519,14 @@ export class RelayFeed {
   #receive(
     event: NostrEvent,
     requested: ReadonlySet<string> | undefined,
-  ): Promise<void> {
-    if (!this.#assignment.has(event.pubkey)) return Promise.resolve();
-    if (requested && !requested.has(event.pubkey)) return Promise.resolve();
+  ): Promise<IngestOutcome | undefined> {
+    if (!this.#assignment.has(event.pubkey)) return Promise.resolve(undefined);
+    if (requested && !requested.has(event.pubkey)) {
+      return Promise.resolve(undefined);
+    }
     return this.#deps.ingest.handle(this.url, event).then((outcome) => {
       if (outcome === "stored") this.#received++;
+      return outcome;
     });
   }
 }

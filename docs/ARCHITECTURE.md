@@ -153,9 +153,11 @@ matters.
   arrives with a relay it was not seen on (at most four relays per event) gets
   that one `nostr:seenOn` triple, without a second signature check but with a
   check of its id; the result is still `duplicate` and nobody is notified. The
-  triples of a group are ordered so that an interrupted insert cannot leave a
-  stored event without its bookkeeping, and the store repairs bookkeeping that
-  is missing at start (see
+  triples of a group are ordered events (each complete with its `nostr:sig`)
+  first, bookkeeping last, so that a bookkeeping triple never points at an
+  incomplete event; an interrupted insert can only leave events without their
+  bookkeeping. The store repairs that at start and, without a restart, before
+  the next commit after a failed insert (see
   [DATA-MODEL.md](DATA-MODEL.md#bookkeeping-added-by-the-store)).
 - Adds are committed in groups, on every backend. Adds issued in the same turn
   form one group, of at most 500 events and an estimated 4 MiB of N-Triples;
@@ -224,9 +226,12 @@ not been fetched from before is backfilled by paging backwards with `until`
 until the horizon is reached; afterwards a live subscription stays open. The
 time up to which each author is covered is kept in `<dataDir>/sync-state.json`,
 so a restart only fetches what was missed. Connections reconnect with backoff; a
-relay that keeps failing is dropped from the plan for a while. Events already in
-the store are skipped before their signature is verified. Relay lists are data
-from strangers: relays they name must be public `wss://` hosts unless
+relay that keeps failing is dropped from the plan for a while. A page counts as
+fetched only when each of its events was stored, was already known, or was
+refused as invalid or by policy; if the store failed on one, the page is not
+covered and is requested again after a backoff. Events already in the store are
+skipped before their signature is verified. Relay lists are data from strangers:
+relays they name must be public `wss://` hosts unless
 `replication.allowPrivateRelays` is on (bootstrap relays are always allowed).
 
 **Publishing.** Events that clients publish to this node's relay are forwarded

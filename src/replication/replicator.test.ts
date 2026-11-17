@@ -18,7 +18,8 @@ import {
   writeRelays,
 } from "./test_network.ts";
 import { SYNC_STATE_FILE } from "./sync_state.ts";
-import type { NostrEvent } from "../types.ts";
+import { MemoryTripleStore } from "../testing/mod.ts";
+import type { NostrEvent, SparqlBinding, TripleStore } from "../types.ts";
 
 /** Run `body` and clean up whatever it registered, whatever happens. */
 async function scenario(
@@ -715,5 +716,80 @@ Deno.test("a healthy idle relay answers the probe and is left alone", async () =
     const later = sign(a, 1, { content: "after the probes" });
     await upstream.add(later);
     await eventually(() => node.events.has(later.id), "live event");
+  });
+});
+
+/**
+ * A triple store whose first insert that holds a `supersededBy` triple is cut
+ * off: everything before the bookkeeping is written (the new events are
+ * complete), the bookkeeping is not, and the insert fails.
+ */
+class CutOnce implements TripleStore {
+  cuts = 0;
+  constructor(readonly inner: TripleStore) {}
+  async insert(ntriples: string): Promise<void> {
+    const lines = ntriples.split("\n");
+    const at = lines.findIndex((l) =>
+      l.includes("<nostr:ontology:supersededBy>")
+    );
+    if (this.cuts === 0 && at >= 0) {
+      this.cuts++;
+      await this.inner.insert(lines.slice(0, at).join("\n") + "\n");
+      throw new Error("the store went away");
+    }
+    return this.inner.insert(ntriples);
+  }
+  select(sparql: string): Promise<SparqlBinding[]> {
+    return this.inner.select(sparql);
+  }
+  ask(sparql: string) {
+    return this.inner.ask(sparql);
+  }
+  query(sparql: string) {
+    return this.inner.query(sparql);
+  }
+  size() {
+    return this.inner.size();
+  }
+  close() {
+    return this.inner.close();
+  }
+}
+
+Deno.test("a page that hit a store error is fetched again and ends up with correct bookkeeping", async () => {
+  await scenario(async (cleanup) => {
+    const [owner, a] = people(2);
+    const upstream = await startUpstream();
+    cleanup(() => upstream.close());
+    const oldProfile = sign(a, 0, {
+      content: '{"name":"old"}',
+      created_at: secondsAgo(3),
+    });
+    const newProfile = sign(a, 0, {
+      content: '{"name":"new"}',
+      created_at: secondsAgo(1),
+    });
+    await upstream.add(follows(owner, [a]), newProfile);
+
+    const flaky = new CutOnce(new MemoryTripleStore());
+    const node = await startDownstream(owner, [upstream.url], {
+      triples: flaky,
+      start: false,
+    });
+    cleanup(() => node.close());
+    await node.events.add(oldProfile);
+    node.replicator.start();
+
+    // The failed page is not covered: the event is fetched again, stored, and
+    // the profile has exactly one current version.
+    await eventually(() => node.events.has(newProfile.id), "the refetch");
+    await waitIdle(node);
+    assertEquals(flaky.cuts, 1);
+    assertEquals(
+      (await node.events.query([{ kinds: [0], authors: [a.pubkey] }])).map((
+        e,
+      ) => e.id),
+      [newProfile.id],
+    );
   });
 });

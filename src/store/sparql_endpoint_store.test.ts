@@ -234,7 +234,16 @@ Deno.test("queryForm skips comments and the prologue", () => {
   }
 });
 
-Deno.test("endpoint store: a group cut off between requests is harmless, the retry completes it", async () => {
+/**
+ * A group of more than one request whose last request fails; `recover` then
+ * brings the store to the state the test looks at.
+ */
+async function cutGroup(
+  recover: (
+    events: Awaited<ReturnType<typeof openEventStore>>,
+    open: () => Promise<Awaited<ReturnType<typeof openEventStore>>>,
+  ) => Promise<Awaited<ReturnType<typeof openEventStore>>>,
+) {
   const [alice, bob] = identities(2);
   const oldList = sign(bob, 3, {
     tags: [["p", alice.pubkey]],
@@ -257,10 +266,11 @@ Deno.test("endpoint store: a group cut off between requests is harmless, the ret
   try {
     const cfg = config(endpoint);
     await (await openEventStore(await openTripleStore(cfg), cfg)).add(oldList);
-    let events = await openEventStore(await openTripleStore(cfg), cfg, {
+    const events = await openEventStore(await openTripleStore(cfg), cfg, {
       maxEvents: 1000,
     });
-    // One group of more than one request; the last request fails.
+    // One group of more than one request; the last request, which holds the
+    // bookkeeping, fails.
     const updates = endpoint.log.filter((l) => l.path === "/update").length;
     endpoint.fail.updatesBeforeFailure = 1;
     const results = await Promise.allSettled(
@@ -271,27 +281,44 @@ Deno.test("endpoint store: a group cut off between requests is harmless, the ret
       endpoint.log.filter((l) => l.path === "/update").length - updates,
       2,
     );
-    // After a restart no stored event lacks its bookkeeping: nothing of the
-    // failed group counts as stored (the first request held only the events'
-    // triples without signatures), and the follow list is still the old one.
     endpoint.fail.updatesBeforeFailure = Infinity;
-    events = await openEventStore(await openTripleStore(cfg), cfg);
-    assertEquals(events.has(newList.id), false);
-    assertEquals(events.has(notes[0].id), false);
-    assertEquals(
-      (await events.follows([bob.pubkey])).get(bob.pubkey),
-      [alice.pubkey],
+    const recovered = await recover(
+      events,
+      async () => await openEventStore(await openTripleStore(cfg), cfg),
     );
-    // The retry stores everything, with one current follow list.
-    for (const event of [newList, ...notes]) {
-      assertEquals((await events.add(event)).status, "stored");
-    }
+    // Exactly one current follow list, the newer one, not merged.
     assertEquals(
-      (await events.follows([bob.pubkey])).get(bob.pubkey),
+      (await recovered.follows([bob.pubkey])).get(bob.pubkey),
       ["ab".repeat(32)],
     );
-    await events.close();
+    // The retry stores whatever is missing.
+    for (const event of [newList, ...notes]) {
+      const status = (await recovered.add(event)).status;
+      assert(status === "stored" || status === "duplicate");
+    }
+    assertEquals(
+      (await recovered.follows([bob.pubkey])).get(bob.pubkey),
+      ["ab".repeat(32)],
+    );
+    assertEquals((await recovered.query([{ kinds: [3] }])).length, 1);
+    await recovered.close();
   } finally {
     await endpoint.close();
   }
+}
+
+Deno.test("endpoint store: a group whose last request failed is repaired by the next commit", async () => {
+  await cutGroup(async (events) => {
+    // The same store, no restart: the next successful commit repairs first.
+    const [carol] = identities(1);
+    await events.add(sign(carol, 1, { content: "next" }));
+    return events;
+  });
+});
+
+Deno.test("endpoint store: a group whose last request failed is repaired at the next start", async () => {
+  await cutGroup(async (events, open) => {
+    await events.close();
+    return await open();
+  });
 });

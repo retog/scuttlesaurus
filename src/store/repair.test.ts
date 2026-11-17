@@ -1,21 +1,22 @@
 /**
- * Interrupted inserts and the start-up repair of the bookkeeping: events that
- * count as stored (they have `nostr:sig`) but lack `supersededBy` /
- * `deletedBy`, whether left by an earlier version of the store or by a cut
- * anywhere in the document of a group.
+ * Interrupted inserts and the repair of the bookkeeping: events that count as
+ * stored (they have `nostr:sig`) but lack `supersededBy` / `deletedBy`, whether
+ * left by an earlier version of the store or by a cut anywhere in the document
+ * of a group; and the start-up cost of the repair on a healthy graph.
  */
 import { assert, assertEquals } from "@std/assert";
 import { MemoryTripleStore } from "../testing/mod.ts";
 import type { EventStore, NostrEvent, TripleStore } from "../types.ts";
 import { createEventStore } from "./event_store.ts";
 import { eventToTriples } from "./event_triples.ts";
+import { eventIri } from "../vocab.ts";
 import { repairBookkeeping } from "./repair.ts";
 import { config, CountingStore, DAY, identities, sign } from "./test_util.ts";
 
 const [alice, bob, carol] = identities(3);
 const NOW = Math.floor(Date.now() / 1000);
 
-/** The document an earlier version wrote: events complete, bookkeeping last. */
+/** A document of complete events followed by the given bookkeeping. */
 const oldDocument = (events: NostrEvent[], bookkeeping = "") =>
   events.map((e) => eventToTriples(e)).join("") + bookkeeping;
 
@@ -229,6 +230,34 @@ const isBookkeeping = (line: string) =>
   line.includes("<nostr:ontology:deletedBy>");
 const isSig = (line: string) => line.includes("<nostr:ontology:sig>");
 
+Deno.test("group document: every bookkeeping triple comes after the sig of the event it points at", async () => {
+  const before = sign(alice, 0, { content: "{}", created_at: NOW - 5 * DAY });
+  const group = [
+    sign(alice, 0, { content: "{}", created_at: NOW - 2 * DAY }),
+    sign(alice, 0, { content: "{}", created_at: NOW - DAY }),
+    sign(alice, 5, { tags: [["e", before.id]], created_at: NOW }),
+  ];
+  const recording = new Recording(new MemoryTripleStore());
+  const store = await open(recording);
+  await store.add(before);
+  recording.inserts.length = 0;
+  await Promise.all(group.map((event) => store.add(event)));
+  await store.close();
+  const document = lineOf(recording.inserts[0]);
+  const sigAt = new Map<string, number>();
+  document.forEach((line, i) => {
+    if (isSig(line)) sigAt.set(line.split(" ")[0], i);
+  });
+  assertEquals(sigAt.size, group.length);
+  const bookkeeping = document.filter(isBookkeeping);
+  assert(bookkeeping.length >= 3);
+  document.forEach((line, i) => {
+    if (!isBookkeeping(line)) return;
+    const object = line.split(" ")[2];
+    assert(sigAt.get(object)! < i, `${line} before the sig of its object`);
+  });
+});
+
 Deno.test("interrupted insert: cut at every line, then restart and retry", async () => {
   // What the store holds before the group, and the group (one burst).
   const before = [
@@ -265,37 +294,40 @@ Deno.test("interrupted insert: cut at every line, then restart and retry", async
   assertEquals(expected.notes, [group[4].id]);
   assertEquals(expected.profile, [group[0].id]);
 
-  // The order is what makes a cut harmless: a signature never comes before
-  // the bookkeeping, so a stored event never lacks the bookkeeping of its group.
-  const firstSig = document.findIndex(isSig);
-  const lastBookkeeping = document.findLastIndex(isBookkeeping);
-  assert(lastBookkeeping >= 0 && firstSig > lastBookkeeping);
+  // The order is what makes a cut harmless: all signatures come before the
+  // bookkeeping, so the bookkeeping never points at an incomplete event.
+  const lastSig = document.findLastIndex(isSig);
+  const firstBookkeeping = document.findIndex(isBookkeeping);
+  assert(firstBookkeeping > lastSig);
   assertEquals(document.filter(isBookkeeping).length, 4);
 
   for (let cut = 0; cut <= document.length; cut++) {
     const memory = new MemoryTripleStore();
     await memory.insert(prefix + document.slice(0, cut).join("\n") + "\n");
 
-    // The restart: no version is lost twice over, none is current twice.
+    // The restart repairs what the cut left out: exactly one current version
+    // of every key (nothing hidden, nothing twice), the follow list not merged,
+    // a deletion that is complete applied.
     const restarted = await open(memory);
     try {
-      assert(
-        (await current(restarted, [0])).length <= 1,
-        `profile, cut ${cut}`,
+      assertEquals((await current(restarted, [0])).length, 1, `profile ${cut}`);
+      assertEquals((await current(restarted, [3])).length, 1, `follow ${cut}`);
+      assertEquals(
+        (await current(restarted, [30023])).length,
+        1,
+        `article ${cut}`,
       );
-      assert((await current(restarted, [3])).length <= 1, `follow, cut ${cut}`);
-      assert(
-        (await current(restarted, [30023])).length <= 2,
-        `articles, cut ${cut}`,
+      assertEquals(
+        (await restarted.follows([bob.pubkey])).get(bob.pubkey)?.length,
+        1,
+        `merge ${cut}`,
       );
-      const follows = (await restarted.follows([bob.pubkey])).get(bob.pubkey);
-      assert(follows === undefined || follows.length <= 1, `merge, cut ${cut}`);
-      // A stored event of the group always has its bookkeeping.
-      for (const event of group) {
-        if (restarted.has(event.id)) {
-          assertEquals(cut > lastBookkeeping, true, `${event.id} at ${cut}`);
-        }
-      }
+      const notes = await current(restarted, [1]);
+      assertEquals(
+        notes.includes(doomed.id),
+        !restarted.has(group[3].id),
+        `deletion ${cut}`,
+      );
       // The retry, as replication or the client would do it.
       for (const event of group) await restarted.add(event);
       assertEquals(
@@ -324,10 +356,44 @@ Deno.test("interrupted insert: cut at every line, then restart and retry", async
   }
 });
 
-Deno.test("interrupted insert: the old order is what the repair is for", async () => {
-  // The same cut in the order of earlier versions (events complete, then the
-  // bookkeeping): the events are known after the restart and the retry is a
-  // no-op, so only the repair can fix it.
+/**
+ * A triple store whose first insert holding bookkeeping is cut off before it
+ * (the events are in, complete, and the insert fails), and whose selects can
+ * be made to fail.
+ */
+class CutBeforeBookkeeping implements TripleStore {
+  cuts = 0;
+  failSelects = false;
+  constructor(readonly inner: TripleStore) {}
+  async insert(ntriples: string) {
+    const lines = ntriples.split("\n");
+    const at = lines.findIndex(isBookkeeping);
+    if (this.cuts === 0 && at >= 0) {
+      this.cuts++;
+      await this.inner.insert(lines.slice(0, at).join("\n") + "\n");
+      throw new Error("the store went away");
+    }
+    return this.inner.insert(ntriples);
+  }
+  select(sparql: string) {
+    if (this.failSelects) return Promise.reject(new Error("store is down"));
+    return this.inner.select(sparql);
+  }
+  ask(sparql: string) {
+    return this.inner.ask(sparql);
+  }
+  query(sparql: string) {
+    return this.inner.query(sparql);
+  }
+  size() {
+    return this.inner.size();
+  }
+  close() {
+    return this.inner.close();
+  }
+}
+
+Deno.test("failed insert: the next commit repairs the missing bookkeeping without a restart", async () => {
   const oldFollow = sign(bob, 3, {
     tags: [["p", alice.pubkey]],
     created_at: NOW - 3 * DAY,
@@ -336,16 +402,219 @@ Deno.test("interrupted insert: the old order is what the repair is for", async (
     tags: [["p", carol.pubkey]],
     created_at: NOW - DAY,
   });
-  const memory = new MemoryTripleStore();
-  await memory.insert(oldDocument([oldFollow, newFollow]));
-  const store = await createEventStore(new CountingStore(memory), config());
+  const note = sign(alice, 1, { content: "to be deleted" });
+  const deletion = sign(alice, 5, { tags: [["e", note.id]] });
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const store = await open(triples);
   try {
-    assert(store.has(newFollow.id));
-    assertEquals(await store.add(newFollow), { status: "duplicate" });
+    await store.add(oldFollow);
+    await store.add(note);
+    const failed = await Promise.allSettled([
+      store.add(newFollow),
+      store.add(deletion),
+    ]);
+    assert(failed.every((r) => r.status === "rejected"));
+    assertEquals(triples.cuts, 1);
+    // Complete but without bookkeeping: both follow lists are current, and
+    // nobody is told the events are stored.
+    assert(!store.has(newFollow.id));
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey)?.length,
+      2,
+    );
+
+    // The store works again and anything is added: the repair comes first,
+    // and an event with a failing repair is not rejected for it.
+    triples.failSelects = true;
+    const lines = await logged(async () => {
+      // The group cannot even be planned while selects fail.
+      await store.add(sign(alice, 1, { content: "during the outage" })).catch(
+        () => {},
+      );
+    });
+    assertEquals(lines, []);
+    triples.failSelects = false;
+    const lines2 = await logged(async () => {
+      await store.add(sign(alice, 1, { content: "after the outage" }));
+    });
+    assertEquals(lines2.length, 1);
+    assert(lines2[0].includes("after a failed insert"), lines2[0]);
     assertEquals(
       (await store.follows([bob.pubkey])).get(bob.pubkey),
       [carol.pubkey],
     );
+    assertEquals(
+      (await store.query([{ kinds: [1], authors: [alice.pubkey] }])).filter(
+        (e) => e.id === note.id,
+      ),
+      [],
+    );
+    // Offered again, the events are planned afresh and stored.
+    assertEquals((await store.add(newFollow)).status, "stored");
+    assertEquals((await store.add(deletion)).status, "stored");
+    assertEquals(await current(store, [3]), [newFollow.id]);
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("failed insert: a failing repair does not reject unrelated events, and is retried", async () => {
+  const oldFollow = sign(bob, 3, {
+    tags: [["p", alice.pubkey]],
+    created_at: NOW - 3 * DAY,
+  });
+  const newFollow = sign(bob, 3, {
+    tags: [["p", carol.pubkey]],
+    created_at: NOW - DAY,
+  });
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const store = await open(triples);
+  try {
+    await store.add(oldFollow);
+    await store.add(newFollow).then(() => assert(false), () => {});
+    // A store whose repair queries fail but whose group queries work: only
+    // the aggregate queries of the repair carry GROUP BY.
+    const select = triples.select.bind(triples);
+    triples.select = (sparql: string) =>
+      sparql.includes("GROUP BY")
+        ? Promise.reject(new Error("repair query failed"))
+        : select(sparql);
+    const quiet = console.error;
+    console.error = () => {};
+    try {
+      assertEquals(
+        (await store.add(sign(alice, 1, { content: "unrelated" }))).status,
+        "stored",
+      );
+    } finally {
+      console.error = quiet;
+    }
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey)?.length,
+      2,
+    );
+    triples.select = select;
+    await store.add(sign(alice, 1, { content: "later" }));
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey),
+      [carol.pubkey],
+    );
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("damage of the intermediate order: bookkeeping that points at an incomplete event", async () => {
+  // A store written by the unmerged order (events without signatures, then
+  // bookkeeping, then signatures) and cut before the signatures: the old
+  // version is superseded by an event that is not complete. The triples cannot
+  // be removed. The repair does not make the incomplete event a winner, does
+  // not fail, and when the event is received, it is the current version.
+  const oldFollow = sign(bob, 3, {
+    tags: [["p", alice.pubkey]],
+    created_at: NOW - 3 * DAY,
+  });
+  const newFollow = sign(bob, 3, {
+    tags: [["p", carol.pubkey]],
+    created_at: NOW - DAY,
+  });
+  const withoutSig = eventToTriples(newFollow).split("\n").filter((l) =>
+    l && !isSig(l)
+  ).join("\n");
+  const memory = new MemoryTripleStore();
+  await memory.insert(
+    eventToTriples(oldFollow) + withoutSig + "\n" +
+      `<${eventIri(oldFollow.id)}> <nostr:ontology:supersededBy> <${
+        eventIri(newFollow.id)
+      }> .\n`,
+  );
+  const store = await open(memory);
+  try {
+    assert(!store.has(newFollow.id));
+    assertEquals(await current(store, [3]), []);
+    assertEquals(await repairBookkeeping(memory), {
+      superseded: 0,
+      deleted: 0,
+    });
+    // Received again, it is stored (planned afresh) and current.
+    assertEquals((await store.add(newFollow)).status, "stored");
+    assertEquals(await current(store, [3]), [newFollow.id]);
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("repair: a healthy store with many `a` deletions has no candidates and no per-coordinate queries", async () => {
+  const authors = identities(40);
+  const memory = new MemoryTripleStore();
+  const events: NostrEvent[] = [];
+  authors.forEach((author, n) => {
+    // Every author has a profile and a follow list older than their deletions.
+    events.push(sign(author, 0, { content: "{}", created_at: NOW - 9 * DAY }));
+    events.push(sign(author, 3, { created_at: NOW - 9 * DAY }));
+    for (let i = 0; i < 5; i++) {
+      const d = `art${n}-${i}`;
+      events.push(
+        sign(author, 30023, {
+          tags: [["d", d]],
+          created_at: NOW - 8 * DAY,
+        }),
+        sign(author, 30023, {
+          tags: [["d", d]],
+          content: "v2",
+          created_at: NOW - 7 * DAY,
+        }),
+      );
+      events.push(
+        sign(author, 5, {
+          tags: [["a", `30023:${author.pubkey}:${d}`]],
+          created_at: NOW - 6 * DAY,
+        }),
+      );
+    }
+  });
+  // Deletions by `a` of a replaceable address that was already applied.
+  const store = await open(memory);
+  for (const event of events) await store.add(event);
+  await store.add(
+    sign(authors[0], 5, {
+      tags: [["a", `0:${authors[0].pubkey}:`]],
+      created_at: NOW - DAY,
+    }),
+  );
+  await store.close();
+
+  const counting = new CountingStore(memory);
+  assertEquals(await repairBookkeeping(counting), {
+    superseded: 0,
+    deleted: 0,
+  });
+  // Two queries for the keys, three for the deletion candidates; with no
+  // candidate nothing is read for any deletion or coordinate.
+  assertEquals(counting.selects, 5);
+  assertEquals(counting.inserts, 0);
+});
+
+Deno.test("repair: a replaceable address deletion that lacks its bookkeeping is a candidate", async () => {
+  const profile = sign(alice, 0, { content: "{}", created_at: NOW - 3 * DAY });
+  const lateProfile = sign(alice, 0, { content: "{}", created_at: NOW });
+  const list = sign(alice, 3, { created_at: NOW - 3 * DAY });
+  const deletion = sign(alice, 5, {
+    tags: [["a", `0:${alice.pubkey}:`], ["a", `30023:${alice.pubkey}:x`]],
+    created_at: NOW - DAY,
+  });
+  const memory = new MemoryTripleStore();
+  await memory.insert(oldDocument([profile, lateProfile, list, deletion]));
+  // The kind 0 request names the old profile only; the follow list (kind 3)
+  // was not named, so it is no candidate for it.
+  assertEquals(await repairBookkeeping(memory), {
+    superseded: 1,
+    deleted: 1,
+  });
+  const store = await open(memory);
+  try {
+    assertEquals(await current(store, [0]), [lateProfile.id]);
+    assertEquals(await current(store, [3]), [list.id]);
   } finally {
     await store.close();
   }

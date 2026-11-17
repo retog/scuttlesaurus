@@ -1,11 +1,14 @@
 /**
- * Start-up repair of the `supersededBy` / `deletedBy` bookkeeping.
+ * Repair of the `supersededBy` / `deletedBy` bookkeeping, at start-up and after
+ * a failed insert.
  *
- * An insert that is cut off after the events of a group but before the
- * bookkeeping that belongs to them leaves events that count as stored (they
- * have `nostr:sig`) and are never planned again. This module finds what is
- * missing from the graph as it is, whatever caused it, and writes it with the
- * rules of the group commit ({@link resolveHeads}, {@link planDeletions}).
+ * A group is written as events (each complete with its `nostr:sig`), then the
+ * bookkeeping. An insert that is cut off after the events leaves events that
+ * count as stored and are never planned again unless somebody offers them. This
+ * module finds what is missing from the graph as it is, whatever caused it, and
+ * writes it with the rules of the group commit ({@link resolveHeads},
+ * {@link planDeletions}). Only events with `nostr:sig` count: a version without
+ * it is never a winner, and a deletion request without it deletes nothing.
  * Nothing is read per event: when the graph is healthy the cost is a handful
  * of queries that start from the few replaceable, addressable and deletion
  * events.
@@ -55,11 +58,19 @@ const REPLACEABLE_KEYS = `SELECT ?a ?k WHERE {
 /**
  * Kind 5 events that may name a target of the same author without
  * `nostr:deletedBy`: by `e` tag; by `a` tag naming an addressable event not
- * newer than the request; by `a` tag where the author has an older replaceable
- * event (the kind of the coordinate cannot be read in SPARQL, so this one
- * over-approximates; {@link planDeletions} decides). The third is written with
- * the replaceable events first because the other order is several times slower
- * with thousands of deletion requests.
+ * newer than the request (joined on the address IRI); by `a` tag naming a
+ * replaceable event (empty `d`) of that kind that the author has, not newer
+ * than the request. A replaceable event carries no address IRI, so the third
+ * reads the kind from the raw tag value (`tag:a`, `<kind>:<pubkey>:`) and
+ * joins on the target's `nostr:kind`; a deletion whose coordinate names a
+ * kind the author has no undeleted event of is not a candidate. The public key
+ * of the coordinate is not compared (SPARQL cannot turn it into the author's
+ * `npub` IRI), so a request naming another author's replaceable address is a
+ * candidate while the author has such an event; {@link planDeletions}
+ * decides, and ignores it. The coordinates are read first, in a subquery: the
+ * other order is three times slower on 3000 deletions. On a healthy graph none
+ * of the three finds anything, whatever the number of deletions, so nothing is
+ * read per deletion or coordinate afterwards.
  */
 const DELETIONS = [
   `SELECT DISTINCT ?d WHERE {
@@ -77,15 +88,17 @@ const DELETIONS = [
   }`,
   `SELECT DISTINCT ?d WHERE {
     {
-      SELECT ?a ?tc WHERE {
-        ?t nostr:kind ?k ; nostr:author ?a ; nostr:createdAt ?tc .
+      SELECT ?d ?a ?dc ?k WHERE {
+        ?d nostr:kind 5 ; nostr:author ?a ; nostr:sig ?sig ;
+           nostr:createdAt ?dc ; tag:a ?raw .
+        FILTER(REGEX(?raw, "^[0-9]{1,5}:[0-9a-f]{64}:$"))
+        BIND(xsd:integer(STRBEFORE(?raw, ":")) AS ?k)
         FILTER(?k IN (0, 3) || (?k >= 10000 && ?k < 20000))
-        MINUS { ?t nostr:deletedBy ?by }
       }
     }
-    ?d nostr:author ?a ; nostr:kind 5 ; nostr:sig ?sig ;
-       nostr:createdAt ?dc ; nostr:deletesAddress ?addr .
+    ?t nostr:author ?a ; nostr:kind ?k ; nostr:createdAt ?tc .
     FILTER(?tc <= ?dc)
+    MINUS { ?t nostr:deletedBy ?by }
   }`,
 ];
 

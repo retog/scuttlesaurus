@@ -149,6 +149,11 @@ class Store implements EventStore {
   #committing = false;
   #committer: Promise<void> = Promise.resolve();
   #closed = false;
+  /**
+   * Set when an insert failed: the store may hold a prefix of the group (the
+   * events but not their bookkeeping). The next commit repairs first.
+   */
+  #needsRepair = false;
 
   constructor(triples: TripleStore, config: Config, group: GroupOptions) {
     this.triples = triples;
@@ -252,6 +257,8 @@ class Store implements EventStore {
     for (;;) {
       const group = this.#takeGroup();
       if (group.length === 0) break;
+      if (this.#needsRepair) await this.#repair();
+      let inserting = false;
       try {
         const plan = await planGroup(
           this.triples,
@@ -259,7 +266,11 @@ class Store implements EventStore {
           group.map((p) => p.item),
           this.#seen,
         );
-        if (plan.ntriples) await this.triples.insert(plan.ntriples);
+        if (plan.ntriples) {
+          inserting = true;
+          await this.triples.insert(plan.ntriples);
+          inserting = false;
+        }
         if (this.#seen.size > SEEN_CACHE_EVENTS) this.#seen = new Map();
         for (const [e, relays] of plan.seen) this.#seen.set(e, relays);
         for (const item of plan.stored) {
@@ -280,10 +291,37 @@ class Store implements EventStore {
           pending.resolve(plan.outcomes[i]);
         });
       } catch (error) {
+        // A failed insert may have written a prefix: events that are complete
+        // but lack their bookkeeping. They are not in `#ids`, so offering
+        // them again plans them afresh, but nothing promises that anybody
+        // does; the repair finds the missing bookkeeping from the graph.
+        if (inserting) this.#needsRepair = true;
         for (const pending of group) pending.reject(error);
       }
     }
     this.#committing = false;
+  }
+
+  /**
+   * Write the bookkeeping a failed insert left out. A failure here is logged
+   * and tried again before the next group; it never rejects the adds of
+   * events that have nothing to do with it.
+   */
+  async #repair(): Promise<void> {
+    try {
+      const { superseded, deleted } = await repairBookkeeping(this.triples);
+      this.#needsRepair = false;
+      if (superseded + deleted > 0) {
+        console.log(
+          `store: repaired bookkeeping after a failed insert: ${superseded} supersededBy, ${deleted} deletedBy`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `store: could not repair bookkeeping, will retry:`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   /** Up to the configured number of events and size from the queue. */
