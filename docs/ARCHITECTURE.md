@@ -110,9 +110,9 @@ Everything inside the node (`select`, `ask`, `EventStore`) is unchanged.
   untrusted query (a node nobody queries over `/sparql` pays nothing): it reads
   `graph.nt`, and from then on every batch the primary accepted is loaded into
   it before `insert` returns. Only the primary writes `graph.nt`. The replica
-  runs one query at a time; at most four more wait (`maxQueuedQueries`), the
-  rest fail at once, and a query that has waited as long as the time limit fails
-  too. The time limit (`SPARQL_TIMEOUT_SECONDS`, default 10) starts when a query
+  runs one query at a time; at most 32 more wait (`maxQueuedQueries`), the rest
+  fail at once, and a query that has waited as long as the time limit fails too.
+  The time limit (`SPARQL_TIMEOUT_SECONDS`, default 10) starts when a query
   starts to run. When it passes, the replica worker is terminated, the query
   fails, queries waiting behind it fail as busy, and a new replica is built in
   the background from `graph.nt`. While it is built, untrusted queries fail

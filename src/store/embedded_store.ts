@@ -87,7 +87,7 @@ export interface EmbeddedOptions {
   untrustedTimeoutMs?: number;
   /**
    * How many untrusted queries may wait for the replica while another one
-   * runs (default 4); further ones fail at once. A query that has waited for
+   * runs (default 32, enough for the queries of one page of the web client); further ones fail at once. A query that has waited for
    * longer than the time limit fails too.
    */
   maxQueuedQueries?: number;
@@ -149,7 +149,7 @@ class EmbeddedBackend implements Backend {
   constructor(dataDir: string, options: EmbeddedOptions) {
     this.#dataDir = dataDir;
     this.#timeoutMs = options.untrustedTimeoutMs ?? 10_000;
-    this.#maxQueued = options.maxQueuedQueries ?? 4;
+    this.#maxQueued = options.maxQueuedQueries ?? 32;
   }
 
   async open(): Promise<void> {

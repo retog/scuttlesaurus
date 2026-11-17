@@ -22,6 +22,9 @@ export class SparqlError extends Error {
   }
 }
 
+/** Pauses before asking a busy node again; then the error is shown. */
+const BUSY_WAITS_MS = [500, 1500, 4000];
+
 interface JsonResults {
   head?: { vars?: string[] };
   results?: {
@@ -51,9 +54,21 @@ export async function select(query: string): Promise<Row[]> {
   const text = /^\s*PREFIX\s/i.test(query) ? query : PREFIXES + query;
   let response: Response;
   try {
-    response = await post(text, false);
-    if (response.status === 401 || response.status === 403) {
-      response = await post(text, true);
+    for (let attempt = 0;; attempt++) {
+      response = await post(text, false);
+      if (response.status === 401 || response.status === 403) {
+        response = await post(text, true);
+      }
+      // 503 with Retry-After: the node is busy (its query replica is starting
+      // or its queue is full), which passes. Without the header the query
+      // itself took too long, and asking again would not help.
+      const wait = BUSY_WAITS_MS[attempt];
+      if (
+        response.status !== 503 || !response.headers.has("retry-after") ||
+        wait === undefined
+      ) break;
+      await response.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, wait));
     }
   } catch (error) {
     throw new SparqlError(`Node unreachable: ${(error as Error).message}`);
