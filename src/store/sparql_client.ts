@@ -4,6 +4,7 @@
  *
  * @module
  */
+import { QueryLimitError } from "../types.ts";
 import { encodeBase64 } from "@std/encoding/base64";
 import type { QueryForm } from "./sparql_form.ts";
 import { resultType } from "./sparql_form.ts";
@@ -21,6 +22,22 @@ export interface SparqlClientOptions {
    * its index now and then. Default 0.
    */
   retries?: number;
+}
+
+/** Overrides for one {@link SparqlClient.evaluate} call. */
+export interface EvaluateOptions {
+  /**
+   * The query comes from outside: give it this time limit instead of the
+   * client's, never retry it, and report a timeout as a
+   * {@link QueryLimitError}.
+   */
+  untrustedTimeoutMs?: number;
+}
+
+/** Whether `error` is the abort of an `AbortSignal.timeout`. */
+function isTimeout(error: unknown): boolean {
+  return error instanceof DOMException &&
+    (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 /** Posts queries to one endpoint; non-2xx answers become errors. */
@@ -46,6 +63,7 @@ export class SparqlClient {
     contentType: string,
     body: string,
     accept: string,
+    timeoutMs: number | undefined = this.#timeoutMs,
   ): Promise<string> {
     const headers: Record<string, string> = {
       "Content-Type": contentType,
@@ -56,9 +74,9 @@ export class SparqlClient {
       method: "POST",
       headers,
       body,
-      signal: this.#timeoutMs === undefined
+      signal: timeoutMs === undefined
         ? undefined
-        : AbortSignal.timeout(this.#timeoutMs),
+        : AbortSignal.timeout(timeoutMs),
     });
     const text = await response.text();
     if (!response.ok) {
@@ -72,7 +90,13 @@ export class SparqlClient {
   }
 
   /** Evaluate a query; the body is in the media type of `resultType(form)`. */
-  async evaluate(sparql: string, form: QueryForm): Promise<string> {
+  async evaluate(
+    sparql: string,
+    form: QueryForm,
+    options: EvaluateOptions = {},
+  ): Promise<string> {
+    const { untrustedTimeoutMs } = options;
+    const retries = untrustedTimeoutMs === undefined ? this.#retries : 0;
     for (let attempt = 0;; attempt++) {
       try {
         return await this.post(
@@ -80,11 +104,20 @@ export class SparqlClient {
           "application/sparql-query",
           sparql,
           resultType(form),
+          untrustedTimeoutMs,
         );
       } catch (error) {
+        // A query that ran into the time limit would only do so again.
+        if (isTimeout(error)) {
+          if (untrustedTimeoutMs === undefined) throw error;
+          throw new QueryLimitError(
+            "timeout",
+            `the query took longer than ${untrustedTimeoutMs / 1000} seconds`,
+          );
+        }
         const transient = !(error instanceof Error) ||
           !/answered (?!50[234]\b)\d+:/.test(error.message);
-        if (!transient || attempt >= this.#retries) throw error;
+        if (!transient || attempt >= retries) throw error;
         await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
       }
     }

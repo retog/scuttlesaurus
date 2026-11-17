@@ -75,7 +75,8 @@ each other's implementations. Each module directory exports its factory from
   worker so that a slow query never blocks the relay. Every inserted batch is
   appended to `<dataDir>/graph.nt` before the insert resolves; on start the log
   is read back in chunks. A truncated last line (crash during a write) is
-  dropped.
+  dropped. Queries that come from outside run in a second worker, the replica;
+  see [Untrusted queries](#untrusted-queries).
 - **SPARQL endpoint**. `insert` sends `INSERT DATA`; queries use the SPARQL 1.1
   Protocol. Nothing else is ever sent to the update URL.
 - **QLever through qlever-dir** (`QLEVER_DIR_URL`). `insert` writes the batch as
@@ -94,6 +95,53 @@ each other's implementations. Each module directory exports its factory from
   not visible within two minutes fails, and the file stays in the directory.
   Nothing is ever sent to an update URL. See
   [INSTALL.md](INSTALL.md#use-qlever-through-qlever-dir).
+
+### Untrusted queries
+
+`/sparql` is public by default, and a WebAssembly query cannot be interrupted:
+`SELECT * { ?a ?b ?c . ?d ?e ?f . ?g ?h ?i }` would keep the one worker that
+also serves inserts, relay `REQ`s and the social graph busy for minutes.
+`TripleStore.query` therefore takes `{ untrusted: true }`, which `/sparql` sets
+on every request, and each store keeps such a query from stalling the node.
+Everything inside the node (`select`, `ask`, `EventStore`) is unchanged.
+
+- **Embedded store**: an untrusted query runs in a second worker, the replica,
+  which holds a read-only copy of the graph. The replica is created by the first
+  untrusted query (a node nobody queries over `/sparql` pays nothing): it reads
+  `graph.nt`, and from then on every batch the primary accepted is loaded into
+  it before `insert` returns. Only the primary writes `graph.nt`. The replica
+  runs one query at a time; at most four more wait (`maxQueuedQueries`), the
+  rest fail at once, and a query that has waited as long as the time limit fails
+  too. The time limit (`SPARQL_TIMEOUT_SECONDS`, default 10) starts when a query
+  starts to run. When it passes, the replica worker is terminated, the query
+  fails, queries waiting behind it fail as busy, and a new replica is built in
+  the background from `graph.nt`. While it is built, untrusted queries fail
+  immediately as busy. Batches inserted during a build are kept and loaded into
+  the new replica in the same step that makes it available, so none is missed;
+  one that is both in the log and in that list is loaded twice, which does
+  nothing because the graph is a set. The first build, started by the first
+  query, is waited for, within the same time limit.
+- **SPARQL endpoint and QLever stores**: the request gets the same time limit
+  and is never retried (trusted queries on the QLever store are retried on
+  502/503/504 and connection failures, but never after their own timeout).
+  Stopping a query that is still running at the endpoint is that endpoint's own
+  setting.
+- A limit is reported as `QueryLimitError` (`timeout` or `busy`), which
+  `/sparql` answers with 503: for a timeout, and for busy with a `Retry-After`
+  header. A query the store rejects stays a 400.
+
+Cost: once `/sparql` has been used, the embedded graph is held twice, so memory
+roughly doubles (measured: 0.8 GB to 1.5 GB resident for a million triples, and
+a build of that graph takes about four seconds). The replica is not released
+again; a restart does. The memory of a replica that was terminated is returned
+by the runtime later, so memory can be higher than that while one is being
+rebuilt. What an attacker can still do: keep the public endpoint busy with slow
+queries (each costs the rebuild, during which everybody else's `/sparql`
+requests fail with 503), or fill its queue. The relay, inserts and the web
+client's reads through the relay stay responsive. A query with an enormous
+result can still use a lot of memory in the replica before the time limit ends
+it. Run the node with `SPARQL_PUBLIC=off` or put a rate limit in front if that
+matters.
 
 `EventStore` implements Nostr semantics on top:
 
@@ -265,7 +313,11 @@ event in the `Authorization: Nostr <base64>` header, signed by the owner.
 `application/sparql-results+json`; CONSTRUCT and DESCRIBE return
 `application/n-triples`. Updates are refused: the graph is written only through
 events. When `publicSparql` is false the endpoint requires the owner's NIP-98
-authorization.
+authorization. Every query is bounded by `sparqlTimeoutMs`, whoever sends it: a
+query that runs out of time is answered with 503, and so is one the store has no
+capacity for at the moment, with a `Retry-After` header; see
+[Untrusted queries](#untrusted-queries). A query the store rejects is a 400.
+Error bodies here are plain text.
 
 ## Configuration (`src/config.ts`)
 
@@ -297,6 +349,7 @@ the environment is locked: the settings page shows it but cannot change it.
 | `QLEVER_DIR_GRAPH_DIR`        | `store.qleverGraphDir`                          | `<DATA_DIR>/graph`                                                                          |
 | `QLEVER_DIR_BASE_URI`         | `store.qleverBaseUri`                           | `https://example.org/data/`                                                                 |
 | `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                      |
+| `SPARQL_TIMEOUT_SECONDS`      | `sparqlTimeoutMs` (given in seconds)            | `10`                                                                                        |
 | `NOSTR_CONNECT`               | `nostrConnect` (`off` disables)                 | on                                                                                          |
 | `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                          |
 | `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                        |

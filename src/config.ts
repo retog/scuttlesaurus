@@ -60,6 +60,7 @@ const DEFAULTS: Raw = {
   },
   blossom: { enabled: true, maxBlobSize: 50 * MEGABYTE },
   publicSparql: true,
+  sparqlTimeoutMs: 10_000,
   nostrConnect: true,
   maxLimit: 500,
 };
@@ -149,6 +150,11 @@ const ENV_SETTINGS: readonly EnvSetting[] = [
     parse: parseText,
   },
   { variable: "SPARQL_PUBLIC", key: "publicSparql", parse: parseToggle },
+  {
+    variable: "SPARQL_TIMEOUT_SECONDS",
+    key: "sparqlTimeoutMs",
+    parse: parseSeconds,
+  },
   { variable: "NOSTR_CONNECT", key: "nostrConnect", parse: parseToggle },
   { variable: "BLOSSOM", key: "blossom.enabled", parse: parseToggle },
   {
@@ -182,6 +188,7 @@ const CHECKS: Record<string, Check> = {
   "store.qleverGraphDir": checkNonEmptyText,
   "store.qleverBaseUri": checkBaseUri,
   publicSparql: checkBoolean,
+  sparqlTimeoutMs: checkRange(1000, 3600 * 1000),
   nostrConnect: checkBoolean,
   "blossom.enabled": checkBoolean,
   "blossom.maxBlobSize": checkRange(1, Number.MAX_SAFE_INTEGER),
@@ -426,6 +433,7 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
       maxBlobSize: at("blossom.maxBlobSize"),
     },
     publicSparql: at("publicSparql"),
+    sparqlTimeoutMs: at("sparqlTimeoutMs"),
     nostrConnect: at("nostrConnect"),
     maxLimit: at("maxLimit"),
   };
@@ -496,6 +504,10 @@ function parseInteger(raw: string): number {
 
 function parseMegabytes(raw: string): number {
   return parseInteger(raw) * MEGABYTE;
+}
+
+function parseSeconds(raw: string): number {
+  return parseInteger(raw) * 1000;
 }
 
 /** A comma-separated list; empty items are dropped. */

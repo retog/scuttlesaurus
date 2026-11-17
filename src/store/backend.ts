@@ -5,23 +5,27 @@
  *
  * @module
  */
-import type { SparqlBinding, TripleStore } from "../types.ts";
+import type { QueryOptions, SparqlBinding, TripleStore } from "../types.ts";
 import { queryForm, resultType } from "./sparql_form.ts";
 
 /** The operations a storage engine must provide. */
 export interface Backend {
   insert(ntriples: string): Promise<void>;
   /** Evaluate a query; `body` is in the media type of `resultType(form)`. */
-  evaluate(sparql: string, form: ReturnType<typeof queryForm>): Promise<string>;
+  evaluate(
+    sparql: string,
+    form: ReturnType<typeof queryForm>,
+    options?: QueryOptions,
+  ): Promise<string>;
   size(): Promise<number>;
   close(): Promise<void>;
 }
 
 /** Build a {@link TripleStore} on a {@link Backend}. */
 export function tripleStore(backend: Backend): TripleStore {
-  const run = async (sparql: string) => {
+  const run = async (sparql: string, options?: QueryOptions) => {
     const form = queryForm(sparql);
-    const body = await backend.evaluate(sparql, form);
+    const body = await backend.evaluate(sparql, form, options);
     return { form, contentType: resultType(form), body };
   };
   return {
@@ -37,8 +41,8 @@ export function tripleStore(backend: Backend): TripleStore {
       if (form !== "ASK") throw new Error("Not an ASK query");
       return JSON.parse(body).boolean === true;
     },
-    async query(sparql) {
-      const { contentType, body } = await run(sparql);
+    async query(sparql, options) {
+      const { contentType, body } = await run(sparql, options);
       return { contentType, body };
     },
     size: () => backend.size(),

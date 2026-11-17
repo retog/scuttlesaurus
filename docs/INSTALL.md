@@ -535,7 +535,14 @@ ORDER BY DESC(?created) LIMIT 5'
 ```
 
 Set `SPARQL_PUBLIC=off` to require the owner's NIP-98 authorization for queries.
-For the vocabulary, see [DATA-MODEL.md](DATA-MODEL.md).
+
+A query may run for 10 seconds; set `SPARQL_TIMEOUT_SECONDS` to change that. A
+query that takes longer is answered with HTTP 503. With the embedded store the
+node answers queries from a second copy of the graph, so that a slow query never
+delays the relay: after the first query over `/sparql` it uses about twice the
+memory for the graph, and after a query ran out of time the copy is rebuilt,
+which takes a few seconds per million triples; queries in that time get 503 with
+`Retry-After`. For the vocabulary, see [DATA-MODEL.md](DATA-MODEL.md).
 
 ## Troubleshooting
 

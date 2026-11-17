@@ -11,7 +11,7 @@
  * @module
  */
 import { dirname, join } from "@std/path";
-import type { StoreConfig, TripleStore } from "../types.ts";
+import type { QueryOptions, StoreConfig, TripleStore } from "../types.ts";
 import { type Backend, tripleStore } from "./backend.ts";
 import {
   assertPlausibleNTriples,
@@ -49,6 +49,11 @@ export interface QleverDirOptions {
   consolidateOnOpen?: boolean;
   /** Timeout of a single query request (default 60 s). */
   requestTimeoutMs?: number;
+  /**
+   * Time limit of a query that came from outside; such a query is never
+   * retried (default 10 s).
+   */
+  untrustedTimeoutMs?: number;
   /**
    * Where to keep `confirmedAt`, the time at which all files were last known
    * to be visible (default none: every open then checks every file). It
@@ -123,6 +128,7 @@ class QleverDirBackend implements Backend {
       consolidateEveryMs: options.consolidateEveryMs ?? 6 * 3600_000,
       consolidateOnOpen: options.consolidateOnOpen ?? true,
       requestTimeoutMs: options.requestTimeoutMs ?? 60_000,
+      untrustedTimeoutMs: options.untrustedTimeoutMs ?? 10_000,
       stateFile: options.stateFile ?? "",
       safetyMarginMs: options.safetyMarginMs ?? 120_000,
       stateWriteIntervalMs: options.stateWriteIntervalMs ?? 60_000,
@@ -509,8 +515,13 @@ class QleverDirBackend implements Backend {
   evaluate(
     sparql: string,
     form: Parameters<Backend["evaluate"]>[1],
+    options?: QueryOptions,
   ): Promise<string> {
-    return this.#queries.evaluate(sparql, form);
+    return this.#queries.evaluate(sparql, form, {
+      untrustedTimeoutMs: options?.untrusted
+        ? this.options.untrustedTimeoutMs
+        : undefined,
+    });
   }
 
   size(): Promise<number> {

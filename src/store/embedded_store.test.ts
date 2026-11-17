@@ -1,5 +1,12 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertInstanceOf,
+  assertRejects,
+} from "@std/assert";
 import { testConfig } from "../testing/mod.ts";
+import { QueryLimitError, type TripleStore } from "../types.ts";
+import { openEmbeddedStore } from "./embedded_store.ts";
 import { openEventStore, openTripleStore } from "./mod.ts";
 import { DAY, identities, sign } from "./test_util.ts";
 
@@ -265,5 +272,212 @@ Deno.test("event store ignores events cut off in the middle of a batch", async (
     } finally {
       await second.close();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Untrusted queries and the replica
+// ---------------------------------------------------------------------------
+
+const SHORT = 400;
+
+/** Takes minutes on a few thousand triples, with a result of one row. */
+const PATHOLOGICAL =
+  "SELECT (COUNT(*) AS ?n) WHERE { ?a ?b ?c . ?d ?e ?f . ?g ?h ?i }";
+
+const SUBJECTS = "SELECT ?s WHERE { ?s <urn:p> ?o } ORDER BY ?s";
+
+const many = (from: number, to: number) =>
+  Array.from({ length: to - from }, (_, i) => triple(from + i)).join("");
+
+/** Settles with what `promise` does, so it can be inspected later. */
+function settle<T>(promise: Promise<T>) {
+  const outcome: { done: boolean; error?: unknown; at?: number } = {
+    done: false,
+  };
+  const finished = promise.then(() => {}, (error) => {
+    outcome.error = error;
+  }).then(() => {
+    outcome.done = true;
+    outcome.at = performance.now();
+  });
+  return { outcome, finished };
+}
+
+/** Retries an untrusted query until the replica is back. */
+async function untrustedWhenReady(
+  store: TripleStore,
+  sparql: string,
+): Promise<{ contentType: string; body: string }> {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      return await store.query(sparql, { untrusted: true });
+    } catch (error) {
+      if (!(error instanceof QueryLimitError) || error.reason !== "busy") {
+        throw error;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+  throw new Error("the replica did not come back");
+}
+
+const subjects = (body: string): string[] =>
+  JSON.parse(body).results.bindings.map((b: { s: { value: string } }) =>
+    b.s.value
+  );
+
+Deno.test("embedded store: a runaway untrusted query times out and the node stays responsive", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, { untrustedTimeoutMs: SHORT });
+    try {
+      await store.insert(many(0, 3000));
+      // Warm up: the replica is built by the first untrusted query.
+      const warm = await store.query(SUBJECTS, { untrusted: true });
+      assertEquals(subjects(warm.body).length, 3000);
+
+      const slow = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+      await new Promise((r) => setTimeout(r, 50));
+      const started = performance.now();
+      await store.insert(triple(5000));
+      const rows = await store.select(SUBJECTS);
+      const elapsed = performance.now() - started;
+      assertEquals(rows.length, 3001);
+      assert(!slow.outcome.done, "the runaway query was still running");
+      assert(elapsed < SHORT / 2, `insert and select took ${elapsed} ms`);
+
+      await slow.finished;
+      assertInstanceOf(slow.outcome.error, QueryLimitError);
+      assertEquals(slow.outcome.error.reason, "timeout");
+      // The node did not wait for the query to end.
+      assertEquals(await store.size(), 3001);
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: the replica answers like the primary, also after a rebuild", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, { untrustedTimeoutMs: SHORT });
+    try {
+      await store.insert(many(0, 3000));
+      await store.insert(triple(10_000));
+      const same = async () => {
+        const replica = await untrustedWhenReady(store, SUBJECTS);
+        assertEquals(
+          subjects(replica.body),
+          (await store.select(SUBJECTS)).map((r) => r.s.value),
+        );
+        return subjects(replica.body).length;
+      };
+      assertEquals(await same(), 3001);
+
+      // Inserts after the replica exists reach it, a query right after the
+      // insert sees them, and a rejected batch changes nothing.
+      await store.insert(triple(10_001));
+      await assertRejects(() => store.insert("not n-triples"));
+      assertEquals(await same(), 3002);
+
+      // Kill the replica, and insert while it is being rebuilt.
+      const slow = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+      await slow.finished;
+      assertInstanceOf(slow.outcome.error, QueryLimitError);
+      assertEquals(slow.outcome.error.reason, "timeout");
+      await store.insert(triple(10_002));
+      await store.insert(many(20_000, 20_050));
+      await store.insert(triple(10_003));
+      assertEquals(await same(), 3002 + 2 + 50);
+
+      // After the rebuild, further inserts still arrive.
+      await store.insert(triple(10_004));
+      assertEquals(await same(), 3002 + 2 + 50 + 1);
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: while the replica is rebuilt untrusted queries fail fast", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, { untrustedTimeoutMs: SHORT });
+    try {
+      await store.insert(many(0, 3000));
+      await store.query(SUBJECTS, { untrusted: true });
+      const waiting = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+      const queued = settle(store.query(SUBJECTS, { untrusted: true }));
+      await waiting.finished;
+      await queued.finished;
+      assertEquals(
+        (waiting.outcome.error as QueryLimitError).reason,
+        "timeout",
+      );
+      // The innocent query that waited behind it is told to try again.
+      assertInstanceOf(queued.outcome.error, QueryLimitError);
+      assertEquals(queued.outcome.error.reason, "busy");
+
+      const started = performance.now();
+      const error = await store.query(SUBJECTS, { untrusted: true }).then(
+        () => undefined,
+        (e) => e,
+      );
+      assertInstanceOf(error, QueryLimitError);
+      assertEquals(error.reason, "busy");
+      assert(error.retryAfter !== undefined && error.retryAfter >= 1);
+      assert(performance.now() - started < 50, "did not fail fast");
+
+      // Trusted queries and inserts are not affected.
+      assertEquals(await store.size(), 3000);
+      await store.insert(triple(9999));
+      assertEquals(
+        subjects((await untrustedWhenReady(store, SUBJECTS)).body).length,
+        3001,
+      );
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: only a few untrusted queries wait for the replica", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, {
+      untrustedTimeoutMs: SHORT,
+      maxQueuedQueries: 1,
+    });
+    try {
+      await store.insert(many(0, 3000));
+      await store.query(SUBJECTS, { untrusted: true });
+      const running = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+      const queued = settle(store.query(SUBJECTS, { untrusted: true }));
+      const refused = settle(store.query(SUBJECTS, { untrusted: true }));
+      await refused.finished;
+      assert(refused.outcome.done && !running.outcome.done);
+      assertInstanceOf(refused.outcome.error, QueryLimitError);
+      assertEquals(refused.outcome.error.reason, "busy");
+      await running.finished;
+      await queued.finished;
+    } finally {
+      await store.close();
+    }
+  });
+});
+
+Deno.test("embedded store: the replica is only built for untrusted queries, and closing stops it", async () => {
+  await withDir(async (dir) => {
+    const store = await openEmbeddedStore(dir, { untrustedTimeoutMs: SHORT });
+    await store.insert(many(0, 3000));
+    await store.select(SUBJECTS);
+    // Close while a query runs and the replica is about to be rebuilt.
+    const slow = settle(store.query(PATHOLOGICAL, { untrusted: true }));
+    await new Promise((r) => setTimeout(r, 100));
+    await store.close();
+    await slow.finished;
+    assert(slow.outcome.error instanceof Error);
+    await assertRejects(
+      () => store.query(SUBJECTS, { untrusted: true }),
+      Error,
+      "closed",
+    );
   });
 });

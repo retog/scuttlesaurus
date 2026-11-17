@@ -18,12 +18,17 @@ export function openTripleStore(config: Config): Promise<TripleStore> {
   const store = config.store;
   switch (store.kind) {
     case "embedded":
-      return openEmbeddedStore(config.dataDir);
+      return openEmbeddedStore(config.dataDir, {
+        untrustedTimeoutMs: config.sparqlTimeoutMs,
+      });
     case "sparql":
-      return Promise.resolve(openEndpointStore(store));
+      return Promise.resolve(openEndpointStore(store, {
+        untrustedTimeoutMs: config.sparqlTimeoutMs,
+      }));
     case "qlever-dir":
       return openQleverDirStore(store, {
         stateFile: join(config.dataDir, "qlever-dir-state.json"),
+        untrustedTimeoutMs: config.sparqlTimeoutMs,
       });
   }
 }

@@ -1,7 +1,9 @@
 /**
  * The worker that hosts the embedded Oxigraph store, so that slow queries
  * never block the main event loop. It owns the append-only log
- * `<dataDir>/graph.nt`. The protocol is request/response with ids; see
+ * `<dataDir>/graph.nt`. A second instance of this worker serves as the
+ * read-only replica for untrusted queries: it only ever gets `load-log`,
+ * `load`, `query` and `close`, and never writes the log. The protocol is request/response with ids; see
  * {@link WorkerRequest} and {@link WorkerResponse}.
  *
  * @module
@@ -12,6 +14,10 @@ import oxigraph from "oxigraph";
 export type WorkerOperation =
   | { op: "open"; dataDir: string }
   | { op: "insert"; ntriples: string }
+  /** Replica only: read `<dataDir>/graph.nt` without touching it. */
+  | { op: "load-log"; dataDir: string }
+  /** Replica only: add triples without writing the log. */
+  | { op: "load"; ntriples: string }
   | { op: "query"; sparql: string; format: string }
   | { op: "size" }
   | { op: "close" };
@@ -36,7 +42,7 @@ let log: Deno.FsFile | undefined;
  * newline was cut in the middle of a write: the partial line is dropped and
  * the file truncated so that later appends start on a fresh line.
  */
-async function replay(path: string): Promise<void> {
+async function replay(path: string, repair = true): Promise<void> {
   let file: Deno.FsFile;
   try {
     file = await Deno.open(path, { read: true });
@@ -71,7 +77,10 @@ async function replay(path: string): Promise<void> {
   } finally {
     file.close();
   }
-  if (pending.length > 0) await Deno.truncate(path, complete);
+  // A replica reads a log the primary may be appending to: the partial line is
+  // then just a write in progress, and the batch it belongs to reaches the
+  // replica through `load`.
+  if (repair && pending.length > 0) await Deno.truncate(path, complete);
 }
 
 async function append(bytes: Uint8Array): Promise<void> {
@@ -95,6 +104,12 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       // the graph nor the log changed.
       store.load(request.ntriples, { format: NT });
       await append(new TextEncoder().encode(request.ntriples));
+      return undefined;
+    case "load-log":
+      await replay(`${request.dataDir}/graph.nt`, false);
+      return store.size;
+    case "load":
+      store.load(request.ntriples, { format: NT });
       return undefined;
     case "query":
       return store.query(request.sparql, { results_format: request.format });

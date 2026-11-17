@@ -108,6 +108,11 @@ export interface Config {
   /** Whether `/sparql` is open to everyone (the web client needs it). */
   publicSparql: boolean;
   /**
+   * Longest time, in milliseconds, an untrusted query (one that came in over
+   * `/sparql`) may run before the store gives up on it.
+   */
+  sparqlTimeoutMs: number;
+  /**
    * Whether kind 24133 events (NIP-46 Nostr Connect) are relayed for any
    * author. Off: they get the normal write policy.
    */
@@ -153,6 +158,30 @@ export interface SparqlTerm {
 
 export type SparqlBinding = Record<string, SparqlTerm>;
 
+/** How a query is to be treated; see {@link TripleStore.query}. */
+export interface QueryOptions {
+  /** The query text comes from outside (a `/sparql` request). */
+  untrusted?: boolean;
+}
+
+/**
+ * An untrusted query was not answered because of a resource limit, not
+ * because it is wrong: `timeout` when it ran longer than the configured time
+ * limit, `busy` when the store has no capacity for it now (a replica is being
+ * rebuilt, or too many queries are waiting) and it may be tried again.
+ */
+export class QueryLimitError extends Error {
+  constructor(
+    readonly reason: "timeout" | "busy",
+    message: string,
+    /** For `busy`: seconds after which a retry is sensible. */
+    readonly retryAfter?: number,
+  ) {
+    super(message);
+    this.name = "QueryLimitError";
+  }
+}
+
 /**
  * A monotonically growing RDF graph. There is deliberately no operation that
  * removes or changes a triple: `insert` is the only way to write.
@@ -168,8 +197,18 @@ export interface TripleStore {
    * Evaluate any SPARQL *query* (never an update) and return the serialized
    * result: `application/sparql-results+json` for SELECT and ASK,
    * `application/n-triples` for CONSTRUCT and DESCRIBE. Backs `/sparql`.
+   *
+   * With `options.untrusted` the query text comes from outside and must not
+   * be able to stall the node: the store bounds its run time and keeps it
+   * away from inserts and internal queries.
+   *
+   * @throws {QueryLimitError} when an untrusted query ran out of time, or the
+   *   store has no capacity for it right now.
    */
-  query(sparql: string): Promise<{ contentType: string; body: string }>;
+  query(
+    sparql: string,
+    options?: QueryOptions,
+  ): Promise<{ contentType: string; body: string }>;
   /** Number of triples in the graph. */
   size(): Promise<number>;
   close(): Promise<void>;

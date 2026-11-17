@@ -60,6 +60,13 @@ export async function select(query: string): Promise<Row[]> {
   }
   if (!response.ok) {
     const detail = (await response.text().catch(() => "")).slice(0, 300);
+    if (response.status === 503) {
+      // The node's query limit: busy, or the query took too long.
+      throw new SparqlError(
+        `The node could not answer the query: ${detail || "it is busy"}`,
+        response.status,
+      );
+    }
     throw new SparqlError(
       `SPARQL ${response.status}${detail ? `: ${detail}` : ""}`,
       response.status,

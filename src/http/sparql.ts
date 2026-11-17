@@ -8,7 +8,7 @@
  * rest of the API.
  * @module
  */
-import type { Node } from "../types.ts";
+import { type Node, QueryLimitError } from "../types.ts";
 import { authorizeOwner } from "./nip98.ts";
 import { MAX_QUERY, NO_BODY, readBody } from "./body.ts";
 import {
@@ -120,10 +120,15 @@ function checkQuery(sparql: SparqlRequest): string {
   return query;
 }
 
-/** Evaluate the query; a query the store rejects is a 400 with its message. */
+/**
+ * Evaluate the query. Every query here is untrusted, whoever sent it, so the
+ * store bounds it. A query the store rejects is a 400 with its message; one
+ * that ran out of time is a 503, and one the store has no capacity for is a
+ * 503 with `Retry-After`.
+ */
 async function run(node: Node, query: string): Promise<Response> {
   try {
-    const result = await node.events.triples.query(query);
+    const result = await node.events.triples.query(query, { untrusted: true });
     return new Response(result.body, {
       headers: {
         "Content-Type": result.contentType,
@@ -131,6 +136,13 @@ async function run(node: Node, query: string): Promise<Response> {
       },
     });
   } catch (error) {
+    if (error instanceof QueryLimitError) {
+      const response = plainText(503, error.message);
+      if (error.reason === "busy") {
+        response.headers.set("Retry-After", String(error.retryAfter ?? 5));
+      }
+      return response;
+    }
     return plainText(400, messageOf(error));
   }
 }

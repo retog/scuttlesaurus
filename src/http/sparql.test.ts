@@ -1,4 +1,5 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { QueryLimitError } from "../types.ts";
 import { term } from "../vocab.ts";
 import {
   makeFixture,
@@ -249,6 +250,52 @@ Deno.test("with publicSparql off the owner's NIP-98 authorization is required", 
     );
     assertEquals(signedPost.status, 200);
     await signedPost.text();
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("queries are untrusted; limits answer 503, other failures 400", async () => {
+  const fixture = await makeFixture();
+  try {
+    const triples = fixture.node.events.triples;
+    const seen: unknown[] = [];
+    let failure: Error | undefined;
+    triples.query = (_sparql, options) => {
+      seen.push(options);
+      return failure ? Promise.reject(failure) : Promise.resolve({
+        contentType: "application/sparql-results+json",
+        body: "{}",
+      });
+    };
+    const ask = () =>
+      fixture.handler(
+        new Request(`${BASE}/sparql?query=${encodeURIComponent("ASK {}")}`),
+      );
+
+    assertEquals((await ask()).status, 200);
+    assertEquals(seen, [{ untrusted: true }]);
+
+    failure = new QueryLimitError("timeout", "the query took too long");
+    const timeout = await ask();
+    assertEquals(timeout.status, 503);
+    assertEquals(timeout.headers.get("retry-after"), null);
+    assertEquals(
+      timeout.headers.get("content-type")?.split(";")[0],
+      "text/plain",
+    );
+    assertEquals(await timeout.text(), "the query took too long");
+
+    failure = new QueryLimitError("busy", "restarting", 7);
+    const busy = await ask();
+    assertEquals(busy.status, 503);
+    assertEquals(busy.headers.get("retry-after"), "7");
+    assertEquals(await busy.text(), "restarting");
+
+    failure = new Error("syntax error");
+    const bad = await ask();
+    assertEquals(bad.status, 400);
+    assertEquals(await bad.text(), "syntax error");
   } finally {
     await fixture.close();
   }

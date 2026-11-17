@@ -14,6 +14,7 @@ import type {
   Config,
   EventStore,
   NostrEvent,
+  QueryOptions,
   SparqlBinding,
   TripleStore,
 } from "../types.ts";
@@ -127,8 +128,8 @@ export class CountingStore implements TripleStore {
     this.asks++;
     return this.inner.ask(sparql);
   }
-  query(sparql: string) {
-    return this.inner.query(sparql);
+  query(sparql: string, options?: QueryOptions) {
+    return this.inner.query(sparql, options);
   }
   size(): Promise<number> {
     return this.inner.size();

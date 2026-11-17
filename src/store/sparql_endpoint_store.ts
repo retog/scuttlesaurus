@@ -5,7 +5,7 @@
  *
  * @module
  */
-import type { StoreConfig, TripleStore } from "../types.ts";
+import type { QueryOptions, StoreConfig, TripleStore } from "../types.ts";
 import { type Backend, tripleStore } from "./backend.ts";
 import { SparqlClient } from "./sparql_client.ts";
 
@@ -18,7 +18,10 @@ class EndpointBackend implements Backend {
   readonly #client: SparqlClient;
   readonly #updateUrl: string;
 
-  constructor(config: EndpointConfig) {
+  readonly #untrustedTimeoutMs: number | undefined;
+
+  constructor(config: EndpointConfig, options: EndpointOptions) {
+    this.#untrustedTimeoutMs = options.untrustedTimeoutMs;
     this.#client = new SparqlClient(config.queryUrl, {
       credentials: config.credentials,
     });
@@ -41,8 +44,13 @@ class EndpointBackend implements Backend {
   evaluate(
     sparql: string,
     form: Parameters<Backend["evaluate"]>[1],
+    options?: QueryOptions,
   ): Promise<string> {
-    return this.#client.evaluate(sparql, form);
+    return this.#client.evaluate(sparql, form, {
+      untrustedTimeoutMs: options?.untrusted
+        ? this.#untrustedTimeoutMs
+        : undefined,
+    });
   }
 
   size(): Promise<number> {
@@ -54,7 +62,16 @@ class EndpointBackend implements Backend {
   }
 }
 
+/** Options of the endpoint store. */
+export interface EndpointOptions {
+  /** Time limit of queries that came from outside; none when unset. */
+  untrustedTimeoutMs?: number;
+}
+
 /** Open a store on the endpoint described by `config`. */
-export function openEndpointStore(config: EndpointConfig): TripleStore {
-  return tripleStore(new EndpointBackend(config));
+export function openEndpointStore(
+  config: EndpointConfig,
+  options: EndpointOptions = {},
+): TripleStore {
+  return tripleStore(new EndpointBackend(config, options));
 }
