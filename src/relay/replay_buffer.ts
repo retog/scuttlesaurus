@@ -107,8 +107,10 @@ export class ReplayBuffer {
    * Declares that a live connection wants events addressed to `pubkeys`, so
    * they are worth keeping. Returns a function to call when that connection
    * ends; interest then lingers for {@link INTEREST_LINGER_MS}, the time in
-   * which the client may come back. Pubkeys beyond {@link MAX_WATCHED} are
-   * not remembered.
+   * which the client may come back. When {@link MAX_WATCHED} pubkeys are
+   * remembered, a new one takes the place of the one whose last subscriber
+   * left longest ago; only when every remembered pubkey still has a live
+   * subscriber is the new one not remembered.
    */
   watch(pubkeys: Iterable<string>): () => void {
     this.#expireInterest();
@@ -116,7 +118,9 @@ export class ReplayBuffer {
     for (const pubkey of new Set(pubkeys)) {
       let interest = this.#interest.get(pubkey);
       if (!interest) {
-        if (this.#interest.size >= MAX_WATCHED) continue;
+        if (this.#interest.size >= MAX_WATCHED && !this.#evictLingering()) {
+          continue;
+        }
         interest = { open: 0, until: 0 };
         this.#interest.set(pubkey, interest);
       }
@@ -253,6 +257,19 @@ export class ReplayBuffer {
       if (entry.receivedAt > oldest) break;
       this.#remove(entry);
     }
+  }
+
+  /** Forgets the pubkey without subscribers that was left longest ago. */
+  #evictLingering(): boolean {
+    let oldest: string | undefined;
+    let until = Infinity;
+    for (const [pubkey, interest] of this.#interest) {
+      if (interest.open <= 0 && interest.until < until) {
+        oldest = pubkey;
+        until = interest.until;
+      }
+    }
+    return oldest !== undefined && this.#interest.delete(oldest);
   }
 
   #expireInterest(): void {

@@ -255,12 +255,17 @@ A NIP-01 relay on the WebSocket endpoint `/`.
   pubkey, 4000 events and 16 MiB in all, oldest dropped first. Events for a
   pubkey that no connection has subscribed to with `#p` (now or in the last four
   minutes) share a smaller allowance of 200 events and 2 MiB, so a flood to
-  random pubkeys displaces only itself. A connection whose author is outside the
-  graph may send 30 such events at once and two per second after that. Someone
-  who knows a recipient's pubkey can still push that recipient's real messages
-  out of its 20 slots. Any other event, and a 24133 event that does not meet the
-  condition and whose author is outside the graph, is refused as before.
-  `NOSTR_CONNECT=off` removes the exception and the NIP-11 entry.
+  random pubkeys displaces only itself. The limits on who may ask and send are
+  per client address (the TCP peer, or behind a local reverse proxy the address
+  it forwards), shared by all connections of that address: 20 connections, 32
+  watched pubkeys, and for authors outside the graph 30 such events at once and
+  two per second after that. When 5000 pubkeys are watched, a new one replaces
+  the one whose last subscriber left longest ago. What remains possible: a flood
+  from many addresses, and someone who knows a recipient's pubkey can push that
+  recipient's real messages out of its 20 slots. Any other event, and a 24133
+  event that does not meet the condition and whose author is outside the graph,
+  is refused as before. `NOSTR_CONNECT=off` removes the exception and the NIP-11
+  entry.
 - `REQ`: stored events, `EOSE`, then live events matching the filters.
 - `CLOSE`, and `COUNT` (NIP-45).
 - Limits: number of subscriptions and filters per connection, `limit` capped at

@@ -22,8 +22,27 @@ export class SparqlError extends Error {
   }
 }
 
-/** Pauses before asking a busy node again; then the error is shown. */
-const BUSY_WAITS_MS = [500, 1500, 4000];
+/** How often a busy node is asked again before the error is shown. */
+const BUSY_RETRIES = 3;
+/** Longest single pause before asking again, whatever the node says. */
+const MAX_BUSY_WAIT_MS = 20_000;
+
+/**
+ * How long to wait before asking again, or `undefined` when the answer is
+ * final. The node's `Retry-After` (seconds) is honoured up to
+ * {@link MAX_BUSY_WAIT_MS}.
+ */
+export function busyWaitMs(
+  response: { status: number; headers: Headers },
+  attempt: number,
+): number | undefined {
+  if (response.status !== 503 && response.status !== 429) return undefined;
+  const header = response.headers.get("retry-after");
+  if (header === null || attempt >= BUSY_RETRIES) return undefined;
+  const seconds = Number(header);
+  if (!Number.isFinite(seconds)) return 1000;
+  return Math.min(MAX_BUSY_WAIT_MS, Math.max(500, seconds * 1000));
+}
 
 interface JsonResults {
   head?: { vars?: string[] };
@@ -59,14 +78,12 @@ export async function select(query: string): Promise<Row[]> {
       if (response.status === 401 || response.status === 403) {
         response = await post(text, true);
       }
-      // 503 with Retry-After: the node is busy (its query replica is starting
-      // or its queue is full), which passes. Without the header the query
-      // itself took too long, and asking again would not help.
-      const wait = BUSY_WAITS_MS[attempt];
-      if (
-        response.status !== 503 || !response.headers.has("retry-after") ||
-        wait === undefined
-      ) break;
+      // 503 or 429 with Retry-After: the node is busy (its query replica is
+      // starting, its queue is full, or this client has used its share), which
+      // passes. Without the header the query itself took too long, and asking
+      // again would not help.
+      const wait = busyWaitMs(response, attempt);
+      if (wait === undefined) break;
       await response.body?.cancel();
       await new Promise((resolve) => setTimeout(resolve, wait));
     }
@@ -75,7 +92,7 @@ export async function select(query: string): Promise<Row[]> {
   }
   if (!response.ok) {
     const detail = (await response.text().catch(() => "")).slice(0, 300);
-    if (response.status === 503) {
+    if (response.status === 503 || response.status === 429) {
       // The node's query limit: busy, or the query took too long.
       throw new SparqlError(
         `The node could not answer the query: ${detail || "it is busy"}`,

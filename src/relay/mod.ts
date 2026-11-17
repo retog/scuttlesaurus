@@ -15,6 +15,8 @@ import type {
 } from "../types.ts";
 import { ClientConnection } from "./connection.ts";
 import { relayInformation } from "./nip11.ts";
+import { clientAddress } from "../client_address.ts";
+import { ClientLimitsTable } from "./client_limits.ts";
 import { ReplayBuffer } from "./replay_buffer.ts";
 
 export interface RelayServerOptions {
@@ -37,6 +39,7 @@ export function createRelayServer(options: RelayServerOptions): RelayServer {
   const connections = new Set<ClientConnection>();
   let closed = false;
   const replay = new ReplayBuffer();
+  const limits = new ClientLimitsTable();
 
   const unsubscribe = options.events.subscribe((event) => {
     for (const connection of [...connections]) connection.deliver(event);
@@ -47,17 +50,28 @@ export function createRelayServer(options: RelayServerOptions): RelayServer {
       if (closed) {
         return new Response("the relay is shut down", { status: 503 });
       }
+      const allowance = limits.admit(clientAddress(request));
+      if (!allowance) {
+        return new Response("too many connections from this address", {
+          status: 429,
+        });
+      }
       let upgrade: ReturnType<typeof Deno.upgradeWebSocket>;
       try {
         upgrade = Deno.upgradeWebSocket(request);
       } catch {
+        limits.release(allowance);
         return new Response("expected a WebSocket upgrade", { status: 400 });
       }
       const connection = new ClientConnection(
         upgrade.socket,
         options,
-        (gone) => connections.delete(gone),
+        (gone) => {
+          connections.delete(gone);
+          limits.release(allowance);
+        },
         replay,
+        allowance,
       );
       connections.add(connection);
       return upgrade.response;

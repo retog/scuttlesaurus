@@ -11,6 +11,7 @@ import {
   MAX_TOTAL,
   MAX_TOTAL_BYTES,
   MAX_UNWATCHED,
+  MAX_WATCHED,
   REPLAY_WINDOW_MS,
   ReplayBuffer,
 } from "./replay_buffer.ts";
@@ -150,4 +151,31 @@ Deno.test("since, until and limit of each filter are honoured; duplicates are ig
   assertEquals(buffer.match([{ "#p": [hex(1)], limit: 1 }]), [c]);
   assertEquals(buffer.match([{ "#p": [hex(1)], limit: 0 }]), []);
   assertEquals(buffer.match([{ kinds: [1] }]), []);
+});
+
+Deno.test("a full interest table makes room by forgetting pubkeys nobody listens for any more", () => {
+  let now = 0;
+  const buffer = new ReplayBuffer(() => now);
+  // Someone fills the table and leaves; the entries linger.
+  const release = buffer.watch(
+    Array.from({ length: MAX_WATCHED }, (_, i) => hex(700000 + i)),
+  );
+  release();
+  now += 1000;
+  // A real client is still remembered, and its answer is kept as watched.
+  buffer.watch([hex(1)]);
+  const answer = event(hex(1));
+  buffer.add(answer);
+  for (let i = 0; i <= MAX_UNWATCHED; i++) buffer.add(event(hex(800000 + i)));
+  assertEquals(buffer.match([{ "#p": [hex(1)] }]), [answer]);
+});
+
+Deno.test("when every remembered pubkey has a live subscriber, a new one is not remembered", () => {
+  const buffer = new ReplayBuffer(() => 0);
+  buffer.watch(Array.from({ length: MAX_WATCHED }, (_, i) => hex(900000 + i)));
+  buffer.watch([hex(1)]);
+  const answer = event(hex(1));
+  buffer.add(answer);
+  for (let i = 0; i <= MAX_UNWATCHED; i++) buffer.add(event(hex(950000 + i)));
+  assertEquals(buffer.match([{ "#p": [hex(1)] }]), []);
 });

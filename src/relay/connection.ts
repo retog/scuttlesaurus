@@ -8,6 +8,7 @@ import { matchFilters } from "@nostr/tools/filter";
 import type { Filter } from "@nostr/tools/filter";
 import type { AddResult, NostrEvent } from "../types.ts";
 import type { RelayServerOptions } from "./mod.ts";
+import { ClientLimits, MAX_WATCHED_PER_CLIENT } from "./client_limits.ts";
 import type { ReplayBuffer } from "./replay_buffer.ts";
 import {
   clampLimit,
@@ -16,18 +17,13 @@ import {
   isSubscriptionId,
   MAX_BUFFERED_BYTES,
   MAX_SUBSCRIPTIONS,
-  NOSTR_CONNECT_BURST,
   NOSTR_CONNECT_KIND,
-  NOSTR_CONNECT_PER_SECOND,
   nostrConnectProblem,
   parseFilters,
   parseFrame,
   parseSignedEvent,
   withMachinePrefix,
 } from "./protocol.ts";
-
-/** Most Nostr Connect recipients one connection can ask the buffer to keep. */
-const MAX_WATCHED_PER_CONNECTION = 16;
 
 /** A REQ subscription on one connection. */
 interface Subscription {
@@ -53,9 +49,8 @@ export class ClientConnection {
   readonly #unwatch: (() => void)[] = [];
   /** Pubkeys this connection has declared interest in. */
   readonly #watching = new Set<string>();
-  /** Token bucket for Nostr Connect events from outside the graph. */
-  #connectTokens = NOSTR_CONNECT_BURST;
-  #connectRefilled = Date.now();
+  /** The allowance this connection shares with its client address. */
+  readonly #limits: ClientLimits;
   #closed = false;
 
   /**
@@ -63,17 +58,20 @@ export class ClientConnection {
    * @param options The relay options, read at the time of each use.
    * @param onGone Called once when the connection has ended.
    * @param replay The relay's buffer of recent Nostr Connect events.
+   * @param limits The allowance of the client address this connection is from.
    */
   constructor(
     socket: WebSocket,
     options: RelayServerOptions,
     onGone: (connection: ClientConnection) => void,
     replay: ReplayBuffer,
+    limits: ClientLimits = new ClientLimits(),
   ) {
     this.#socket = socket;
     this.#options = options;
     this.#onGone = onGone;
     this.#replay = replay;
+    this.#limits = limits;
     socket.onmessage = (event) => this.#onFrame(event.data);
     socket.onclose = () => this.#finish();
     socket.onerror = () => this.#finish();
@@ -114,6 +112,8 @@ export class ClientConnection {
     this.#subscriptions.clear();
     for (const release of this.#unwatch) release();
     this.#unwatch.length = 0;
+    this.#limits.watched -= this.#watching.size;
+    this.#watching.clear();
     this.#onGone(this);
   }
 
@@ -178,7 +178,7 @@ export class ClientConnection {
     if (
       connectProblem === undefined &&
       graph.distance(event.pubkey) === undefined &&
-      !this.#takeConnectToken()
+      !this.#limits.takeConnectToken()
     ) {
       return this.#send([
         "OK",
@@ -326,8 +326,8 @@ export class ClientConnection {
   /**
    * Tells the replay buffer which Nostr Connect recipients this connection
    * listens for, so that their messages are kept if the connection drops.
-   * Interest lasts until the connection ends; a connection can declare
-   * {@link MAX_WATCHED_PER_CONNECTION} pubkeys.
+   * Interest lasts until the connection ends; the connections of one client
+   * address can declare {@link MAX_WATCHED_PER_CLIENT} pubkeys between them.
    */
   #watchRecipients(filters: Filter[]): void {
     const fresh: string[] = [];
@@ -336,27 +336,14 @@ export class ClientConnection {
       if (!Array.isArray(recipients)) continue;
       if (filter.kinds && !filter.kinds.includes(NOSTR_CONNECT_KIND)) continue;
       for (const pubkey of recipients) {
-        if (this.#watching.size >= MAX_WATCHED_PER_CONNECTION) break;
+        if (this.#limits.watched >= MAX_WATCHED_PER_CLIENT) break;
         if (typeof pubkey !== "string" || this.#watching.has(pubkey)) continue;
         this.#watching.add(pubkey);
+        this.#limits.watched++;
         fresh.push(pubkey);
       }
     }
     if (fresh.length > 0) this.#unwatch.push(this.#replay.watch(fresh));
-  }
-
-  /** Whether this connection may send one more Nostr Connect event now. */
-  #takeConnectToken(): boolean {
-    const now = Date.now();
-    this.#connectTokens = Math.min(
-      NOSTR_CONNECT_BURST,
-      this.#connectTokens +
-        (now - this.#connectRefilled) / 1000 * NOSTR_CONNECT_PER_SECOND,
-    );
-    this.#connectRefilled = now;
-    if (this.#connectTokens < 1) return false;
-    this.#connectTokens--;
-    return true;
   }
 
   /** `COUNT` (NIP-45): the number of events the filters match. */
