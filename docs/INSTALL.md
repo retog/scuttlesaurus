@@ -108,7 +108,7 @@ volume, so do this only when you no longer need the data.
 ## Put it on the internet
 
 A node serves its web client, its relay and its APIs on one port, and all of
-them must be reachable under one origin. Two things must be true:
+them must be reachable under one origin. Three things must be true:
 
 1. WebSocket connections must reach the node. The relay is on the same path as
    the web client, so the proxy must forward `Upgrade` requests.
@@ -116,6 +116,29 @@ them must be reachable under one origin. Two things must be true:
    node uses it for its relay URL, for NIP-05 and NIP-98 checks, and in blob
    links. Without it, the node derives the address from each request, using
    `X-Forwarded-Proto` and `X-Forwarded-Host` when a proxy sends them.
+
+3. The node must know who each client is, for its per-client limits (relay
+   connections, Nostr Connect, SPARQL query time). It takes the client from
+   `X-Forwarded-For` when the request comes from a local or private address,
+   which it then treats as a reverse proxy. Caddy sends that header by itself;
+   nginx needs the `proxy_set_header X-Forwarded-For` line below. A proxy that
+   sends no `X-Forwarded-For` makes all visitors one client, so they share one
+   allowance; the node then logs a warning when that allowance is used up. Set
+   `TRUSTED_PROXIES` to match the setup:
+
+   | Setup                                                                             | `TRUSTED_PROXIES`       |
+   | --------------------------------------------------------------------------------- | ----------------------- |
+   | One reverse proxy (Caddy, nginx) in front of the node                             | `auto` (default) or `1` |
+   | A CDN or tunnel in front of that proxy, where the proxy appends the CDN's address | `2`                     |
+   | No proxy; the node is reached directly, also on a LAN or in Docker                | `0`                     |
+
+   With `0` nobody can claim another address. With `auto` or a number, a client
+   on the same private network can, if it reaches the node directly. A CDN
+   usually sends the visitor's address in a header of its own as well
+   (`CF-Connecting-IP` with Cloudflare); if the proxy is configured to put that
+   address into `X-Forwarded-For` (Caddy's `trusted_proxies`, nginx's `real_ip`
+   module), one hop is enough. IPv6 clients are counted by their /64 network,
+   since a single host can use any address in it.
 
 The node listens on `127.0.0.1` by default, so it is reachable only from the
 machine itself. Keep that and let a reverse proxy on the same machine serve the

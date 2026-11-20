@@ -8,7 +8,7 @@
  * rest of the API.
  * @module
  */
-import { clientAddress } from "../client_address.ts";
+import { clientAddress, noteLimitReached } from "../client_address.ts";
 import { type Node, QueryLimitError } from "../types.ts";
 import { ClientBudget } from "./client_budget.ts";
 import { authorizeOwner } from "./nip98.ts";
@@ -58,7 +58,7 @@ export async function handleSparql(
       budget = budgets.get(node);
       if (!budget) budgets.set(node, budget = new ClientBudget());
     }
-    return await run(node, query, clientAddress(request), budget);
+    return await run(node, query, request, budget);
   } catch (error) {
     if (error instanceof HttpError) {
       return plainText(error.status, error.message);
@@ -141,9 +141,10 @@ function checkQuery(sparql: SparqlRequest): string {
 async function run(
   node: Node,
   query: string,
-  client: string,
+  request: Request,
   budget: ClientBudget,
 ): Promise<Response> {
+  const client = clientAddress(request);
   let ran = true;
   let ticket;
   try {
@@ -163,6 +164,7 @@ async function run(
     if (error instanceof QueryLimitError) {
       ran = error.reason !== "busy" && error.reason !== "budget";
       const budgeted = error.reason === "budget";
+      if (budgeted) noteLimitReached(request);
       const response = plainText(budgeted ? 429 : 503, error.message);
       if (error.reason !== "timeout") {
         response.headers.set("Retry-After", String(error.retryAfter ?? 5));

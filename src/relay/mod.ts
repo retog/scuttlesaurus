@@ -15,7 +15,7 @@ import type {
 } from "../types.ts";
 import { ClientConnection } from "./connection.ts";
 import { relayInformation } from "./nip11.ts";
-import { clientAddress } from "../client_address.ts";
+import { clientAddress, noteLimitReached } from "../client_address.ts";
 import { ClientLimitsTable } from "./client_limits.ts";
 import { ReplayBuffer } from "./replay_buffer.ts";
 
@@ -52,6 +52,7 @@ export function createRelayServer(options: RelayServerOptions): RelayServer {
       }
       const allowance = limits.admit(clientAddress(request));
       if (!allowance) {
+        noteLimitReached(request);
         return new Response("too many connections from this address", {
           status: 429,
         });

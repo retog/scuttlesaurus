@@ -118,6 +118,12 @@ export interface Config {
    */
   sparqlWorkers: number;
   /**
+   * Which reverse proxies are trusted to name the client in
+   * `X-Forwarded-For`: `"auto"` (one local proxy) or the number of proxies in
+   * front of the node (0 for none). See `src/client_address.ts`.
+   */
+  trustedProxies: "auto" | number;
+  /**
    * Whether kind 24133 events (NIP-46 Nostr Connect) are relayed for any
    * author. Off: they get the normal write policy.
    */

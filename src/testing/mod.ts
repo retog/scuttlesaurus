@@ -84,6 +84,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     publicSparql: true,
     sparqlTimeoutMs: 10_000,
     sparqlWorkers: 1,
+    trustedProxies: "auto",
     nostrConnect: true,
     maxLimit: 500,
     ...overrides,

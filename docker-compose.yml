@@ -24,6 +24,7 @@ services:
     #   FORWARD: all
     #   REPLICATION: "off"
     #   BLOSSOM_MAX_SIZE_MB: "50"
+    #   TRUSTED_PROXIES: "0"             # no reverse proxy in front; see INSTALL.md
     #
     # With the oxigraph profile below, keep the graph in Oxigraph instead of
     # the embedded store:

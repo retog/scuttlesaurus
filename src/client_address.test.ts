@@ -1,8 +1,11 @@
 import { assertEquals } from "@std/assert";
 import {
   clientAddress,
+  clientKey,
   isLocalAddress,
+  noteLimitReached,
   rememberClient,
+  type TrustedProxies,
   UNKNOWN_CLIENT,
 } from "./client_address.ts";
 
@@ -17,36 +20,123 @@ const request = (forwardedFor?: string) =>
     headers: forwardedFor ? { "X-Forwarded-For": forwardedFor } : {},
   });
 
+/** The client key of a request from `from` with the given header. */
+function client(
+  from: string,
+  forwardedFor?: string,
+  trusted: TrustedProxies = "auto",
+): string {
+  const r = request(forwardedFor);
+  rememberClient(r, peer(from), trusted);
+  return clientAddress(r);
+}
+
 Deno.test("the peer address is the client, and a public peer cannot forge another", () => {
-  const plain = request();
-  rememberClient(plain, peer("203.0.113.7"));
-  assertEquals(clientAddress(plain), "203.0.113.7");
-
-  const forged = request("198.51.100.1");
-  rememberClient(forged, peer("203.0.113.7"));
-  assertEquals(clientAddress(forged), "203.0.113.7");
-
+  assertEquals(client("203.0.113.7"), "203.0.113.7");
+  assertEquals(client("203.0.113.7", "198.51.100.1"), "203.0.113.7");
+  assertEquals(client("203.0.113.7", "198.51.100.1", 2), "203.0.113.7");
   assertEquals(clientAddress(request()), UNKNOWN_CLIENT);
 });
 
-Deno.test("behind a local proxy the last forwarded address is the client", () => {
+Deno.test("behind one local proxy the last forwarded address is the client", () => {
   for (const proxy of ["127.0.0.1", "::1", "172.18.0.3", "::ffff:10.0.0.2"]) {
-    const forwarded = request("198.51.100.1, 203.0.113.9");
-    rememberClient(forwarded, peer(proxy));
-    assertEquals(clientAddress(forwarded), "203.0.113.9", proxy);
+    assertEquals(
+      client(proxy, "198.51.100.1, 203.0.113.9"),
+      "203.0.113.9",
+      proxy,
+    );
+    assertEquals(client(proxy, "198.51.100.1, 203.0.113.9", 1), "203.0.113.9");
   }
-  const direct = request();
-  rememberClient(direct, peer("192.168.2.5"));
-  assertEquals(clientAddress(direct), "192.168.2.5");
+  assertEquals(client("192.168.2.5"), "192.168.2.5");
+});
+
+Deno.test("TRUSTED_PROXIES=0 ignores the header even from a local peer", () => {
+  assertEquals(client("192.168.2.5", "198.51.100.1", 0), "192.168.2.5");
+  assertEquals(client("127.0.0.1", "198.51.100.1", 0), "127.0.0.1");
+});
+
+Deno.test("a chain of proxies: the n-th entry from the right is the client", () => {
+  // CDN → local proxy → node: the local proxy appended the CDN edge address.
+  const chain = "198.51.100.1, 203.0.113.9";
+  assertEquals(client("127.0.0.1", chain, 2), "198.51.100.1");
+  // A forged entry in front of the real one does not count.
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, 198.51.100.1, 203.0.113.9", 2),
+    "198.51.100.1",
+  );
+  // Fewer entries than hops: the leftmost.
+  assertEquals(client("127.0.0.1", "198.51.100.1", 3), "198.51.100.1");
+});
+
+Deno.test("forwarded entries with ports, brackets or garbage", () => {
+  assertEquals(client("127.0.0.1", "198.51.100.1:5555"), "198.51.100.1");
+  assertEquals(
+    client("127.0.0.1", "[2001:db8:1:2::7]:443"),
+    "2001:db8:1:2::/64",
+  );
+  // An entry that is not an address is skipped.
+  assertEquals(client("127.0.0.1", "198.51.100.1, unknown"), "198.51.100.1");
+  assertEquals(client("127.0.0.1", "unknown, _hidden"), "127.0.0.1");
+});
+
+Deno.test("IPv6 clients are keyed by their /64", () => {
+  const a = client("2001:db8:1:2:aaaa::1");
+  const b = client("2001:db8:1:2:bbbb:cccc:dddd:eeee");
+  assertEquals(a, "2001:db8:1:2::/64");
+  assertEquals(a, b);
+  assertEquals(client("2001:db8:1:3::1"), "2001:db8:1:3::/64");
+  assertEquals(
+    client("127.0.0.1", "2001:0db8:0001:0002:0000:0000:0000:0001"),
+    "2001:db8:1:2::/64",
+  );
+  assertEquals(clientKey("::1"), "0:0:0:0::/64");
+  assertEquals(clientKey("64:ff9b::192.0.2.1"), "64:ff9b:0:0::/64");
+  assertEquals(clientKey("198.51.100.1"), "198.51.100.1");
+  assertEquals(clientKey("not:an::address::"), "not:an::address::");
 });
 
 Deno.test("local addresses are recognised", () => {
   for (
-    const a of ["127.0.0.1", "10.1.2.3", "192.168.0.1", "fd00::1", "fe80::1"]
+    const a of [
+      "127.0.0.1",
+      "10.1.2.3",
+      "192.168.0.1",
+      "fd00::1",
+      "fe80::1",
+      "::1",
+      "0:0:0:0:0:0:0:1",
+    ]
   ) {
     assertEquals(isLocalAddress(a), true, a);
   }
-  for (const a of ["8.8.8.8", "172.32.0.1", "2001:db8::1"]) {
+  for (const a of ["8.8.8.8", "172.32.0.1", "2001:db8::1", "fec0::1", "::2"]) {
     assertEquals(isLocalAddress(a), false, a);
   }
+});
+
+Deno.test("a limit reached by a local peer without X-Forwarded-For is reported once", () => {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    const unforwarded = () => {
+      const r = request();
+      rememberClient(r, peer("172.20.0.9"));
+      return r;
+    };
+    noteLimitReached(unforwarded());
+    noteLimitReached(unforwarded());
+    // A forwarded or a public client is not a proxy problem.
+    const forwarded = request("198.51.100.1");
+    rememberClient(forwarded, peer("172.20.0.9"));
+    noteLimitReached(forwarded);
+    const direct = request();
+    rememberClient(direct, peer("203.0.113.7"));
+    noteLimitReached(direct);
+  } finally {
+    console.warn = original;
+  }
+  assertEquals(warnings.length, 1);
+  assertEquals(warnings[0].includes("172.20.0.9"), true);
+  assertEquals(warnings[0].includes("X-Forwarded-For"), true);
 });

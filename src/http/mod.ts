@@ -34,7 +34,11 @@ export function createHttpHandler(
     api: createApiContext(node),
   };
   return async (request, info) => {
-    rememberClient(request, info?.remoteAddr);
+    rememberClient(
+      request,
+      info?.remoteAddr,
+      node.configManager.config.trustedProxies,
+    );
     if (request.method === "OPTIONS") return preflightResponse();
     const response = await answer(request, context);
     // The WebSocket upgrade response is returned untouched.

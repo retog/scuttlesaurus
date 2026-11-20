@@ -143,9 +143,8 @@ Everything inside the node (`select`, `ask`, `EventStore`) is unchanged.
   and includes queries that time out; a query refused as busy costs nothing. A
   client over budget gets 429 with `Retry-After` at once and its query never
   reaches the store; a query that is still waiting when its client runs out is
-  refused when its turn comes, without running. Addresses are the TCP peer, or
-  the last `X-Forwarded-For` entry when the peer is on this machine or a private
-  network (`src/client_address.ts`). The table is kept small: a client is
+  refused when its turn comes, without running. Clients are identified as
+  described under "Client addresses" below. The table is kept small: a client is
   forgotten a window after its last query, and at most 4096 clients are
   remembered.
 - **SPARQL endpoint and QLever stores**: the request gets the same time limit
@@ -302,16 +301,15 @@ A NIP-01 relay on the WebSocket endpoint `/`.
   pubkey that no connection has subscribed to with `#p` (now or in the last four
   minutes) share a smaller allowance of 200 events and 2 MiB, so a flood to
   random pubkeys displaces only itself. The limits on who may ask and send are
-  per client address (the TCP peer, or behind a local reverse proxy the address
-  it forwards), shared by all connections of that address: 20 connections, 32
-  watched pubkeys, and for authors outside the graph 30 such events at once and
-  two per second after that. When 5000 pubkeys are watched, a new one replaces
-  the one whose last subscriber left longest ago. What remains possible: a flood
-  from many addresses, and someone who knows a recipient's pubkey can push that
-  recipient's real messages out of its 20 slots. Any other event, and a 24133
-  event that does not meet the condition and whose author is outside the graph,
-  is refused as before. `NOSTR_CONNECT=off` removes the exception and the NIP-11
-  entry.
+  per client (see "Client addresses"), shared by all connections of that
+  address: 20 connections, 32 watched pubkeys, and for authors outside the graph
+  30 such events at once and two per second after that. When 5000 pubkeys are
+  watched, a new one replaces the one whose last subscriber left longest ago.
+  What remains possible: a flood from many addresses, and someone who knows a
+  recipient's pubkey can push that recipient's real messages out of its 20
+  slots. Any other event, and a 24133 event that does not meet the condition and
+  whose author is outside the graph, is refused as before. `NOSTR_CONNECT=off`
+  removes the exception and the NIP-11 entry.
 - `REQ`: stored events, `EOSE`, then live events matching the filters.
 - `CLOSE`, and `COUNT` (NIP-45).
 - Limits: number of subscriptions and filters per connection, `limit` capped at
@@ -366,6 +364,21 @@ answered for CORS preflight.
 `owner` is the hex public key, or `null`. NIP-98 authorization is a kind 27235
 event in the `Authorization: Nostr <base64>` header, signed by the owner.
 
+### Client addresses
+
+The per-client limits (SPARQL budget, relay connections and Nostr Connect) need
+to know who a request comes from (`src/client_address.ts`). The client is the
+TCP peer, unless the peer is on this machine or a private network and
+`TRUSTED_PROXIES` says that proxies sit in front of the node: with `n` hops
+(`auto` means 1) the client is the `n`-th `X-Forwarded-For` entry from the
+right, or the leftmost when there are fewer. Entries that are not IP addresses
+are skipped. A public peer is never trusted, and with `TRUSTED_PROXIES=0` the
+header is ignored. IPv4 clients are counted by address, IPv6 clients by their
+/64 network. When a limit refuses a local peer that sent no `X-Forwarded-For`,
+the node logs once that a proxy in front of it may be missing the header, since
+all its visitors then share one allowance. Setups and values are listed in
+[INSTALL.md](INSTALL.md), "Put it on the internet".
+
 ### SPARQL endpoint
 
 `GET /sparql?query=…`, `POST` with `application/sparql-query`, or `POST` with
@@ -413,6 +426,7 @@ the environment is locked: the settings page shows it but cannot change it.
 | `SPARQL_PUBLIC`               | `publicSparql`                                  | `true`                                                                                      |
 | `SPARQL_TIMEOUT_SECONDS`      | `sparqlTimeoutMs` (given in seconds)            | `10`                                                                                        |
 | `SPARQL_WORKERS`              | `sparqlWorkers` (1 to 4)                        | `1`                                                                                         |
+| `TRUSTED_PROXIES`             | `trustedProxies` (`auto`, or 0 to 5 proxy hops) | `auto`                                                                                      |
 | `NOSTR_CONNECT`               | `nostrConnect` (`off` disables)                 | on                                                                                          |
 | `BLOSSOM`                     | `blossom.enabled` (`off` disables)              | on                                                                                          |
 | `BLOSSOM_MAX_SIZE_MB`         | `blossom.maxBlobSize`                           | `50`                                                                                        |

@@ -10,6 +10,7 @@
 import { join } from "@std/path";
 import * as nip19 from "@nostr/tools/nip19";
 import { normalizeURL } from "@nostr/tools/utils";
+import { MAX_TRUSTED_PROXIES } from "./client_address.ts";
 import type {
   Config,
   ConfigManager,
@@ -62,6 +63,7 @@ const DEFAULTS: Raw = {
   publicSparql: true,
   sparqlTimeoutMs: 10_000,
   sparqlWorkers: 1,
+  trustedProxies: "auto",
   nostrConnect: true,
   maxLimit: 500,
 };
@@ -157,6 +159,11 @@ const ENV_SETTINGS: readonly EnvSetting[] = [
     parse: parseSeconds,
   },
   { variable: "SPARQL_WORKERS", key: "sparqlWorkers", parse: parseInteger },
+  {
+    variable: "TRUSTED_PROXIES",
+    key: "trustedProxies",
+    parse: parseTrustedProxies,
+  },
   { variable: "NOSTR_CONNECT", key: "nostrConnect", parse: parseToggle },
   { variable: "BLOSSOM", key: "blossom.enabled", parse: parseToggle },
   {
@@ -192,6 +199,7 @@ const CHECKS: Record<string, Check> = {
   publicSparql: checkBoolean,
   sparqlTimeoutMs: checkRange(1000, 3600 * 1000),
   sparqlWorkers: checkRange(1, 4),
+  trustedProxies: checkTrustedProxies,
   nostrConnect: checkBoolean,
   "blossom.enabled": checkBoolean,
   "blossom.maxBlobSize": checkRange(1, Number.MAX_SAFE_INTEGER),
@@ -438,6 +446,7 @@ function assemble(dataDir: string, file: Raw, env: Raw): Config {
     publicSparql: at("publicSparql"),
     sparqlTimeoutMs: at("sparqlTimeoutMs"),
     sparqlWorkers: at("sparqlWorkers"),
+    trustedProxies: at("trustedProxies"),
     nostrConnect: at("nostrConnect"),
     maxLimit: at("maxLimit"),
   };
@@ -504,6 +513,12 @@ function parseText(raw: string): string {
 function parseInteger(raw: string): number {
   if (!/^-?\d+$/.test(raw)) throw new Error("must be an integer");
   return Number(raw);
+}
+
+/** `auto`, or a number of proxy hops. */
+function parseTrustedProxies(raw: string): unknown {
+  const text = raw.trim().toLowerCase();
+  return text === "auto" ? text : parseInteger(text);
 }
 
 function parseMegabytes(raw: string): number {
@@ -582,6 +597,18 @@ function checkRange(min: number, max: number): Check {
     }
     return value;
   };
+}
+
+/** `"auto"` or a number of proxy hops from 0 to {@link MAX_TRUSTED_PROXIES}. */
+function checkTrustedProxies(value: unknown): unknown {
+  if (value === "auto") return value;
+  if (
+    typeof value === "number" && Number.isInteger(value) && value >= 0 &&
+    value <= MAX_TRUSTED_PROXIES
+  ) return value;
+  throw new Error(
+    `must be auto or an integer from 0 to ${MAX_TRUSTED_PROXIES}`,
+  );
 }
 
 function checkOneOf(options: readonly string[]): Check {

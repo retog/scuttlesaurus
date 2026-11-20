@@ -78,6 +78,7 @@ Deno.test("defaults with an empty environment", () =>
     assertEquals(config.publicSparql, true);
     assertEquals(config.sparqlTimeoutMs, 10_000);
     assertEquals(config.sparqlWorkers, 1);
+    assertEquals(config.trustedProxies, "auto");
     assertEquals(config.nostrConnect, true);
     assertEquals(config.maxLimit, 500);
     assertEquals(manager.locked.size, 0);
@@ -112,6 +113,7 @@ Deno.test("each environment variable sets its setting", () =>
       SPARQL_PUBLIC: "0",
       SPARQL_TIMEOUT_SECONDS: "3",
       SPARQL_WORKERS: "2",
+      TRUSTED_PROXIES: "2",
       NOSTR_CONNECT: "off",
       BLOSSOM: "false",
       BLOSSOM_MAX_SIZE_MB: "10",
@@ -141,6 +143,7 @@ Deno.test("each environment variable sets its setting", () =>
     assertEquals(c.publicSparql, false);
     assertEquals(c.sparqlTimeoutMs, 3000);
     assertEquals(c.sparqlWorkers, 2);
+    assertEquals(c.trustedProxies, 2);
     assertEquals(c.nostrConnect, false);
     assertEquals(c.blossom, { enabled: false, maxBlobSize: 10 * 1024 * 1024 });
     assertEquals(c.maxLimit, 100);
@@ -240,6 +243,24 @@ Deno.test("the invalid value appears in the error", () =>
       '"9"',
     )
   ));
+
+Deno.test("TRUSTED_PROXIES takes auto or 0 to 5 hops", () =>
+  withDataDir(async (dir) => {
+    for (const [raw, value] of [["AUTO", "auto"], ["0", 0], ["5", 5]]) {
+      const manager = await loadConfig({
+        DATA_DIR: dir,
+        TRUSTED_PROXIES: raw as string,
+      });
+      assertEquals(manager.config.trustedProxies, value);
+    }
+    for (const raw of ["6", "-1", "yes"]) {
+      await assertRejects(
+        () => loadConfig({ DATA_DIR: dir, TRUSTED_PROXIES: raw }),
+        Error,
+        "TRUSTED_PROXIES",
+      );
+    }
+  }));
 
 Deno.test("SPARQL update and credentials without a query endpoint throw", () =>
   withDataDir((dir) =>
