@@ -10,7 +10,11 @@
  * - `n` (1 to 5): the node sits behind a chain of `n` proxies, each of which
  *   appends the address it saw to `X-Forwarded-For`. When the peer is on this
  *   machine or a private network, the client is the `n`-th entry from the
- *   right. With fewer entries the leftmost is taken.
+ *   right. With fewer entries the leftmost is taken. Every entry counts for
+ *   its position, also an empty one or one that is not an address (`unknown`);
+ *   if the chosen entry is not an address, the TCP peer is the client, as if
+ *   the header were missing, rather than an entry further left, which the
+ *   client may have forged.
  * - `auto` (default): like `1`.
  *
  * A public peer is never trusted, so a client that reaches the node directly
@@ -56,13 +60,13 @@ export function rememberClient(
   let address = peerAddress;
   let unforwarded = false;
   if (hops > 0 && isLocalAddress(peerAddress)) {
-    const chain = (request.headers.get("x-forwarded-for") ?? "")
-      .split(",").map((item) => normalize(item)).filter((item) =>
-        isIpAddress(item)
-      );
-    if (chain.length > 0) {
-      address = chain[Math.max(0, chain.length - hops)];
-    } else unforwarded = true;
+    const header = (request.headers.get("x-forwarded-for") ?? "").trim();
+    const entries = header === "" ? [] : header.split(",");
+    const chosen = entries.length === 0
+      ? undefined
+      : normalize(entries[Math.max(0, entries.length - hops)]);
+    if (chosen !== undefined && isIpAddress(chosen)) address = chosen;
+    else unforwarded = true;
   }
   recorded.set(request, { key: clientKey(address), unforwarded });
 }

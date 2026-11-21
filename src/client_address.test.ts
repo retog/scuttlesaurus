@@ -74,9 +74,59 @@ Deno.test("forwarded entries with ports, brackets or garbage", () => {
     client("127.0.0.1", "[2001:db8:1:2::7]:443"),
     "2001:db8:1:2::/64",
   );
-  // An entry that is not an address is skipped.
-  assertEquals(client("127.0.0.1", "198.51.100.1, unknown"), "198.51.100.1");
+  // The entry at the hop position is not an address: the peer is the client.
+  assertEquals(client("127.0.0.1", "198.51.100.1, unknown"), "127.0.0.1");
   assertEquals(client("127.0.0.1", "unknown, _hidden"), "127.0.0.1");
+  assertEquals(client("127.0.0.1", "unknown"), "127.0.0.1");
+  // An unknown entry further left does not matter.
+  assertEquals(client("127.0.0.1", "unknown, 198.51.100.1"), "198.51.100.1");
+});
+
+Deno.test("a non-address entry keeps its position and never shifts the hops", () => {
+  // The proxy nearest the node appended `unknown`; the forged entry stays out.
+  const chain = "192.0.2.66, unknown, 203.0.113.9";
+  assertEquals(client("127.0.0.1", chain, 2), "127.0.0.1");
+  assertEquals(client("127.0.0.1", chain, 3), "192.0.2.66");
+  assertEquals(client("127.0.0.1", chain, 1), "203.0.113.9");
+  assertEquals(client("127.0.0.1", "192.0.2.66, _hidden", 1), "127.0.0.1");
+  // The leftmost is taken with fewer entries, and it must be an address too.
+  assertEquals(client("127.0.0.1", "unknown, 203.0.113.9", 3), "127.0.0.1");
+  // An empty item is a position as well.
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, , 203.0.113.9", 2),
+    "127.0.0.1",
+  );
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, , 203.0.113.9", 3),
+    "192.0.2.66",
+  );
+  assertEquals(client("127.0.0.1", "203.0.113.9,", 1), "127.0.0.1");
+  // Well-formed chains are unchanged.
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, 198.51.100.1, 203.0.113.9", 2),
+    "198.51.100.1",
+  );
+});
+
+Deno.test("a header at the hop position that is no address counts as unforwarded", () => {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    const from = (peerAddress: string, header?: string) => {
+      const r = request(header);
+      rememberClient(r, peer(peerAddress));
+      noteLimitReached(r);
+    };
+    from("172.21.0.1", "198.51.100.1, unknown");
+    from("172.22.0.1", "   ");
+    from("172.23.0.1", "198.51.100.1, , ");
+    from("172.24.0.1", "198.51.100.1");
+  } finally {
+    console.warn = original;
+  }
+  assertEquals(warnings.length, 3);
+  assertEquals(warnings.some((w) => w.includes("172.24.0.1")), false);
 });
 
 Deno.test("IPv6 clients are keyed by their /64", () => {
