@@ -10,7 +10,11 @@
  * - `n` (1 to 5): the node sits behind a chain of `n` proxies, each of which
  *   appends the address it saw to `X-Forwarded-For`. When the peer is on this
  *   machine or a private network, the client is the `n`-th entry from the
- *   right. With fewer entries the leftmost is taken.
+ *   right. With fewer entries the leftmost is taken. Every entry counts for
+ *   its position, also an empty one or one that is not an address (`unknown`);
+ *   if the chosen entry is not an address, the TCP peer is the client, as if
+ *   the header were missing, rather than an entry further left, which the
+ *   client may have forged.
  * - `auto` (default): like `1`.
  *
  * A public peer is never trusted, so a client that reaches the node directly
@@ -18,7 +22,11 @@
  *
  * IPv4 clients are keyed by their address. IPv6 clients are keyed by their
  * /64 network (`2001:db8:1:2::/64`), since an ordinary host has a whole /64 to
- * pick source addresses from.
+ * pick source addresses from. An IPv4-mapped address (`::ffff:1.2.3.4`, in any
+ * spelling, also `::ffff:102:304`) is the IPv4 address. So is one in the NAT64
+ * prefix `64:ff9b::/96` for the key, so that IPv4 clients behind a translator
+ * do not share one /64; but only the mapped form can be a local address, a
+ * NAT64 address never makes a peer a trusted proxy.
  *
  * @module
  */
@@ -56,13 +64,13 @@ export function rememberClient(
   let address = peerAddress;
   let unforwarded = false;
   if (hops > 0 && isLocalAddress(peerAddress)) {
-    const chain = (request.headers.get("x-forwarded-for") ?? "")
-      .split(",").map((item) => normalize(item)).filter((item) =>
-        isIpAddress(item)
-      );
-    if (chain.length > 0) {
-      address = chain[Math.max(0, chain.length - hops)];
-    } else unforwarded = true;
+    const header = (request.headers.get("x-forwarded-for") ?? "").trim();
+    const entries = header === "" ? [] : header.split(",");
+    const chosen = entries.length === 0
+      ? undefined
+      : normalize(entries[Math.max(0, entries.length - hops)]);
+    if (chosen !== undefined && isIpAddress(chosen)) address = chosen;
+    else unforwarded = true;
   }
   recorded.set(request, { key: clientKey(address), unforwarded });
 }
@@ -99,20 +107,37 @@ export function noteLimitReached(request: Request): void {
  * network.
  */
 export function clientKey(address: string): string {
-  const groups = ipv6Groups(address);
+  const groups = ipv6Groups(address.toLowerCase());
   if (!groups) return address;
+  const embedded = embeddedIpv4(groups, true);
+  if (embedded) return embedded;
   return `${groups.slice(0, 4).map((g) => g.toString(16)).join(":")}::/64`;
 }
 
-/** Lower case, without brackets, port, zone or the IPv4-mapped prefix. */
+/**
+ * The IPv4 address inside an IPv4-mapped address (`0:0:0:0:0:ffff:hhhh:hhhh`),
+ * or with `nat64` also inside the well-known prefix `64:ff9b::/96`.
+ */
+function embeddedIpv4(groups: number[], nat64 = false): string | undefined {
+  const mapped = groups.slice(0, 5).every((g) => g === 0) &&
+    groups[5] === 0xffff;
+  const translated = nat64 && groups[0] === 0x64 && groups[1] === 0xff9b &&
+    groups.slice(2, 6).every((g) => g === 0);
+  if (!mapped && !translated) return undefined;
+  const [hi, lo] = groups.slice(6);
+  return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+}
+
+/** Lower case, without brackets, port, zone; IPv4-mapped becomes IPv4. */
 function normalize(address: string): string {
   let host = address.trim().toLowerCase();
   // `[2001:db8::1]:443` and `198.51.100.1:443`, as some proxies write them.
   const bracketed = /^\[([^\]]*)\](?::\d+)?$/.exec(host);
   if (bracketed) host = bracketed[1];
   else if (/^\d+\.\d+\.\d+\.\d+:\d+$/.test(host)) host = host.split(":")[0];
-  return host.replace(/%.*$/, "")
-    .replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "").slice(0, 64);
+  host = host.replace(/%.*$/, "").slice(0, 64);
+  const groups = ipv6Groups(host);
+  return (groups && embeddedIpv4(groups)) || host;
 }
 
 function isIpv4(host: string): boolean {

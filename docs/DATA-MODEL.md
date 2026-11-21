@@ -210,11 +210,14 @@ without it is never a winner) and kind 5 events (with `nostr:sig`) whose
 same-author targets lack `nostr:deletedBy`. It writes the missing triples by the
 rules above and logs how many it wrote (nothing when there was nothing to
 write). It runs at start-up and again before the next commit after an insert
-failed, without a restart; if the repair itself fails it is logged and tried
-again before the next commit, and does not reject events. A healthy graph costs
-five queries however many deletion requests it holds: a deletion naming a
-replaceable event by `a` tag is a candidate only if its author has an undeleted
-event of the kind in the coordinate (the kind is read from the `tag:a` value).
+failed, or 30 seconds after it on a node that receives nothing, without a
+restart; if the repair itself fails it is logged and tried again, and does not
+reject events. A repair at runtime that wrote something is announced to the
+listeners of `EventStore.onRepaired`; the social graph recomputes on it, since
+it may have read two versions of a list as current. A healthy graph costs five
+queries however many deletion requests it holds: a deletion naming a replaceable
+event by `a` tag is a candidate only if its author has an undeleted event of the
+kind in the coordinate (the kind is read from the `tag:a` value).
 
 A store written by the first version of this order (events without `nostr:sig`,
 bookkeeping, then signatures) and cut before the signatures can hold

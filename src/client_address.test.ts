@@ -74,9 +74,59 @@ Deno.test("forwarded entries with ports, brackets or garbage", () => {
     client("127.0.0.1", "[2001:db8:1:2::7]:443"),
     "2001:db8:1:2::/64",
   );
-  // An entry that is not an address is skipped.
-  assertEquals(client("127.0.0.1", "198.51.100.1, unknown"), "198.51.100.1");
+  // The entry at the hop position is not an address: the peer is the client.
+  assertEquals(client("127.0.0.1", "198.51.100.1, unknown"), "127.0.0.1");
   assertEquals(client("127.0.0.1", "unknown, _hidden"), "127.0.0.1");
+  assertEquals(client("127.0.0.1", "unknown"), "127.0.0.1");
+  // An unknown entry further left does not matter.
+  assertEquals(client("127.0.0.1", "unknown, 198.51.100.1"), "198.51.100.1");
+});
+
+Deno.test("a non-address entry keeps its position and never shifts the hops", () => {
+  // The proxy nearest the node appended `unknown`; the forged entry stays out.
+  const chain = "192.0.2.66, unknown, 203.0.113.9";
+  assertEquals(client("127.0.0.1", chain, 2), "127.0.0.1");
+  assertEquals(client("127.0.0.1", chain, 3), "192.0.2.66");
+  assertEquals(client("127.0.0.1", chain, 1), "203.0.113.9");
+  assertEquals(client("127.0.0.1", "192.0.2.66, _hidden", 1), "127.0.0.1");
+  // The leftmost is taken with fewer entries, and it must be an address too.
+  assertEquals(client("127.0.0.1", "unknown, 203.0.113.9", 3), "127.0.0.1");
+  // An empty item is a position as well.
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, , 203.0.113.9", 2),
+    "127.0.0.1",
+  );
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, , 203.0.113.9", 3),
+    "192.0.2.66",
+  );
+  assertEquals(client("127.0.0.1", "203.0.113.9,", 1), "127.0.0.1");
+  // Well-formed chains are unchanged.
+  assertEquals(
+    client("127.0.0.1", "192.0.2.66, 198.51.100.1, 203.0.113.9", 2),
+    "198.51.100.1",
+  );
+});
+
+Deno.test("a header at the hop position that is no address counts as unforwarded", () => {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    const from = (peerAddress: string, header?: string) => {
+      const r = request(header);
+      rememberClient(r, peer(peerAddress));
+      noteLimitReached(r);
+    };
+    from("172.21.0.1", "198.51.100.1, unknown");
+    from("172.22.0.1", "   ");
+    from("172.23.0.1", "198.51.100.1, , ");
+    from("172.24.0.1", "198.51.100.1");
+  } finally {
+    console.warn = original;
+  }
+  assertEquals(warnings.length, 3);
+  assertEquals(warnings.some((w) => w.includes("172.24.0.1")), false);
 });
 
 Deno.test("IPv6 clients are keyed by their /64", () => {
@@ -90,7 +140,11 @@ Deno.test("IPv6 clients are keyed by their /64", () => {
     "2001:db8:1:2::/64",
   );
   assertEquals(clientKey("::1"), "0:0:0:0::/64");
-  assertEquals(clientKey("64:ff9b::192.0.2.1"), "64:ff9b:0:0::/64");
+  // A NAT64 address is keyed by the IPv4 address inside it.
+  assertEquals(clientKey("64:ff9b::192.0.2.1"), "192.0.2.1");
+  assertEquals(clientKey("64:ff9b::c000:201"), "192.0.2.1");
+  assertEquals(clientKey("64:ff9b:1::c000:201"), "64:ff9b:1:0::/64");
+  assertEquals(clientKey("::192.0.2.1"), "0:0:0:0::/64");
   assertEquals(clientKey("198.51.100.1"), "198.51.100.1");
   assertEquals(clientKey("not:an::address::"), "not:an::address::");
 });
@@ -139,4 +193,59 @@ Deno.test("a limit reached by a local peer without X-Forwarded-For is reported o
   assertEquals(warnings.length, 1);
   assertEquals(warnings[0].includes("172.20.0.9"), true);
   assertEquals(warnings[0].includes("X-Forwarded-For"), true);
+});
+
+Deno.test("IPv4-mapped IPv6 addresses are the IPv4 address in every spelling", () => {
+  for (
+    const a of [
+      "::ffff:1.2.3.4",
+      "::ffff:102:304",
+      "::FFFF:0102:0304",
+      "0:0:0:0:0:ffff:102:304",
+      "0000:0000:0000:0000:0000:ffff:0102:0304",
+      "0:0::ffff:1.2.3.4",
+    ]
+  ) {
+    assertEquals(clientKey(a), "1.2.3.4", a);
+    assertEquals(client(a), "1.2.3.4", a);
+    assertEquals(client("127.0.0.1", a), "1.2.3.4", a);
+  }
+  assertEquals(client("::ffff:102:304"), "1.2.3.4");
+  assertEquals(client("127.0.0.1", "[::ffff:102:304]:443"), "1.2.3.4");
+  // It is not the loopback /64, and `::1` stays IPv6.
+  assertEquals(clientKey("::1"), "0:0:0:0::/64");
+  assertEquals(clientKey("::ffff:0:102:304"), "0:0:0:0::/64");
+});
+
+Deno.test("a mapped local address is local, and a proxy in any spelling is trusted", () => {
+  for (
+    const a of [
+      "::ffff:7f00:1",
+      "::ffff:127.0.0.1",
+      "0:0:0:0:0:FFFF:7F00:0001",
+      "::ffff:a00:2",
+      "::ffff:c0a8:105",
+    ]
+  ) {
+    assertEquals(isLocalAddress(a), true, a);
+  }
+  for (const a of ["::ffff:808:808", "::ffff:ac20:1", "::ffff:0:7f00:1"]) {
+    assertEquals(isLocalAddress(a), false, a);
+  }
+  assertEquals(client("::ffff:7f00:1", "198.51.100.1"), "198.51.100.1");
+  assertEquals(client("::ffff:808:808", "198.51.100.1"), "8.8.8.8");
+});
+
+Deno.test("NAT64 addresses are keyed by the IPv4 inside but are never local", () => {
+  for (
+    const a of ["64:ff9b::7f00:1", "64:ff9b::10.0.0.1", "64:ff9b::a00:1"]
+  ) {
+    assertEquals(isLocalAddress(a), false, a);
+  }
+  // So a NAT64 peer cannot name its client with the header.
+  assertEquals(
+    client("64:ff9b::7f00:1", "198.51.100.1"),
+    "127.0.0.1",
+  );
+  assertEquals(client("64:ff9b::c000:201"), "192.0.2.1");
 });

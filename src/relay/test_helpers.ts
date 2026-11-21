@@ -156,6 +156,11 @@ export class FakeEventStore implements EventStore {
     };
   }
 
+  onRepaired(_listener: () => void): () => void {
+    // Nothing is ever left to repair in an array.
+    return () => {};
+  }
+
   stats(): Promise<StoreStats> {
     return Promise.resolve({
       events: this.#events.length,

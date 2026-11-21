@@ -11,7 +11,15 @@ import { createEventStore } from "./event_store.ts";
 import { eventToTriples } from "./event_triples.ts";
 import { eventIri } from "../vocab.ts";
 import { repairBookkeeping } from "./repair.ts";
-import { config, CountingStore, DAY, identities, sign } from "./test_util.ts";
+import {
+  config,
+  CountingStore,
+  CutBeforeBookkeeping,
+  DAY,
+  identities,
+  isBookkeeping,
+  sign,
+} from "./test_util.ts";
 
 const [alice, bob, carol] = identities(3);
 const NOW = Math.floor(Date.now() / 1000);
@@ -225,9 +233,6 @@ class Recording implements TripleStore {
 }
 
 const lineOf = (document: string) => document.split("\n").filter(Boolean);
-const isBookkeeping = (line: string) =>
-  line.includes("<nostr:ontology:supersededBy>") ||
-  line.includes("<nostr:ontology:deletedBy>");
 const isSig = (line: string) => line.includes("<nostr:ontology:sig>");
 
 Deno.test("group document: every bookkeeping triple comes after the sig of the event it points at", async () => {
@@ -355,43 +360,6 @@ Deno.test("interrupted insert: cut at every line, then restart and retry", async
     }
   }
 });
-
-/**
- * A triple store whose first insert holding bookkeeping is cut off before it
- * (the events are in, complete, and the insert fails), and whose selects can
- * be made to fail.
- */
-class CutBeforeBookkeeping implements TripleStore {
-  cuts = 0;
-  failSelects = false;
-  constructor(readonly inner: TripleStore) {}
-  async insert(ntriples: string) {
-    const lines = ntriples.split("\n");
-    const at = lines.findIndex(isBookkeeping);
-    if (this.cuts === 0 && at >= 0) {
-      this.cuts++;
-      await this.inner.insert(lines.slice(0, at).join("\n") + "\n");
-      throw new Error("the store went away");
-    }
-    return this.inner.insert(ntriples);
-  }
-  select(sparql: string) {
-    if (this.failSelects) return Promise.reject(new Error("store is down"));
-    return this.inner.select(sparql);
-  }
-  ask(sparql: string) {
-    return this.inner.ask(sparql);
-  }
-  query(sparql: string) {
-    return this.inner.query(sparql);
-  }
-  size() {
-    return this.inner.size();
-  }
-  close() {
-    return this.inner.close();
-  }
-}
 
 Deno.test("failed insert: the next commit repairs the missing bookkeeping without a restart", async () => {
   const oldFollow = sign(bob, 3, {
@@ -616,6 +584,153 @@ Deno.test("repair: a replaceable address deletion that lacks its bookkeeping is 
     assertEquals(await current(store, [0]), [lateProfile.id]);
     assertEquals(await current(store, [3]), [list.id]);
   } finally {
+    await store.close();
+  }
+});
+
+/** Bob's old and new follow list: the new one drops Alice for Carol. */
+function followLists() {
+  return [
+    sign(bob, 3, { tags: [["p", alice.pubkey]], created_at: NOW - 3 * DAY }),
+    sign(bob, 3, { tags: [["p", carol.pubkey]], created_at: NOW - DAY }),
+  ];
+}
+
+Deno.test("failed insert: repair listeners hear of a runtime repair that wrote something, after it is in", async () => {
+  const [oldFollow, newFollow] = followLists();
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const store = await open(triples);
+  // What a listener reads when it is called: the repaired state.
+  const seen: Promise<string[] | undefined>[] = [];
+  store.onRepaired(() =>
+    seen.push(store.follows([bob.pubkey]).then((m) => m.get(bob.pubkey)))
+  );
+  try {
+    await store.add(oldFollow);
+    await store.add(newFollow).then(() => assert(false), () => {});
+    assertEquals(seen.length, 0);
+    await logged(async () => {
+      await store.add(sign(alice, 1, { content: "next group" }));
+    });
+    assertEquals(seen.length, 1);
+    assertEquals(await seen[0], [carol.pubkey]);
+    // A healthy commit afterwards repairs nothing and tells nobody.
+    await store.add(sign(alice, 1, { content: "later" }));
+    assertEquals(seen.length, 1);
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("failed insert: a repair that writes nothing tells nobody", async () => {
+  const triples = new CountingStore(new MemoryTripleStore());
+  const store = await open(triples);
+  let calls = 0;
+  store.onRepaired(() => calls++);
+  try {
+    // The insert fails before writing anything: the repair has nothing to do.
+    triples.failNextInsert = new Error("disk full");
+    await store.add(sign(alice, 1, { content: "lost" })).then(
+      () => assert(false),
+      () => {},
+    );
+    const before = triples.selects;
+    await store.add(sign(alice, 1, { content: "next group" }));
+    assert(triples.selects > before + 4, "the repair ran");
+    assertEquals(calls, 0);
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("failed insert: a throwing or rejecting repair listener leaves the store working", async () => {
+  const [oldFollow, newFollow] = followLists();
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const store = await open(triples);
+  const calls: string[] = [];
+  store.onRepaired(() => {
+    calls.push("throws");
+    throw new Error("listener failure");
+  });
+  store.onRepaired(async () => {
+    calls.push("rejects");
+    await Promise.resolve();
+    throw new Error("async listener failure");
+  });
+  const off = store.onRepaired(() => calls.push("third"));
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => errors.push(args.join(" "));
+  try {
+    await store.add(oldFollow);
+    await store.add(newFollow).then(() => assert(false), () => {});
+    await logged(async () => {
+      assertEquals(
+        (await store.add(sign(alice, 1, { content: "next group" }))).status,
+        "stored",
+      );
+    });
+    assertEquals(calls, ["throws", "rejects", "third"]);
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey),
+      [carol.pubkey],
+    );
+    // Both failures are logged, the rejection once it has happened.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assertEquals(errors.length, 2, errors.join("\n"));
+    // The committer goes on, and no repair is pending any more.
+    off();
+    assertEquals((await store.add(newFollow)).status, "stored");
+    assertEquals(calls.length, 3);
+  } finally {
+    console.error = originalError;
+    await store.close();
+  }
+});
+
+Deno.test("failed insert: on a quiet node the repair runs from the timer and tells its listeners", async () => {
+  const [oldFollow, newFollow] = followLists();
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const store = await createEventStore(triples, config(), {
+    repairRetryMs: 10,
+  });
+  let repaired!: () => void;
+  const told = new Promise<void>((resolve) => repaired = resolve);
+  let calls = 0;
+  store.onRepaired(() => {
+    calls++;
+    repaired();
+  });
+  const original = console.log;
+  console.log = () => {};
+  try {
+    await store.add(oldFollow);
+    await store.add(newFollow).then(() => assert(false), () => {});
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey)?.length,
+      2,
+    );
+    // No further add: only the timer can run the repair. The store's timer
+    // does not keep the process alive, this one does (and bounds the wait).
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      told,
+      new Promise((_, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("the timer did not repair")),
+          5000,
+        );
+      }),
+    ]).finally(() => clearTimeout(deadline));
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey),
+      [carol.pubkey],
+    );
+    // The timer stops once the repair succeeded.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assertEquals(calls, 1);
+  } finally {
+    console.log = original;
     await store.close();
   }
 });

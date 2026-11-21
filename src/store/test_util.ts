@@ -138,3 +138,45 @@ export class CountingStore implements TripleStore {
     return this.inner.close();
   }
 }
+
+/** Whether an N-Triples line is a `supersededBy` or `deletedBy` triple. */
+export const isBookkeeping = (line: string) =>
+  line.includes("<nostr:ontology:supersededBy>") ||
+  line.includes("<nostr:ontology:deletedBy>");
+
+/**
+ * A triple store whose first insert holding bookkeeping is cut off before it
+ * (the events are in, complete, and the insert fails), and whose selects can
+ * be made to fail.
+ */
+export class CutBeforeBookkeeping implements TripleStore {
+  cuts = 0;
+  failSelects = false;
+  constructor(readonly inner: TripleStore) {}
+  async insert(ntriples: string) {
+    const lines = ntriples.split("\n");
+    const at = lines.findIndex(isBookkeeping);
+    if (this.cuts === 0 && at >= 0) {
+      this.cuts++;
+      await this.inner.insert(lines.slice(0, at).join("\n") + "\n");
+      throw new Error("the store went away");
+    }
+    return this.inner.insert(ntriples);
+  }
+  select(sparql: string) {
+    if (this.failSelects) return Promise.reject(new Error("store is down"));
+    return this.inner.select(sparql);
+  }
+  ask(sparql: string) {
+    return this.inner.ask(sparql);
+  }
+  query(sparql: string) {
+    return this.inner.query(sparql);
+  }
+  size() {
+    return this.inner.size();
+  }
+  close() {
+    return this.inner.close();
+  }
+}
