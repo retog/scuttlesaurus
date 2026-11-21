@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64"
+  height="64">
+  <style>
+  svg {
+    color: #1f7a5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      color: #4cc79a;
+    }
+  }
+  </style>
+  <mask id="eye" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+    <rect width="64" height="64" fill="#fff" />
+    <circle cx="20.5" cy="10.2" r="1.8" fill="#000" />
+  </mask>
+  <g fill="currentColor" mask="url(#eye)">
+    <ellipse cx="34" cy="42" rx="19" ry="11" />
+    <path d="M23 40C15 36 17 24 17.5 17" fill="none" stroke="currentColor"
+      stroke-width="8" stroke-linecap="round" />
+    <ellipse cx="17.5" cy="11.5" rx="9.5" ry="5.6"
+      transform="rotate(-14 17.5 11.5)" />
+    <path d="M51 40C57 41 59.500 46 61 52" fill="none" stroke="currentColor"
+      stroke-width="5" stroke-linecap="round" />
+    <rect x="22" y="47" width="7.5" height="12" rx="3.500" />
+    <rect x="40" y="47" width="7.5" height="12" rx="3.500" />
+  </g>
+</svg>

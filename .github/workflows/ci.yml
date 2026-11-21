@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "2.9.6"
+
+      - name: Check, lint and format
+        run: deno task check
+
+      - name: Test
+        run: deno task test
+
+      - name: Build the web client
+        run: deno task build

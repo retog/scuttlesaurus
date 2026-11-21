@@ -1,0 +1,49 @@
+# A Scuttlesaurus node. `docker compose up -d` builds the image and starts it;
+# the data lives in the named volume `scuttlesaurus-data`. See docs/INSTALL.md.
+#
+# The node listens on all addresses inside the container, so the port mapping
+# works. To accept connections only from this machine, for example behind a
+# reverse proxy, map the port as "127.0.0.1:7777:7777".
+
+services:
+  scuttlesaurus:
+    build: .
+    ports:
+      - "7777:7777"
+    volumes:
+      - scuttlesaurus-data:/data
+    # Settings. Uncomment the environment key and the lines you need. Every
+    # setting is described in docs/ARCHITECTURE.md ("Configuration").
+    # environment:
+    #   OWNER: npub1...                  # set it for a public node
+    #   PUBLIC_URL: https://your.host    # the address people use
+    #   RELAY_NAME: Scuttlesaurus
+    #   HOPS: "2"
+    #   MAX_AUTHORS: "1500"
+    #   BOOTSTRAP_RELAYS: wss://relay.damus.io/,wss://nos.lol/
+    #   FORWARD: all
+    #   REPLICATION: "off"
+    #   BLOSSOM_MAX_SIZE_MB: "50"
+    #   TRUSTED_PROXIES: "0"             # no reverse proxy in front; see INSTALL.md
+    #
+    # With the oxigraph profile below, keep the graph in Oxigraph instead of
+    # the embedded store:
+    #   SPARQL_ENDPOINT_QUERY: http://oxigraph:7878/query
+    #   SPARQL_ENDPOINT_UPDATE: http://oxigraph:7878/update
+    #   SPARQL_ENDPOINT_CREDENTIALS: user:password  # only if the endpoint needs it
+    restart: unless-stopped
+
+  # Optional: `docker compose --profile oxigraph up -d` also starts an Oxigraph
+  # server. Oxigraph is reachable from the node at http://oxigraph:7878, and
+  # its port is not published to the host.
+  oxigraph:
+    profiles: ["oxigraph"]
+    image: ghcr.io/oxigraph/oxigraph
+    command: ["serve", "--location", "/data", "--bind", "0.0.0.0:7878"]
+    volumes:
+      - oxigraph-data:/data
+    restart: unless-stopped
+
+volumes:
+  scuttlesaurus-data:
+  oxigraph-data:

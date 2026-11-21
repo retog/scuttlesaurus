@@ -1,0 +1,57 @@
+{
+  "version": "0.1.0",
+  "workspace": [
+    "./web"
+  ],
+  "tasks": {
+    "build": "deno run -A scripts/build.ts",
+    "start": {
+      "description": "Build the web client and run the node",
+      "command": "deno run -A main.ts",
+      "dependencies": [
+        "build"
+      ]
+    },
+    "dev": "deno run -A scripts/dev.ts",
+    "seed": "deno run -A scripts/seed.ts",
+    "test": "deno test -A",
+    "check": "deno check main.ts web/src/main.tsx && deno lint && deno fmt --check"
+  },
+  "imports": {
+    "@noble/curves": "npm:@noble/curves@^2.0.1",
+    "@noble/hashes": "npm:@noble/hashes@^2.0.1",
+    "@nostr/tools": "jsr:@nostr/tools@^2.26.0",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@std/async": "jsr:@std/async@^1.5.1",
+    "@std/cli": "jsr:@std/cli@^1.0.32",
+    "@std/crypto": "jsr:@std/crypto@^1.0.5",
+    "@std/encoding": "jsr:@std/encoding@^1.0.11",
+    "@std/fs": "jsr:@std/fs@^1.0.24",
+    "@std/http": "jsr:@std/http@^1.1.4",
+    "@std/media-types": "jsr:@std/media-types@^1.1.0",
+    "@std/path": "jsr:@std/path@^1.1.6",
+    "oxigraph": "npm:oxigraph@^0.5.13"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "fmt": {
+    "exclude": [
+      "web/dist/",
+      "data/",
+      ".claude/"
+    ]
+  },
+  "lint": {
+    "exclude": [
+      "web/dist/",
+      "data/",
+      ".claude/"
+    ]
+  },
+  "exclude": [
+    "web/dist/",
+    "data/",
+    ".claude/"
+  ]
+}

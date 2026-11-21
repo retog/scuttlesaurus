@@ -1,0 +1,349 @@
+# Vocabulary of the Scuttlesaurus graph. Prose: docs/DATA-MODEL.md; the term
+# names are also defined in src/vocab.ts.
+#
+# Besides the terms below, the generic index predicates nostr:ontology:tag:<letter>
+# (prefix tag:) carry, for every tag with a single ASCII letter name, the value
+# tag[1] of an event as a string, as NIP-01 tag filters need it.
+#
+# Alignments are deliberate and conservative. rdfs:subPropertyOf is used only
+# where the term means the same thing for an event as the other property does
+# for any resource of its domain; skos:closeMatch where the meaning is close
+# but the subject (often the profile or list event rather than the person) or
+# the value representation differs.
+
+@prefix nostr:   <nostr:ontology:> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix foaf:    <http://xmlns.com/foaf/0.1/> .
+@prefix schema:  <http://schema.org/> .
+@prefix sioc:    <http://rdfs.org/sioc/ns#> .
+
+nostr: a owl:Ontology ;
+    rdfs:label "Scuttlesaurus Nostr vocabulary" ;
+    rdfs:comment "Terms for describing Nostr events, their links and the blobs of a Blossom server as an RDF graph." .
+
+# --- classes -----------------------------------------------------------------
+
+nostr:Event a rdfs:Class ;
+    rdfs:label "Event" ;
+    rdfs:subClassOf sioc:Item ;
+    rdfs:comment "A signed Nostr event (NIP-01), identified by its NIP-21 note IRI. Everything an event consists of is reconstructible from the triples of its resource." .
+
+nostr:PublicKey a rdfs:Class ;
+    rdfs:label "Public key" ;
+    rdfs:comment "A Nostr public key, identified by the NIP-21 npub IRI. Used for authors, mentions, follows and mutes." .
+
+nostr:Address a rdfs:Class ;
+    rdfs:label "Address" ;
+    rdfs:comment "The coordinate (kind, public key, d tag) of a replaceable or addressable event, identified by a relay-less naddr IRI. An address is the thing; each version of it is an Event." .
+
+nostr:Relay a rdfs:Class ;
+    rdfs:label "Relay" ;
+    rdfs:comment "A Nostr relay, identified by its normalized ws: or wss: URL." .
+
+nostr:Blob a rdfs:Class ;
+    rdfs:label "Blob" ;
+    rdfs:comment "A file stored by a Blossom server (BUD-01), identified by its SHA-256 as a urn:sha256 IRI." .
+
+nostr:BlobUpload a rdfs:Class ;
+    rdfs:label "Blob upload" ;
+    rdfs:comment "The receipt of one upload of a blob (BUD-02), identified by a urn:uuid IRI. A blob is kept while a receipt without nostr:removedAt exists." .
+
+# --- properties --------------------------------------------------------------
+
+nostr:author a rdf:Property ;
+    rdfs:label "author" ;
+    rdfs:comment "The public key that signed the event." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:PublicKey ;
+    rdfs:subPropertyOf dcterms:creator .
+
+nostr:kind a rdf:Property ;
+    rdfs:label "kind" ;
+    rdfs:comment "The NIP-01 kind number of the event." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:integer .
+
+nostr:createdAt a rdf:Property ;
+    rdfs:label "created at" ;
+    rdfs:comment "The event's created_at timestamp in Unix seconds." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:integer ;
+    skos:closeMatch dcterms:created .
+
+nostr:date a rdf:Property ;
+    rdfs:label "date" ;
+    rdfs:comment "The UTC day of created_at. It exists so that time windows can be selected by index instead of sorting every event." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:date ;
+    skos:closeMatch dcterms:date .
+
+nostr:content a rdf:Property ;
+    rdfs:label "content" ;
+    rdfs:comment "The content of the event. Omitted when the content is empty." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    rdfs:subPropertyOf sioc:content .
+
+nostr:tags a rdf:Property ;
+    rdfs:label "tags" ;
+    rdfs:comment "The tags array as compact JSON, verbatim. Omitted when the array is empty." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string .
+
+nostr:sig a rdf:Property ;
+    rdfs:label "signature" ;
+    rdfs:comment "The hex Schnorr signature of the event. Written last, so an event without it is incomplete." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string .
+
+nostr:seenOn a rdf:Property ;
+    rdfs:label "seen on" ;
+    rdfs:comment "A relay the event was received from: the first one, and up to three more that delivered it later. Absent for events published to this node and not seen on a relay." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Relay .
+
+nostr:references a rdf:Property ;
+    rdfs:label "references" ;
+    rdfs:comment "Event referenced by an e tag." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event ;
+    rdfs:subPropertyOf dcterms:references .
+
+nostr:quotes a rdf:Property ;
+    rdfs:label "quotes" ;
+    rdfs:comment "Event referenced by a q tag (NIP-18)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event .
+
+nostr:referencesAddress a rdf:Property ;
+    rdfs:label "references address" ;
+    rdfs:comment "Address referenced by an a tag." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Address .
+
+nostr:mentions a rdf:Property ;
+    rdfs:label "mentions" ;
+    rdfs:comment "Public key referenced by a p tag. Not used in kinds 3 and 10000, which have follows and mutes." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:PublicKey ;
+    skos:closeMatch schema:mentions .
+
+nostr:root a rdf:Property ;
+    rdfs:label "thread root" ;
+    rdfs:comment "The root of the thread an event belongs to (NIP-10 for kind 1, NIP-22 for kind 1111)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event .
+
+nostr:replyTo a rdf:Property ;
+    rdfs:label "reply to" ;
+    rdfs:comment "The direct parent of a reply (NIP-10, NIP-22). A kind 1 event without it is a top-level note." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event ;
+    rdfs:subPropertyOf sioc:reply_of .
+
+nostr:rootAddress a rdf:Property ;
+    rdfs:label "root address" ;
+    rdfs:comment "The addressable root of a comment thread, from an A tag (NIP-22)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Address .
+
+nostr:replyToAddress a rdf:Property ;
+    rdfs:label "reply to address" ;
+    rdfs:comment "The addressable parent of a comment, from an a tag (NIP-22)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Address .
+
+nostr:follows a rdf:Property ;
+    rdfs:label "follows" ;
+    rdfs:comment "Public key in a follow list, from the p tags of a kind 3 event (NIP-02). The subject is the list, not the person." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:PublicKey ;
+    skos:closeMatch sioc:follows .
+
+nostr:mutes a rdf:Property ;
+    rdfs:label "mutes" ;
+    rdfs:comment "Public key in a public mute list, from the p tags of a kind 10000 event (NIP-51)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:PublicKey .
+
+nostr:reactsTo a rdf:Property ;
+    rdfs:label "reacts to" ;
+    rdfs:comment "The event a kind 7 reaction refers to: its last e tag (NIP-25)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event .
+
+nostr:reposts a rdf:Property ;
+    rdfs:label "reposts" ;
+    rdfs:comment "The event a kind 6 or 16 repost refers to: its last e tag (NIP-18)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event .
+
+nostr:deletes a rdf:Property ;
+    rdfs:label "deletes" ;
+    rdfs:comment "Event named by an e tag of a kind 5 deletion request (NIP-09)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event .
+
+nostr:deletesAddress a rdf:Property ;
+    rdfs:label "deletes address" ;
+    rdfs:comment "Address named by an a tag of a kind 5 deletion request (NIP-09)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Address .
+
+nostr:address a rdf:Property ;
+    rdfs:label "address" ;
+    rdfs:comment "The address an addressable event (kinds 30000-39999) is a version of." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Address .
+
+nostr:supersededBy a rdf:Property ;
+    rdfs:label "superseded by" ;
+    rdfs:comment "Added by the store when a newer replaceable or addressable event with the same key exists. The newest version has none." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event ;
+    rdfs:subPropertyOf dcterms:isReplacedBy .
+
+nostr:deletedBy a rdf:Property ;
+    rdfs:label "deleted by" ;
+    rdfs:comment "Added by the store when a kind 5 event of the same author retracts this event. Retracted events are never served." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Event .
+
+nostr:name a rdf:Property ;
+    rdfs:label "name" ;
+    rdfs:comment "The name field of a kind 0 profile, the handle of the account. The subject is the profile event." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    skos:closeMatch foaf:nick .
+
+nostr:displayName a rdf:Property ;
+    rdfs:label "display name" ;
+    rdfs:comment "The display_name field of a kind 0 profile." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    skos:closeMatch foaf:name .
+
+nostr:about a rdf:Property ;
+    rdfs:label "about" ;
+    rdfs:comment "The about field of a kind 0 profile." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    skos:closeMatch schema:description .
+
+nostr:picture a rdf:Property ;
+    rdfs:label "picture" ;
+    rdfs:comment "The picture field of a kind 0 profile, an http(s) IRI." ;
+    rdfs:domain nostr:Event ;
+    skos:closeMatch schema:image .
+
+nostr:banner a rdf:Property ;
+    rdfs:label "banner" ;
+    rdfs:comment "The banner field of a kind 0 profile, an http(s) IRI." ;
+    rdfs:domain nostr:Event .
+
+nostr:website a rdf:Property ;
+    rdfs:label "website" ;
+    rdfs:comment "The website field of a kind 0 profile." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    skos:closeMatch foaf:homepage .
+
+nostr:nip05 a rdf:Property ;
+    rdfs:label "NIP-05 identifier" ;
+    rdfs:comment "The nip05 field of a kind 0 profile, an internet identifier such as alice@example.com (NIP-05)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string .
+
+nostr:lud16 a rdf:Property ;
+    rdfs:label "Lightning address" ;
+    rdfs:comment "The lud16 field of a kind 0 profile, a Lightning address (LUD-16)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string .
+
+nostr:title a rdf:Property ;
+    rdfs:label "title" ;
+    rdfs:comment "The title tag of a long-form article (NIP-23)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    rdfs:subPropertyOf dcterms:title .
+
+nostr:summary a rdf:Property ;
+    rdfs:label "summary" ;
+    rdfs:comment "The summary tag of a long-form article (NIP-23)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:string ;
+    rdfs:subPropertyOf dcterms:abstract .
+
+nostr:image a rdf:Property ;
+    rdfs:label "image" ;
+    rdfs:comment "The image tag of a long-form article (NIP-23), an http(s) IRI." ;
+    rdfs:domain nostr:Event ;
+    skos:closeMatch schema:image .
+
+nostr:publishedAt a rdf:Property ;
+    rdfs:label "published at" ;
+    rdfs:comment "The published_at tag of a long-form article in Unix seconds (NIP-23)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range xsd:integer ;
+    skos:closeMatch dcterms:issued .
+
+nostr:readRelay a rdf:Property ;
+    rdfs:label "read relay" ;
+    rdfs:comment "Relay where the author reads, from a kind 10002 relay list (NIP-65)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Relay .
+
+nostr:writeRelay a rdf:Property ;
+    rdfs:label "write relay" ;
+    rdfs:comment "Relay where the author writes, from a kind 10002 relay list (NIP-65)." ;
+    rdfs:domain nostr:Event ;
+    rdfs:range nostr:Relay .
+
+nostr:blossomServer a rdf:Property ;
+    rdfs:label "Blossom server" ;
+    rdfs:comment "Blossom server of the author, from a kind 10063 server list (BUD-03), an http(s) IRI." ;
+    rdfs:domain nostr:Event .
+
+nostr:blobSize a rdf:Property ;
+    rdfs:label "blob size" ;
+    rdfs:comment "Size of a blob in bytes." ;
+    rdfs:domain nostr:Blob ;
+    rdfs:range xsd:integer ;
+    skos:closeMatch schema:contentSize .
+
+nostr:blobType a rdf:Property ;
+    rdfs:label "blob type" ;
+    rdfs:comment "Media type of a blob." ;
+    rdfs:domain nostr:Blob ;
+    rdfs:range xsd:string ;
+    skos:closeMatch dcterms:format .
+
+nostr:blob a rdf:Property ;
+    rdfs:label "blob" ;
+    rdfs:comment "The blob an upload receipt is for." ;
+    rdfs:domain nostr:BlobUpload ;
+    rdfs:range nostr:Blob .
+
+nostr:uploadedBy a rdf:Property ;
+    rdfs:label "uploaded by" ;
+    rdfs:comment "The public key that uploaded the blob." ;
+    rdfs:domain nostr:BlobUpload ;
+    rdfs:range nostr:PublicKey .
+
+nostr:uploadedAt a rdf:Property ;
+    rdfs:label "uploaded at" ;
+    rdfs:comment "Upload time in Unix seconds." ;
+    rdfs:domain nostr:BlobUpload ;
+    rdfs:range xsd:integer ;
+    skos:closeMatch dcterms:dateSubmitted .
+
+nostr:removedAt a rdf:Property ;
+    rdfs:label "removed at" ;
+    rdfs:comment "Added when the uploader deletes the blob, in Unix seconds. The receipt no longer keeps the blob alive." ;
+    rdfs:domain nostr:BlobUpload ;
+    rdfs:range xsd:integer .
