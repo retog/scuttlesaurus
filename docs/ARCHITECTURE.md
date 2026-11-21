@@ -375,11 +375,12 @@ right, or the leftmost when there are fewer. Every entry counts for its
 position; if the chosen one is not an IP address (`unknown`, an empty item), the
 peer is the client, as without the header, and never an entry further left. A
 public peer is never trusted, and with `TRUSTED_PROXIES=0` the header is
-ignored. IPv4 clients are counted by address, IPv6 clients by their /64 network.
-When a limit refuses a local peer that sent no `X-Forwarded-For`, the node logs
-once that a proxy in front of it may be missing the header, since all its
-visitors then share one allowance. Setups and values are listed in
-[INSTALL.md](INSTALL.md), "Put it on the internet".
+ignored. IPv4 clients are counted by address (also as IPv4-mapped or NAT64
+IPv6), other IPv6 clients by their /64 network. When a limit refuses a local
+peer that sent no `X-Forwarded-For`, the node logs once that a proxy in front of
+it may be missing the header, since all its visitors then share one allowance.
+Setups and values are listed in [INSTALL.md](INSTALL.md), "Put it on the
+internet".
 
 ### SPARQL endpoint
 
