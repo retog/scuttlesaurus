@@ -198,7 +198,12 @@ rate limit in front if that matters.
   incomplete event; an interrupted insert can only leave events without their
   bookkeeping. The store repairs that at start and, without a restart, before
   the next commit after a failed insert (see
-  [DATA-MODEL.md](DATA-MODEL.md#bookkeeping-added-by-the-store)).
+  [DATA-MODEL.md](DATA-MODEL.md#bookkeeping-added-by-the-store)). A follow or
+  mute list that is already superseded when it arrives (replication pages
+  backwards in time, so old versions arrive after the current one) is written as
+  a stub: no content, tags or links, and its `supersededBy` before its
+  `nostr:sig` (see [DATA-MODEL.md](DATA-MODEL.md#stale-follow-and-mute-lists)).
+  It is stored, counted and known by id like any event, but it cannot be served.
 - Adds are committed in groups, on every backend. Adds issued in the same turn
   form one group, of at most 500 events and an estimated 4 MiB of N-Triples;
   adds that arrive while a group is being stored wait for the next one. A group
@@ -206,17 +211,21 @@ rate limit in front if that matters.
   `insert`, with the same results as adding the events one by one. Each `add`
   resolves once its group is stored and its subscribers are told.
 - `query` translates NIP-01 filters to SPARQL and reconstructs events from their
-  triples. Superseded and retracted events are never returned. Filters that are
-  not selective (no `ids`, `authors` or tag condition) are evaluated over a
-  widening window of `nostr:date` values instead of sorting everything. The
-  NIP-50 `search` field is supported as a case-insensitive substring match.
+  triples. Superseded and retracted events are never returned. A `#p` condition
+  also matches the `follows` / `mutes` links of follow and mute lists, which
+  have no `tag:p` triples for their valid `p` values. Filters that are not
+  selective (no `ids`, `authors` or tag condition) are evaluated over a widening
+  window of `nostr:date` values instead of sorting everything. The NIP-50
+  `search` field is supported as a case-insensitive substring match.
 - `has` answers from an in-memory set of event ids, loaded at start.
 
 Rough capacity of the embedded store: about 0.5 GB of memory per million
-triples, and an event is around ten triples. With the default limits a node
-stays well below a million triples. Beyond a few million, use an endpoint or the
-QLever store, which keeps the graph out of the node's memory. The QLever store
-has been run only on graphs of up to about ten thousand triples.
+triples. An event is around ten triples, a follow or mute list one triple per
+entry and a few more, and a version of such a list that is superseded on arrival
+seven at most. With the default limits a node stays well below a million
+triples. Beyond a few million, use an endpoint or the QLever store, which keeps
+the graph out of the node's memory. The QLever store has been run only on graphs
+of up to about ten thousand triples.
 
 ## Social graph (`src/social/`)
 

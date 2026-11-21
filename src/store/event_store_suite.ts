@@ -9,6 +9,8 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { verifyEvent } from "@nostr/tools/pure";
 import type { Config, EventStore, Filter, NostrEvent } from "../types.ts";
+import { eventIri, NOSTR, pubkeyIri, TAG } from "../vocab.ts";
+import { eventToTriples } from "./event_triples.ts";
 import { DAY, identities, plain, sign } from "./test_util.ts";
 
 /** Opens an event store on a fresh backend; `cleanup` releases what is left. */
@@ -828,6 +830,250 @@ export function defineEventStoreTests(label: string, open: OpenStore): void {
       ]);
       assertEquals(result.get(alice.pubkey)!.length, 650);
       assertEquals((await store.follows(many.map((m) => m.pubkey))).size, 0);
+    });
+  });
+
+  test("query: #p finds follow lists, mute lists and mentions, old-style lists too", async () => {
+    await withStore(async (store) => {
+      const [dan, erin] = identities(2);
+      const mention = sign(alice, 1, {
+        tags: [["p", bob.pubkey], ["t", "y"]],
+        created_at: NOW - 500,
+      });
+      const follows = sign(carol, 3, {
+        tags: [["p", bob.pubkey], ["p", "zz"], ["t", "x"]],
+        created_at: NOW - 400,
+      });
+      const mutes = sign(carol, 10000, {
+        tags: [["p", bob.pubkey]],
+        created_at: NOW - 300,
+      });
+      const other = sign(erin, 3, {
+        tags: [["p", carol.pubkey]],
+        created_at: NOW - 250,
+      });
+      await addAll(store, [mention, follows, mutes, other]);
+      // A follow list as stores written before this mapping hold it, with
+      // `tag:p` next to `follows`.
+      const old = sign(dan, 3, {
+        tags: [["p", bob.pubkey]],
+        created_at: NOW - 200,
+      });
+      await store.triples.insert(
+        `<${eventIri(old.id)}> <${TAG}p> "${bob.pubkey}" .\n` +
+          eventToTriples(old),
+      );
+
+      const q = async (f: Filter) => ids(await store.query([f]));
+      const p = bob.pubkey;
+      assertEquals(await q({ "#p": [p] }), [
+        old.id,
+        mutes.id,
+        follows.id,
+        mention.id,
+      ]);
+      assertEquals(await q({ kinds: [1], "#p": [p] }), [mention.id]);
+      assertEquals(await q({ kinds: [3], "#p": [p] }), [old.id, follows.id]);
+      assertEquals(await q({ kinds: [10000], "#p": [p] }), [mutes.id]);
+      assertEquals(await q({ kinds: [1, 10000], "#p": [p] }), [
+        mutes.id,
+        mention.id,
+      ]);
+      assertEquals(await q({ "#p": [carol.pubkey, p], kinds: [3] }), [
+        old.id,
+        other.id,
+        follows.id,
+      ]);
+      // An invalid value is still in the tag index.
+      assertEquals(await q({ "#p": ["zz"] }), [follows.id]);
+      assertEquals(await q({ "#p": [p], authors: [carol.pubkey] }), [
+        mutes.id,
+        follows.id,
+      ]);
+      assertEquals(await q({ "#p": [p], "#t": ["x"] }), [follows.id]);
+      assertEquals(await q({ "#p": [p], "#t": ["y"] }), [mention.id]);
+      assertEquals(await q({ "#P": [p] }), []);
+      assertEquals(await store.count([{ "#p": [p] }]), 4);
+      // The reconstructed list is the signed event.
+      const [got] = await store.query([{ ids: [follows.id], "#p": [p] }]);
+      assertEquals(plain(got), plain(follows));
+      assert(verifyEvent(got));
+
+      // A newer list without bob: the older one is no longer found.
+      const newer = sign(carol, 3, { created_at: NOW - 100 });
+      await addAll(store, [newer]);
+      assertEquals(await q({ kinds: [3], "#p": [p] }), [old.id]);
+    });
+  });
+
+  test("stale follow and mute lists are stored as stubs that are never served", async () => {
+    for (const [kind, link] of [[3, "follows"], [10000, "mutes"]] as const) {
+      await withStore(async (store) => {
+        const cur = sign(alice, kind, {
+          tags: [["p", bob.pubkey], ["p", carol.pubkey]],
+          created_at: NOW - 10,
+        });
+        const old = sign(alice, kind, {
+          content: "old",
+          tags: [["p", bob.pubkey], ["t", "x"]],
+          created_at: NOW - 100,
+        });
+        await addAll(store, [cur]);
+        const before = (await store.stats()).triples;
+        const heard: string[] = [];
+        store.subscribe((event) => heard.push(event.id));
+        assertEquals(
+          await store.add(old, { seenOn: "wss://a.example.com" }),
+          { status: "stored" },
+        );
+        assertEquals(heard, [old.id]);
+        assert(store.has(old.id));
+
+        const n = (name: string) => `${NOSTR}${name}`;
+        const rows = await store.triples.select(
+          `SELECT ?p ?o WHERE { <${eventIri(old.id)}> ?p ?o }`,
+        );
+        assertEquals(
+          rows.map((r) => `${r.p.value} ${r.o.value}`).sort(),
+          [
+            `${n("author")} ${pubkeyIri(alice.pubkey)}`,
+            `${n("kind")} ${kind}`,
+            `${n("createdAt")} ${old.created_at}`,
+            `${n("date")} ${
+              new Date(old.created_at * 1000).toISOString().slice(0, 10)
+            }`,
+            `${n("seenOn")} wss://a.example.com/`,
+            `${n("supersededBy")} ${eventIri(cur.id)}`,
+            `${n("sig")} ${old.sig}`,
+          ].sort(),
+        );
+        assertEquals((await store.stats()).triples, before + 7);
+        assertEquals((await store.stats()).events, 2);
+
+        const list = kind === 3
+          ? (await store.follows([alice.pubkey])).get(alice.pubkey)
+          : await store.mutes(alice.pubkey);
+        assertEquals(list!.sort(), [bob.pubkey, carol.pubkey].sort(), link);
+        const q = async (f: Filter) => ids(await store.query([f]));
+        assertEquals(await q({ kinds: [kind], authors: [alice.pubkey] }), [
+          cur.id,
+        ]);
+        assertEquals(await q({ ids: [old.id] }), []);
+        assertEquals(await q({ ids: [old.id, cur.id] }), [cur.id]);
+        assertEquals(await q({ "#p": [bob.pubkey] }), [cur.id]);
+        assertEquals(await q({ "#t": ["x"] }), []);
+        assertEquals(await store.count([{ ids: [old.id] }]), 0);
+
+        // Offered again: a duplicate, and another relay is still recorded.
+        assertEquals(await store.add(old), { status: "duplicate" });
+        assertEquals(
+          await store.add(old, { seenOn: "wss://a.example.com" }),
+          { status: "duplicate" },
+        );
+        assertEquals((await store.stats()).triples, before + 7);
+        assertEquals(
+          await store.add(old, { seenOn: "wss://b.example.com" }),
+          { status: "duplicate" },
+        );
+        assertEquals((await store.stats()).triples, before + 8);
+        assertEquals(
+          (await store.relayScores([alice.pubkey])).get(alice.pubkey),
+          new Map([["wss://a.example.com/", 1], ["wss://b.example.com/", 1]]),
+        );
+        // A tampered copy does not earn the relay credit.
+        assertEquals(
+          (await store.add({ ...old, tags: [] }, {
+            seenOn: "wss://c.example.com",
+          })).status,
+          "rejected",
+        );
+      });
+    }
+  });
+
+  test("a stale list whose winner is retracted stays hidden; a deletion of the stub applies", async () => {
+    await withStore(async (store) => {
+      const cur = sign(alice, 3, {
+        tags: [["p", bob.pubkey]],
+        created_at: NOW - 10,
+      });
+      const old = sign(alice, 3, {
+        tags: [["p", carol.pubkey]],
+        created_at: NOW - 100,
+      });
+      await addAll(store, [
+        cur,
+        sign(alice, 5, { tags: [["e", cur.id]], created_at: NOW - 5 }),
+        old,
+      ]);
+      assertEquals(
+        (await store.follows([alice.pubkey])).has(alice.pubkey),
+        false,
+      );
+      assertEquals(await store.query([{ kinds: [3] }]), []);
+      // Deleting the stub itself by `e` tag marks it like any event.
+      await addAll(store, [
+        sign(alice, 5, { tags: [["e", old.id]], created_at: NOW - 4 }),
+      ]);
+      const deleted = await store.triples.select(
+        `SELECT ?d WHERE { <${eventIri(old.id)}> <${NOSTR}deletedBy> ?d }`,
+      );
+      assertEquals(deleted.length, 1);
+      // A version not newer than an address deletion is still refused.
+      assertEquals(
+        (await store.add(
+          sign(alice, 5, {
+            tags: [["a", `3:${alice.pubkey}:`]],
+            created_at: NOW - 3,
+          }),
+        )).status,
+        "stored",
+      );
+      assertEquals(
+        (await store.add(sign(alice, 3, { created_at: NOW - 50 }))).status,
+        "rejected",
+      );
+    });
+  });
+
+  test("stale versions of other replaceable and addressable kinds are stored in full", async () => {
+    await withStore(async (store) => {
+      const stale = [
+        [
+          sign(alice, 0, { content: '{"name":"new"}', created_at: NOW - 10 }),
+          sign(alice, 0, {
+            content: '{"name":"old"}',
+            tags: [["p", bob.pubkey]],
+            created_at: NOW - 100,
+          }),
+        ],
+        [
+          sign(alice, 30023, { tags: [["d", "a"]], created_at: NOW - 10 }),
+          sign(alice, 30023, {
+            content: "old",
+            tags: [["d", "a"], ["p", bob.pubkey]],
+            created_at: NOW - 100,
+          }),
+        ],
+        [
+          sign(alice, 10002, { created_at: NOW - 10 }),
+          sign(alice, 10002, {
+            tags: [["r", "wss://old.example.com"], ["p", bob.pubkey]],
+            created_at: NOW - 100,
+          }),
+        ],
+      ];
+      for (const [cur, old] of stale) {
+        await addAll(store, [cur, old]);
+        const rows = await store.triples.select(
+          `SELECT ?p WHERE { <${eventIri(old.id)}> ?p ?o }`,
+        );
+        const predicates = new Set(rows.map((r) => r.p.value));
+        for (const name of ["tags", "mentions", "supersededBy", "sig"]) {
+          assert(predicates.has(`${NOSTR}${name}`), `${old.kind} ${name}`);
+        }
+        assert(predicates.has(`${TAG}p`), `${old.kind} tag:p`);
+      }
     });
   });
 

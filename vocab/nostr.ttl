@@ -3,7 +3,10 @@
 #
 # Besides the terms below, the generic index predicates nostr:ontology:tag:<letter>
 # (prefix tag:) carry, for every tag with a single ASCII letter name, the value
-# tag[1] of an event as a string, as NIP-01 tag filters need it.
+# tag[1] of an event as a string, as NIP-01 tag filters need it. Exception: a p
+# tag of a kind 3 or kind 10000 event whose value is a valid public key has no
+# tag:p triple, only nostr:follows or nostr:mutes (stores written before this
+# rule hold both).
 #
 # Alignments are deliberate and conservative. rdfs:subPropertyOf is used only
 # where the term means the same thing for an event as the other property does
@@ -31,7 +34,7 @@ nostr: a owl:Ontology ;
 nostr:Event a rdfs:Class ;
     rdfs:label "Event" ;
     rdfs:subClassOf sioc:Item ;
-    rdfs:comment "A signed Nostr event (NIP-01), identified by its NIP-21 note IRI. Everything an event consists of is reconstructible from the triples of its resource." .
+    rdfs:comment "A signed Nostr event (NIP-01), identified by its NIP-21 note IRI. Everything an event consists of is reconstructible from the triples of its resource, except for a follow or mute list that was already superseded when it arrived, which is stored as a stub without content and tags and is never served." .
 
 nostr:PublicKey a rdfs:Class ;
     rdfs:label "Public key" ;
@@ -84,14 +87,14 @@ nostr:date a rdf:Property ;
 
 nostr:content a rdf:Property ;
     rdfs:label "content" ;
-    rdfs:comment "The content of the event. Omitted when the content is empty." ;
+    rdfs:comment "The content of the event. Omitted when the content is empty, and in the stub of a superseded follow or mute list." ;
     rdfs:domain nostr:Event ;
     rdfs:range xsd:string ;
     rdfs:subPropertyOf sioc:content .
 
 nostr:tags a rdf:Property ;
     rdfs:label "tags" ;
-    rdfs:comment "The tags array as compact JSON, verbatim. Omitted when the array is empty." ;
+    rdfs:comment "The tags array as compact JSON, verbatim. Omitted when the array is empty, and in the stub of a superseded follow or mute list." ;
     rdfs:domain nostr:Event ;
     rdfs:range xsd:string .
 
@@ -160,14 +163,14 @@ nostr:replyToAddress a rdf:Property ;
 
 nostr:follows a rdf:Property ;
     rdfs:label "follows" ;
-    rdfs:comment "Public key in a follow list, from the p tags of a kind 3 event (NIP-02). The subject is the list, not the person." ;
+    rdfs:comment "Public key in a follow list, from the p tags of a kind 3 event (NIP-02). The subject is the list, not the person. Written instead of tag:p, so NIP-01 #p filters read it too. A version that was already superseded when it arrived has none." ;
     rdfs:domain nostr:Event ;
     rdfs:range nostr:PublicKey ;
     skos:closeMatch sioc:follows .
 
 nostr:mutes a rdf:Property ;
     rdfs:label "mutes" ;
-    rdfs:comment "Public key in a public mute list, from the p tags of a kind 10000 event (NIP-51)." ;
+    rdfs:comment "Public key in a public mute list, from the p tags of a kind 10000 event (NIP-51). Written instead of tag:p, so NIP-01 #p filters read it too. A version that was already superseded when it arrived has none." ;
     rdfs:domain nostr:Event ;
     rdfs:range nostr:PublicKey .
 
@@ -203,7 +206,7 @@ nostr:address a rdf:Property ;
 
 nostr:supersededBy a rdf:Property ;
     rdfs:label "superseded by" ;
-    rdfs:comment "Added by the store when a newer replaceable or addressable event with the same key exists. The newest version has none." ;
+    rdfs:comment "Added by the store when a newer replaceable or addressable event with the same key exists. The newest version has none. A follow or mute list that is superseded when it arrives is stored as a stub that carries it before its signature." ;
     rdfs:domain nostr:Event ;
     rdfs:range nostr:Event ;
     rdfs:subPropertyOf dcterms:isReplacedBy .

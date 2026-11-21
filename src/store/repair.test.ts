@@ -4,7 +4,7 @@
  * left by an earlier version of the store or by a cut anywhere in the document
  * of a group; and the start-up cost of the repair on a healthy graph.
  */
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { MemoryTripleStore } from "../testing/mod.ts";
 import type { EventStore, NostrEvent, TripleStore } from "../types.ts";
 import { createEventStore } from "./event_store.ts";
@@ -359,6 +359,223 @@ Deno.test("interrupted insert: cut at every line, then restart and retry", async
       await restarted.close();
     }
   }
+});
+
+/**
+ * Follow and mute lists that are complete and not superseded although they
+ * have no `nostr:tags`: what a stub without its `supersededBy` would look like
+ * (and a genuine empty list, which these tests do not have).
+ */
+const currentWithoutTags = async (triples: TripleStore) =>
+  (await triples.select(`SELECT ?e WHERE {
+    ?e <nostr:ontology:kind> ?k ; <nostr:ontology:sig> ?sig .
+    FILTER(?k IN (3, 10000))
+    MINUS { ?e <nostr:ontology:tags> ?tags }
+    MINUS { ?e <nostr:ontology:supersededBy> ?newer }
+  }`)).map((r) => r.e.value);
+
+/** Whether the graph holds the event's `nostr:tags` (a stub has none). */
+const hasTags = async (triples: TripleStore, event: NostrEvent) =>
+  await triples.ask(
+    `ASK { <${eventIri(event.id)}> <nostr:ontology:tags> ?tags }`,
+  );
+
+Deno.test("group document: a stub's supersededBy comes after its winner's sig and before its own", async () => {
+  const stored = sign(carol, 10000, { created_at: NOW - DAY });
+  const newer = sign(bob, 3, { created_at: NOW - DAY });
+  const group = [
+    newer,
+    sign(bob, 3, { created_at: NOW - 2 * DAY }),
+    sign(carol, 10000, { created_at: NOW - 2 * DAY }),
+  ];
+  const recording = new Recording(new MemoryTripleStore());
+  const store = await open(recording);
+  await store.add(stored);
+  recording.inserts.length = 0;
+  await Promise.all(group.map((event) => store.add(event)));
+  await store.close();
+  const document = lineOf(recording.inserts[0]);
+  const sigAt = new Map<string, number>();
+  document.forEach((line, i) => {
+    if (isSig(line)) sigAt.set(line.split(" ")[0], i);
+  });
+  const winners = [newer, stored].map((e) => `<${eventIri(e.id)}>`);
+  const stubs = group.slice(1).map((e) => `<${eventIri(e.id)}>`);
+  const links = document.flatMap((line, i) =>
+    isBookkeeping(line) ? [{ line, i, parts: line.split(" ") }] : []
+  );
+  assertEquals(links.map((l) => [l.parts[0], l.parts[2]]), [
+    [stubs[0], winners[0]],
+    [stubs[1], winners[1]],
+  ]);
+  for (const { line, i, parts: [subject, , object] } of links) {
+    // The winner is complete earlier in the document, or in the graph.
+    if (object === winners[0]) {
+      assert(sigAt.get(object)! < i, `${line} before its object`);
+    } else assert(!sigAt.has(object));
+    assert(i < sigAt.get(subject)!, `${line} after its own sig`);
+  }
+});
+
+Deno.test("interrupted insert with list stubs: cut at every line, no stub is ever current", async () => {
+  const before = [
+    sign(bob, 3, { tags: [["p", alice.pubkey]], created_at: NOW - 5 * DAY }),
+    sign(carol, 10000, {
+      tags: [["p", alice.pubkey]],
+      created_at: NOW - 5 * DAY,
+    }),
+  ];
+  const group = [
+    sign(bob, 3, { tags: [["p", carol.pubkey]], created_at: NOW - DAY }),
+    // Superseded on arrival by the version just before it in the group.
+    sign(bob, 3, { tags: [["p", bob.pubkey]], created_at: NOW - 2 * DAY }),
+    // Superseded on arrival by versions in the graph.
+    sign(carol, 10000, {
+      tags: [["p", bob.pubkey]],
+      created_at: NOW - 6 * DAY,
+    }),
+    sign(bob, 3, { tags: [["p", bob.pubkey]], created_at: NOW - 7 * DAY }),
+  ];
+  const recording = new Recording(new MemoryTripleStore());
+  const full = await open(recording);
+  for (const event of before) await full.add(event);
+  const prefix = recording.inserts.join("");
+  recording.inserts.length = 0;
+  await Promise.all(group.map((event) => full.add(event)));
+  assertEquals(recording.inserts.length, 1);
+  const document = lineOf(recording.inserts[0]);
+  await full.close();
+  // Three stubs carry their own supersededBy; one more for the old head.
+  assertEquals(document.filter(isBookkeeping).length, 4);
+
+  for (let cut = 0; cut <= document.length; cut++) {
+    const memory = new MemoryTripleStore();
+    await memory.insert(prefix + document.slice(0, cut).join("\n") + "\n");
+    assertEquals(await currentWithoutTags(memory), [], `raw ${cut}`);
+    const restarted = await open(memory);
+    try {
+      assertEquals(await currentWithoutTags(memory), [], `repaired ${cut}`);
+      assertEquals((await current(restarted, [3])).length, 1, `follow ${cut}`);
+      assertEquals(
+        await current(restarted, [10000]),
+        [before[1].id],
+        `mute ${cut}`,
+      );
+      assertEquals(
+        (await restarted.follows([bob.pubkey])).get(bob.pubkey)?.length,
+        1,
+        `merge ${cut}`,
+      );
+      for (const event of group) await restarted.add(event);
+      assertEquals(await current(restarted, [3]), [group[0].id], `cut ${cut}`);
+      assertEquals(
+        (await restarted.follows([bob.pubkey])).get(bob.pubkey),
+        [carol.pubkey],
+      );
+      assertEquals(await restarted.mutes(carol.pubkey), [alice.pubkey]);
+      assert(group.every((e) => restarted.has(e.id)), `known ${cut}`);
+      // Those offered again after the cut that lose on arrival are stubs.
+      assert(await hasTags(memory, group[0]), `full ${cut}`);
+      assert(!await hasTags(memory, group[3]), `stub ${cut}`);
+      assertEquals(await currentWithoutTags(memory), [], `retried ${cut}`);
+    } finally {
+      await restarted.close();
+    }
+  }
+});
+
+Deno.test("failed insert cut inside a stub: the stub is not stored, and is stored when offered again", async () => {
+  const cur = sign(bob, 3, { tags: [["p", alice.pubkey]], created_at: NOW });
+  const old = sign(bob, 3, {
+    tags: [["p", carol.pubkey]],
+    created_at: NOW - DAY,
+  });
+  // The first bookkeeping line of the document is the stub's supersededBy.
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const store = await open(triples);
+  try {
+    await store.add(cur);
+    assertEquals(triples.cuts, 0);
+    await assertRejects(() => store.add(old));
+    assertEquals(triples.cuts, 1);
+    assert(!store.has(old.id));
+    // What is in the graph of it is an incomplete stub.
+    assertEquals(
+      await triples.select(
+        `SELECT ?p WHERE { <${eventIri(old.id)}> ?p ?o }`,
+      ).then((rows) => rows.map((r) => r.p.value).sort()),
+      ["author", "createdAt", "date", "kind"].map((n) => `nostr:ontology:${n}`),
+    );
+    assertEquals(await currentWithoutTags(triples), []);
+    assertEquals(await current(store, [3]), [cur.id]);
+    assertEquals((await store.add(old)).status, "stored");
+    assertEquals(await current(store, [3]), [cur.id]);
+    assertEquals(
+      (await store.follows([bob.pubkey])).get(bob.pubkey),
+      [alice.pubkey],
+    );
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("two current heads and a stale list: the stub and the other head point at the winner", async () => {
+  const memory = new MemoryTripleStore();
+  const store = await open(memory);
+  try {
+    const a = sign(bob, 3, { tags: [["p", alice.pubkey]], created_at: NOW });
+    const b = sign(bob, 3, {
+      tags: [["p", carol.pubkey]],
+      created_at: NOW - DAY,
+    });
+    const stale = sign(bob, 3, {
+      tags: [["p", bob.pubkey]],
+      created_at: NOW - 2 * DAY,
+    });
+    // Both heads complete without bookkeeping, behind the store's back.
+    await memory.insert(eventToTriples(a) + eventToTriples(b));
+    assertEquals((await store.add(stale)).status, "stored");
+    assert(!await hasTags(memory, stale));
+    const rows = await memory.select(`SELECT ?e ?n WHERE {
+      ?e <nostr:ontology:supersededBy> ?n }`);
+    assertEquals(
+      rows.map((r) => `${r.e.value} ${r.n.value}`).sort(),
+      [stale, b].map((e) => `${eventIri(e.id)} ${eventIri(a.id)}`).sort(),
+    );
+    // Selective: the store's day range does not know the heads it was not given.
+    assertEquals(
+      ids(await store.query([{ kinds: [3], authors: [bob.pubkey] }])),
+      [a.id],
+    );
+    assertEquals(await repairBookkeeping(memory), {
+      superseded: 0,
+      deleted: 0,
+    });
+  } finally {
+    await store.close();
+  }
+});
+
+Deno.test("repair: stubs are never winners, deletions of stubs are repaired, a healthy graph with stubs gets nothing", async () => {
+  const cur = sign(bob, 3, { tags: [["p", alice.pubkey]], created_at: NOW });
+  const old = sign(bob, 3, {
+    tags: [["p", carol.pubkey]],
+    created_at: NOW - DAY,
+  });
+  const memory = new MemoryTripleStore();
+  const store = await open(memory);
+  await store.add(cur);
+  await store.add(old);
+  await store.close();
+  assert(!await hasTags(memory, old));
+  assertEquals(await repairBookkeeping(memory), { superseded: 0, deleted: 0 });
+  // A deletion of the stub (by `e` tag) whose deletedBy was cut off.
+  const deletion = sign(bob, 5, { tags: [["e", old.id]], created_at: NOW });
+  await memory.insert(eventToTriples(deletion));
+  assertEquals(await repairBookkeeping(memory), { superseded: 0, deleted: 1 });
+  const marked = await memory.select(`SELECT ?d WHERE {
+    <${eventIri(old.id)}> <nostr:ontology:deletedBy> ?d }`);
+  assertEquals(marked.map((r) => r.d.value), [eventIri(deletion.id)]);
 });
 
 Deno.test("failed insert: the next commit repairs the missing bookkeeping without a restart", async () => {

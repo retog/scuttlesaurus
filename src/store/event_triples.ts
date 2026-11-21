@@ -69,6 +69,28 @@ export function isReplaceable(kind: number): boolean {
   return kind === 0 || kind === 3 || (kind >= 10000 && kind < 20000);
 }
 
+/**
+ * The link predicate of the `p` tags of a follow list (kind 3, NIP-02) or a
+ * mute list (kind 10000, NIP-51), else undefined. These two kinds hold long
+ * lists of pubkeys in many versions, so their valid `p` values are written
+ * once, as the link, without the `tag:p` index triple; and a version that is
+ * already superseded when it arrives is stored as a stub
+ * ({@link staleListToTriples}).
+ */
+export function pubkeyListPredicate(
+  kind: number,
+): "follows" | "mutes" | undefined {
+  return kind === 3 ? "follows" : kind === 10000 ? "mutes" : undefined;
+}
+
+/** The kinds {@link pubkeyListPredicate} maps. */
+export const PUBKEY_LIST_KINDS = [3, 10000] as const;
+
+/** Whether the kind is a follow or mute list, see {@link pubkeyListPredicate}. */
+export function isPubkeyList(kind: number): boolean {
+  return pubkeyListPredicate(kind) !== undefined;
+}
+
 /** Whether the kind is addressable (NIP-01): 30000–39999. */
 export function isAddressable(kind: number): boolean {
   return kind >= 30000 && kind < 40000;
@@ -184,8 +206,10 @@ function addArticle(out: Triples, e: string, tags: string[][]): void {
  * triples". The caller must have validated the event (hex id, pubkey and
  * signature, well-formed strings). Hostile tag values never produce invalid
  * output: values that are not valid link targets only yield the tag index
- * triple. The signature triple is written last so that a log truncated in the
- * middle of a batch leaves an event without `nostr:sig`, which readers ignore.
+ * triple. In follow and mute lists a valid `p` value yields only the
+ * `follows` / `mutes` link, not the tag index triple. The signature triple is
+ * written last so that a log truncated in the middle of a batch leaves an
+ * event without `nostr:sig`, which readers ignore.
  */
 export function eventToTriples(
   event: NostrEvent,
@@ -193,19 +217,12 @@ export function eventToTriples(
 ): string {
   const out = new Triples();
   const e = iri(eventIri(event.id));
-  const author = iri(pubkeyIri(event.pubkey));
   const { kind, tags } = event;
 
-  out.add(e, P("author"), author);
-  out.add(e, P("kind"), integer(kind));
-  out.add(e, P("createdAt"), integer(event.created_at));
-  out.add(e, P("date"), date(event.created_at));
+  addHeader(out, e, event);
   if (event.content !== "") out.add(e, P("content"), literal(event.content));
   if (tags.length > 0) out.add(e, P("tags"), literal(JSON.stringify(tags)));
-  const seenOn = options.seenOn === undefined
-    ? undefined
-    : relayIri(options.seenOn);
-  if (seenOn) out.add(e, P("seenOn"), iri(seenOn));
+  addSeenOn(out, e, options.seenOn);
 
   const eventTarget = (value: unknown) =>
     isHex64(value) ? iri(eventIri(value)) : undefined;
@@ -217,16 +234,15 @@ export function eventToTriples(
   const pubkeyTarget = (value: unknown) =>
     isHex64(value) ? iri(pubkeyIri(value)) : undefined;
 
-  const pPredicate = kind === 3
-    ? P("follows")
-    : kind === 10000
-    ? P("mutes")
-    : P("mentions");
+  const list = pubkeyListPredicate(kind);
+  const pPredicate = P(list ?? "mentions");
 
   for (const tag of tags) {
     const [name, value] = tag;
     if (typeof name !== "string" || tag.length < 2) continue;
-    if (/^[a-zA-Z]$/.test(name)) {
+    // In a follow or mute list the link stands for the tag index triple.
+    const linked = list !== undefined && name === "p" && isHex64(value);
+    if (/^[a-zA-Z]$/.test(name) && !linked) {
       out.add(e, iri(tagTerm(name)), literal(value));
     }
     switch (name) {
@@ -312,6 +328,43 @@ export function eventToTriples(
     }
   }
 
+  out.add(e, P("sig"), literal(event.sig));
+  return out.toString();
+}
+
+/** The triples every event starts with: author, kind, created_at, date. */
+function addHeader(out: Triples, e: string, event: NostrEvent): void {
+  out.add(e, P("author"), iri(pubkeyIri(event.pubkey)));
+  out.add(e, P("kind"), integer(event.kind));
+  out.add(e, P("createdAt"), integer(event.created_at));
+  out.add(e, P("date"), date(event.created_at));
+}
+
+function addSeenOn(out: Triples, e: string, url: string | undefined): void {
+  const seenOn = url === undefined ? undefined : relayIri(url);
+  if (seenOn) out.add(e, P("seenOn"), iri(seenOn));
+}
+
+/**
+ * The stub of a follow or mute list version that is superseded by `winner`
+ * when it arrives (DATA-MODEL "Stale follow and mute lists"): the header,
+ * `seenOn`, `nostr:supersededBy <winner>` and `nostr:sig`, without content,
+ * tags, tag index or links. Such a version is never served, so its list would
+ * only grow the graph. `supersededBy` comes before the signature: a stub that is
+ * complete is always marked superseded, and is never read as a current,
+ * empty list. `winner` must be complete in the graph or earlier in the same
+ * document.
+ */
+export function staleListToTriples(
+  event: NostrEvent,
+  winner: string,
+  options: { seenOn?: string } = {},
+): string {
+  const out = new Triples();
+  const e = iri(eventIri(event.id));
+  addHeader(out, e, event);
+  addSeenOn(out, e, options.seenOn);
+  out.add(e, P("supersededBy"), iri(eventIri(winner)));
   out.add(e, P("sig"), literal(event.sig));
   return out.toString();
 }
