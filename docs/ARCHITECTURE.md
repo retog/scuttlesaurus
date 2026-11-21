@@ -231,8 +231,10 @@ Distances are computed breadth-first from the owner over _current_ follow lists
    the most authors of the previous hop are kept.
 
 The graph recomputes, debounced by two seconds, whenever a follow list of an
-author closer than `hops`, or the owner's mute list, is stored, and when the
-configuration changes. Without an owner the graph is empty.
+author closer than `hops`, or the owner's mute list, is stored, when the
+configuration changes, and when the store has repaired bookkeeping that a failed
+insert left out (`EventStore.onRepaired`): until that repair an old and a new
+version of a list both count as current. Without an owner the graph is empty.
 
 ## Replication (`src/replication/`)
 

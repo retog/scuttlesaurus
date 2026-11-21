@@ -56,6 +56,7 @@ export class StoreSocialGraph implements SocialGraph {
   readonly #debounceMs: number;
   readonly #listeners = new Set<() => void>();
   readonly #unsubscribe: () => void;
+  readonly #unsubscribeRepairs: () => void;
 
   #distances: ReadonlyMap<string, number> = new Map();
   #timer: ReturnType<typeof setTimeout> | undefined;
@@ -77,6 +78,9 @@ export class StoreSocialGraph implements SocialGraph {
     this.#unsubscribe = events.subscribe((event, info) => {
       if (info.stored && this.#isRelevant(event)) this.#schedule();
     });
+    // A repair can retire a follow or mute list that a recompute since the
+    // failed insert has read as current; no further event says so.
+    this.#unsubscribeRepairs = events.onRepaired(() => this.#schedule());
   }
 
   distance(pubkey: string): number | undefined {
@@ -101,6 +105,7 @@ export class StoreSocialGraph implements SocialGraph {
   close(): void {
     this.#closed = true;
     this.#unsubscribe();
+    this.#unsubscribeRepairs();
     clearTimeout(this.#timer);
     this.#timer = undefined;
   }

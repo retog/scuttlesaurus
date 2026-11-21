@@ -316,6 +316,15 @@ export interface EventStore {
   subscribe(
     listener: (event: NostrEvent, info: EventListenerInfo) => void,
   ): () => void;
+  /**
+   * Be told when the store, at runtime, wrote `supersededBy` / `deletedBy`
+   * triples that a failed insert had left out. Until then an old and a new
+   * version of a list can both count as current, so what was read from
+   * {@link follows}, {@link mutes} or {@link relayLists} may be stale. Called
+   * after the triples are in, and only when something was written. Returns a
+   * function that removes the listener.
+   */
+  onRepaired(listener: () => void): () => void;
   stats(): Promise<StoreStats>;
   close(): Promise<void>;
 }

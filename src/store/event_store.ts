@@ -76,6 +76,11 @@ export interface GroupOptions {
   maxEvents?: number;
   /** Largest estimated size of a group's N-Triples (default 4 MiB). */
   maxBytes?: number;
+  /**
+   * Milliseconds after a failed insert until the repair is tried without a
+   * new event (default 30 s). Tests shorten it.
+   */
+  repairRetryMs?: number;
 }
 
 interface Pending {
@@ -145,6 +150,7 @@ class Store implements EventStore {
   readonly #listeners = new Set<
     (event: NostrEvent, info: EventListenerInfo) => void
   >();
+  readonly #repairListeners = new Set<() => void>();
   #earliestDay?: number;
   #latestDay?: number;
   readonly #pending: Pending[] = [];
@@ -165,6 +171,7 @@ class Store implements EventStore {
     this.#group = {
       maxEvents: group.maxEvents ?? DEFAULT_GROUP_EVENTS,
       maxBytes: group.maxBytes ?? DEFAULT_GROUP_BYTES,
+      repairRetryMs: group.repairRetryMs ?? REPAIR_RETRY_MS,
     };
   }
 
@@ -324,7 +331,7 @@ class Store implements EventStore {
       }
       // Still needed if the repair fails or a commit is running right now.
       this.#scheduleRepair();
-    }, REPAIR_RETRY_MS);
+    }, this.#group.repairRetryMs);
     Deno.unrefTimer(this.#repairTimer as unknown as number);
   }
 
@@ -334,12 +341,14 @@ class Store implements EventStore {
    * events that have nothing to do with it.
    */
   async #repair(): Promise<void> {
+    let written: number;
     try {
       const { superseded, deleted } = await repairBookkeeping(this.triples);
       this.#needsRepair = false;
       clearTimeout(this.#repairTimer);
       this.#repairTimer = undefined;
-      if (superseded + deleted > 0) {
+      written = superseded + deleted;
+      if (written > 0) {
         console.log(
           `store: repaired bookkeeping after a failed insert: ${superseded} supersededBy, ${deleted} deletedBy`,
         );
@@ -349,6 +358,34 @@ class Store implements EventStore {
         `store: could not repair bookkeeping, will retry:`,
         error instanceof Error ? error.message : String(error),
       );
+      return;
+    }
+    // A closing store is about to close its triple store: nobody could read
+    // the repaired state from it any more.
+    if (written > 0 && !this.#closed) this.#notifyRepaired();
+  }
+
+  onRepaired(listener: () => void): () => void {
+    this.#repairListeners.add(listener);
+    return () => this.#repairListeners.delete(listener);
+  }
+
+  /**
+   * Tell the repair listeners, after the repair's triples are in. They are
+   * not awaited: the committer is waiting for the repair, and a listener's
+   * work (such as recomputing the social graph) must not hold up the commits.
+   * A throwing or rejecting listener is logged and affects nobody else.
+   */
+  #notifyRepaired(): void {
+    const failed = (error: unknown) =>
+      console.error("store: a repair listener failed:", error);
+    for (const listener of [...this.#repairListeners]) {
+      try {
+        const result: unknown = listener();
+        if (result instanceof Promise) result.catch(failed);
+      } catch (error) {
+        failed(error);
+      }
     }
   }
 

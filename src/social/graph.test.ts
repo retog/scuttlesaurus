@@ -6,7 +6,12 @@ import { assertEquals } from "@std/assert";
 import { delay } from "@std/async/delay";
 import { MemoryTripleStore, testConfig } from "../testing/mod.ts";
 import { openEventStore } from "../store/mod.ts";
-import { identities, type Identity, sign } from "../store/test_util.ts";
+import {
+  CutBeforeBookkeeping,
+  identities,
+  type Identity,
+  sign,
+} from "../store/test_util.ts";
 import type { Config, EventStore, SocialGraph } from "../types.ts";
 import { createSocialGraph } from "./mod.ts";
 
@@ -344,5 +349,92 @@ Deno.test("deleting a mute list or a follow list recomputes the graph by itself"
   } finally {
     f.graph.close();
     await f.events.close();
+  }
+});
+
+Deno.test("a repair after a failed insert recomputes the graph by itself", async () => {
+  const [owner, bob, carol, dave] = identities(4);
+  const config = testConfig({ owner: owner.pubkey });
+  config.replication.hops = 2;
+  // The store loses the bookkeeping of the first insert that has any, and
+  // retries the repair after 200 ms when no further event comes.
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const events = await openEventStore(triples, config, { repairRetryMs: 200 });
+  const graph = createSocialGraph(events, config, { debounceMs: 20 });
+  const quiet = console.log;
+  console.log = () => {};
+  try {
+    await Promise.all([
+      follow(events, owner, [bob, carol], NOW - 100),
+      follow(events, bob, [dave]),
+    ]);
+    // The debounced recompute for these lists is over, so that nothing but
+    // the repair can recompute the graph from here on.
+    await until(() => graph.distance(dave.pubkey) === 2, "the first graph");
+    // The owner drops Bob; the events are written, their bookkeeping is not.
+    await follow(events, owner, [carol], NOW - 50).then(
+      () => {
+        throw new Error("the insert should have failed");
+      },
+      () => {},
+    );
+    assertEquals(triples.cuts, 1);
+    // A recompute in the window (a configuration change, say) reads both
+    // lists of the owner as current.
+    await graph.recompute();
+    assertEquals(graph.distance(bob.pubkey), 1);
+    assertEquals(graph.distance(dave.pubkey), 2);
+    // No further event: the repair on its timer is what brings the graph right.
+    await until(
+      () => graph.distance(bob.pubkey) === undefined,
+      "the graph to drop Bob",
+    );
+    assertEquals(
+      Object.fromEntries(graph.authors()),
+      { [owner.pubkey]: 0, [carol.pubkey]: 1 },
+    );
+  } finally {
+    console.log = quiet;
+    graph.close();
+    await events.close();
+  }
+});
+
+Deno.test("a repair after close does not recompute the graph", async () => {
+  const [owner, bob, carol] = identities(3);
+  const config = testConfig({ owner: owner.pubkey });
+  const triples = new CutBeforeBookkeeping(new MemoryTripleStore());
+  const events = await openEventStore(triples, config, { repairRetryMs: 10 });
+  let runs = 0;
+  const counting: EventStore = new Proxy(events, {
+    get(target, property) {
+      if (property === "follows") {
+        return (pubkeys: string[]) => {
+          runs++;
+          return target.follows(pubkeys);
+        };
+      }
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const graph = createSocialGraph(counting, config, { debounceMs: 20 });
+  const quiet = console.log;
+  console.log = () => {};
+  try {
+    await follow(events, owner, [bob], NOW - 100);
+    await follow(events, owner, [carol], NOW - 50).catch(() => {});
+    graph.close();
+    const before = runs;
+    // The store's timer repairs; the closed graph does not react.
+    await delay(150);
+    assertEquals(
+      (await events.follows([owner.pubkey])).get(owner.pubkey),
+      [carol.pubkey],
+    );
+    assertEquals(runs, before);
+  } finally {
+    console.log = quiet;
+    await events.close();
   }
 });
