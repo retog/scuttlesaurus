@@ -12,7 +12,11 @@
 import type { Filter } from "../types.ts";
 import { eventIri, PREFIXES, pubkeyIri } from "../vocab.ts";
 import { dateLiteral, integer, iri, literal } from "./ntriples.ts";
-import { isHex64 } from "./event_triples.ts";
+import {
+  isHex64,
+  PUBKEY_LIST_KINDS,
+  pubkeyListPredicate,
+} from "./event_triples.ts";
 
 /** A filter reduced to the well-formed conditions it can be evaluated with. */
 export interface ParsedFilter {
@@ -89,6 +93,30 @@ export function isSelective(filter: ParsedFilter): boolean {
     filter.tags.size > 0;
 }
 
+/**
+ * The other places a `#p` value can be: follow and mute lists (kinds 3 and
+ * 10000) hold a valid `p` value as the `follows` / `mutes` link instead of
+ * `tag:p` (stores written earlier have both). One union branch per list kind
+ * the filter's kinds allow, over the values that are pubkeys; none when no
+ * value is one, so the query is the plain tag lookup.
+ */
+function pubkeyLinks(
+  filter: ParsedFilter,
+  values: string[],
+  n: number,
+): string[] {
+  const pubkeys = values.filter(isHex64).map((v) => iri(pubkeyIri(v)));
+  if (pubkeys.length === 0) return [];
+  return PUBKEY_LIST_KINDS.flatMap((kind) => {
+    if (filter.kinds && !filter.kinds.includes(kind)) return [];
+    return [
+      `VALUES ?tp${n} { ${pubkeys.join(" ")} } ?e nostr:${
+        pubkeyListPredicate(kind)
+      } ?tp${n}`,
+    ];
+  });
+}
+
 /** Options of {@link buildQuery}. */
 export interface QueryOptions {
   /** Restrict to events of these UTC days (`YYYY-MM-DD`), via `nostr:date`. */
@@ -137,9 +165,18 @@ export function buildQuery(
 
   let n = 0;
   for (const [letter, tagValues] of filter.tags) {
-    const variable = `tv${n++}`;
-    values(variable, tagValues.map(literal));
-    lines.push(`?e tag:${letter} ?${variable} .`);
+    const variable = `tv${n}`;
+    const links = letter === "p" ? pubkeyLinks(filter, tagValues, n) : [];
+    n++;
+    if (links.length === 0) {
+      values(variable, tagValues.map(literal));
+      lines.push(`?e tag:${letter} ?${variable} .`);
+      continue;
+    }
+    const index = `VALUES ?${variable} { ${
+      tagValues.map(literal).join(" ")
+    } } ?e tag:p ?${variable}`;
+    lines.push([index, ...links].map((b) => `{ ${b} }`).join("\nUNION "));
   }
 
   const filters: string[] = [];

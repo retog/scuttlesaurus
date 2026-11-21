@@ -14,8 +14,9 @@ import {
   eventToTriples,
   nip10Thread,
   parseCoordinate,
+  staleListToTriples,
 } from "./event_triples.ts";
-import { DAY, identities, objectsOf, sign } from "./test_util.ts";
+import { DAY, identities, objectsOf, parseTriples, sign } from "./test_util.ts";
 
 const [alice, bob] = identities(2);
 const id = (n: number) => n.toString(16).padStart(64, "0");
@@ -23,6 +24,7 @@ const note = (n: number) => `<${eventIri(id(n))}>`;
 const term = (name: keyof typeof TERMS) => NOSTR + TERMS[name];
 const objects = (nt: string, name: keyof typeof TERMS) =>
   objectsOf(nt, term(name));
+const literalJson = (value: unknown) => JSON.stringify(JSON.stringify(value));
 
 Deno.test("every event: core triples, omitted empties, sig last", () => {
   const event = sign(alice, 1, {
@@ -153,6 +155,65 @@ Deno.test("kind 3, 10000: follows and mutes instead of mentions", () => {
   );
   assertEquals(objects(mutes, "mutes"), [`<${pubkeyIri(bob.pubkey)}>`]);
   assertEquals(objects(mutes, "mentions"), []);
+});
+
+Deno.test("kind 3, 10000: a valid p value is the link only, an invalid one the tag index only", () => {
+  const tags = [["p", bob.pubkey], ["p", "not a key"], ["p", alice.pubkey], [
+    "t",
+    "x",
+  ], ["P", bob.pubkey]];
+  for (const [kind, link] of [[3, "follows"], [10000, "mutes"]] as const) {
+    const nt = eventToTriples(sign(alice, kind, { tags }));
+    assertEquals(objects(nt, link), [
+      `<${pubkeyIri(bob.pubkey)}>`,
+      `<${pubkeyIri(alice.pubkey)}>`,
+    ]);
+    assertEquals(objectsOf(nt, TAG + "p"), ['"not a key"']);
+    // Other letters, and `P`, are indexed as in every kind.
+    assertEquals(objectsOf(nt, TAG + "t"), ['"x"']);
+    assertEquals(objectsOf(nt, TAG + "P"), [`"${bob.pubkey}"`]);
+    // The tags themselves are kept verbatim.
+    assertEquals(objects(nt, "tags"), [literalJson(tags)]);
+  }
+  // Every other kind keeps tag:p next to the link.
+  const mention = eventToTriples(sign(alice, 1, { tags }));
+  assertEquals(objectsOf(mention, TAG + "p"), [
+    `"${bob.pubkey}"`,
+    '"not a key"',
+    `"${alice.pubkey}"`,
+  ]);
+  assertEquals(objects(mention, "mentions").length, 2);
+});
+
+Deno.test("stale list stub: header, seenOn, supersededBy, then sig", () => {
+  const list = sign(alice, 3, {
+    content: '{"wss://r.example.com":{}}',
+    tags: [["p", bob.pubkey], ["t", "x"]],
+    created_at: 1794528000,
+  });
+  const winner = id(9);
+  const e = `<${eventIri(list.id)}>`;
+  const integer = (n: number) =>
+    `"${n}"^^<http://www.w3.org/2001/XMLSchema#integer>`;
+  assertEquals(
+    parseTriples(
+      staleListToTriples(list, winner, { seenOn: "wss://Relay.Example.com" }),
+    ),
+    [
+      [e, `<${term("author")}>`, `<${pubkeyIri(alice.pubkey)}>`],
+      [e, `<${term("kind")}>`, integer(3)],
+      [e, `<${term("createdAt")}>`, integer(1794528000)],
+      [
+        e,
+        `<${term("date")}>`,
+        '"2026-11-13"^^<http://www.w3.org/2001/XMLSchema#date>',
+      ],
+      [e, `<${term("seenOn")}>`, "<wss://relay.example.com/>"],
+      [e, `<${term("supersededBy")}>`, note(9)],
+      [e, `<${term("sig")}>`, `"${list.sig}"`],
+    ],
+  );
+  assertEquals(parseTriples(staleListToTriples(list, winner)).length, 6);
 });
 
 Deno.test("kinds 5, 6, 7, 16: deletes, reposts, reactsTo (last e tag)", () => {
@@ -324,7 +385,7 @@ const AWKWARD: [string, string, string[][]][] = [
 
 Deno.test("round trip through Oxigraph reconstructs signed events exactly", () => {
   for (const [name, content, tags] of AWKWARD) {
-    for (const kind of [1, 30023]) {
+    for (const kind of [1, 3, 30023]) {
       const event = sign(alice, kind, { content, tags });
       const store = new oxigraph.Store();
       store.load(eventToTriples(event), { format: "application/n-triples" });

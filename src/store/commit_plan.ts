@@ -25,9 +25,11 @@ import {
   eventToTriples,
   isAddressable,
   isHex64,
+  isPubkeyList,
   isReplaceable,
   parseCoordinate,
   relayIri,
+  staleListToTriples,
 } from "./event_triples.ts";
 import { integer, iri, Triples } from "./ntriples.ts";
 
@@ -391,6 +393,12 @@ async function readSeenOn(
  * acceptable intermediate state is "stored, bookkeeping missing". Nothing
  * here relies on an event being offered again. Readers see the new event
  * before the old one is superseded for the moment between the two writes.
+ *
+ * A follow or mute list that loses on arrival to a version that is already
+ * current (in the graph, or earlier in this document) is written as a stub
+ * that carries its own `supersededBy` before its `nostr:sig`
+ * ({@link staleListToTriples}). That triple points at a complete event too,
+ * and a cut leaves either an incomplete stub or one that is superseded.
  */
 export async function planGroup(
   triples: TripleStore,
@@ -475,13 +483,18 @@ export async function planGroup(
       continue;
     }
 
+    // The version this event loses to on arrival, if it is a list stub.
+    let staleTo: string | undefined;
     if (address) {
       const current = heads.get(address) ?? [];
       const { best, losers } = resolveHeads([
         { id: event.id, created_at: event.created_at },
         ...current,
       ]);
+      if (best.id !== event.id && isPubkeyList(event.kind)) staleTo = best.id;
       for (const old of losers) {
+        // The stub's own supersededBy is part of its triples.
+        if (staleTo !== undefined && old.id === event.id) continue;
         bookkeeping.add(
           iri(eventIri(old.id)),
           N("supersededBy"),
@@ -519,7 +532,11 @@ export async function planGroup(
     }
 
     groupEvents.set(eventIriValue, { author: authorIri, kind: event.kind });
-    eventText.push(eventToTriples(event, { seenOn: item.seenOn }));
+    eventText.push(
+      staleTo === undefined
+        ? eventToTriples(event, { seenOn: item.seenOn })
+        : staleListToTriples(event, staleTo, { seenOn: item.seenOn }),
+    );
     const relay = relayOf(item);
     relays.set(eventIriValue, new Set(relay ? [relay] : []));
     stored.push(item);

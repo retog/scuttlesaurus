@@ -1,6 +1,12 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { MemoryTripleStore } from "../testing/mod.ts";
-import type { AddResult, EventStore, NostrEvent } from "../types.ts";
+import type {
+  AddResult,
+  EventStore,
+  NostrEvent,
+  TripleStore,
+} from "../types.ts";
+import { eventIri, NOSTR, term } from "../vocab.ts";
 import { createEventStore } from "./event_store.ts";
 import { config, CountingStore, DAY, identities, sign } from "./test_util.ts";
 
@@ -32,6 +38,7 @@ function burst(store: EventStore, events: NostrEvent[]): Promise<AddResult[]> {
   return Promise.all(events.map((e) => store.add(e)));
 }
 
+const N = (name: Parameters<typeof term>[0]) => `<${term(name)}>`;
 const statuses = (results: AddResult[]) => results.map((r) => r.status);
 const ids = (events: NostrEvent[]) => events.map((e) => e.id);
 
@@ -327,6 +334,9 @@ Deno.test("group: a burst equals adding one by one, for random arrival orders", 
     sign(alice, 0, { content: "{}", created_at: NOW - 700 }),
     sign(alice, 0, { content: '{"name":"x"}', created_at: NOW - 600 }),
     ...sameTime,
+    sign(alice, 3, { tags: [["p", bob.pubkey]], created_at: NOW - 550 }),
+    sign(bob, 10000, { tags: [["p", alice.pubkey]], created_at: NOW - 450 }),
+    sign(bob, 10000, { tags: [["p", n1.pubkey]], created_at: NOW - 440 }),
     sign(alice, 30023, { tags: d("p"), created_at: NOW - 400 }),
     sign(alice, 30023, { tags: d("p"), created_at: NOW - 300 }),
     sign(alice, 30023, { tags: d("p"), created_at: NOW - 100 }),
@@ -366,6 +376,112 @@ Deno.test("group: a burst equals adding one by one, for random arrival orders", 
     assertEquals(together.visible, sequential.visible, `seed ${seed}`);
     assertEquals(together.graph, sequential.graph, `seed ${seed}`);
   }
+});
+
+/** The predicates of an event's triples in the graph, sorted. */
+async function predicatesOf(
+  triples: TripleStore,
+  event: NostrEvent,
+): Promise<string[]> {
+  const rows = await triples.select(
+    `SELECT ?p WHERE { <${eventIri(event.id)}> ?p ?o }`,
+  );
+  return rows.map((r) => r.p.value.slice(NOSTR.length)).sort();
+}
+
+const STUB = ["author", "createdAt", "date", "kind", "sig", "supersededBy"];
+
+Deno.test("group: a stale follow list in the same group, in both arrival orders", async () => {
+  for (const newestFirst of [true, false]) {
+    await withStore(async ({ store, memory }) => {
+      const cur = sign(alice, 3, {
+        tags: [["p", bob.pubkey]],
+        created_at: NOW - 10,
+      });
+      const old = sign(alice, 3, {
+        tags: [["p", alice.pubkey]],
+        created_at: NOW - 100,
+      });
+      const results = await burst(store, newestFirst ? [cur, old] : [old, cur]);
+      assertEquals(statuses(results), ["stored", "stored"]);
+      assertEquals(
+        (await store.follows([alice.pubkey])).get(alice.pubkey),
+        [bob.pubkey],
+      );
+      assertEquals(ids(await store.query([{ kinds: [3] }])), [cur.id]);
+      // Superseded on arrival: a stub. Current on arrival: kept in full.
+      assertEquals(
+        await predicatesOf(memory, old),
+        newestFirst
+          ? STUB
+          : ["author", "createdAt", "date", "follows", "kind", "sig"]
+            .concat("supersededBy", "tags").sort(),
+      );
+      const superseded = await memory.select(
+        `SELECT ?n WHERE { <${eventIri(old.id)}> ${N("supersededBy")} ?n }`,
+      );
+      assertEquals(superseded.map((r) => r.n.value), [eventIri(cur.id)]);
+    });
+  }
+});
+
+Deno.test("group: a stub is known after a restart, and offering it again writes nothing", async () => {
+  const memory = new MemoryTripleStore();
+  const cur = sign(alice, 10000, {
+    tags: [["p", bob.pubkey]],
+    created_at: NOW - 10,
+  });
+  const old = sign(alice, 10000, {
+    tags: [["p", bob.pubkey]],
+    created_at: NOW - 100,
+  });
+  const first = await createEventStore(memory, config());
+  await first.add(cur);
+  await first.add(old, { seenOn: "wss://a.example.com" });
+  await first.close();
+  const size = await memory.size();
+  const counting = new CountingStore(memory);
+  const again = await createEventStore(counting, config());
+  try {
+    assert(again.has(old.id));
+    assertEquals((await again.stats()).events, 2);
+    assertEquals(await again.add(old), { status: "duplicate" });
+    assertEquals(
+      await again.add(old, { seenOn: "wss://a.example.com" }),
+      { status: "duplicate" },
+    );
+    assertEquals(counting.inserts, 0);
+    assertEquals(await memory.size(), size);
+    assertEquals(await again.mutes(alice.pubkey), [bob.pubkey]);
+  } finally {
+    await again.close();
+  }
+});
+
+Deno.test("group: the versions of a large follow list arriving newest first add a stub each", async () => {
+  const people = identities(360);
+  const versions = Array.from({ length: 10 }, (_, i) =>
+    sign(alice, 3, {
+      tags: people.slice(0, 351 + i).map((p) => ["p", p.pubkey]),
+      created_at: NOW - 1000 + i,
+    })).reverse();
+  await withStore(async ({ store, memory }) => {
+    await store.add(versions[0], { seenOn: "wss://a.example.com" });
+    const full = await memory.size();
+    // The newest list: its header, tags, seenOn, a link per entry and sig.
+    assertEquals(full, 4 + 1 + 1 + 360 + 1);
+    for (const [i, version] of versions.slice(1).entries()) {
+      assertEquals(
+        await store.add(version, { seenOn: "wss://a.example.com" }),
+        { status: "stored" },
+      );
+      assertEquals(await memory.size(), full + 7 * (i + 1));
+    }
+    assertEquals(
+      (await store.follows([alice.pubkey])).get(alice.pubkey)!.length,
+      360,
+    );
+  });
 });
 
 Deno.test("group: windows still work after grouped adds across many days", async () => {

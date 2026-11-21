@@ -90,7 +90,10 @@ credit.
 
 The id is in the event IRI and the pubkey in the author IRI, so these triples
 are sufficient to reconstruct the signed event exactly. The relay serves events
-by reconstructing them; nothing is stored twice.
+by reconstructing them; nothing is stored twice. The one exception is a follow
+or mute list that is already superseded when it arrives: it is stored as a stub
+without `nostr:content` and `nostr:tags`, cannot be reconstructed and is never
+served (see [Stale follow and mute lists](#stale-follow-and-mute-lists)).
 
 `nostr:date` exists because triple stores index by term, not by numeric range. A
 query for "the newest 50 notes" restricts `nostr:date` to a window of recent
@@ -108,24 +111,40 @@ NIP-01 defines for filters:
 `#e`, `#p`, `#t`, `#d`, … filters are answered from these. Upper and lower case
 letters are distinct (`tag:e` and `tag:E`).
 
+Exception: in kinds 3 and 10000, a `p` tag whose value is a valid pubkey (64
+lowercase hex characters) has no `tag:p` triple. Its value is in the graph once,
+as the `nostr:follows` or `nostr:mutes` link (see [Links](#links)); a follow
+list of a few hundred entries would otherwise hold each of them twice. A `p` tag
+with any other value keeps its `tag:p` triple, and has no link. So in these two
+kinds a value is in the graph either as `tag:p "v"` or as `follows` / `mutes`
+`<npub(v)>`, never both.
+
+A `#p` filter is therefore answered from `tag:p` and, for those of its values
+that are pubkeys, from `nostr:follows` if the filter has no `kinds` or they
+include 3, and from `nostr:mutes` if it has no `kinds` or they include 10000,
+joined by `UNION`. The values of one `#p` are alternatives; several tag letters
+must all match. A filter for other kinds only, such as `{"kinds":[1]}`, reads
+`tag:p` alone. Stores written before this rule hold both triples for these tags;
+nothing is removed, and such an event is found once.
+
 ### Links
 
 Tag values that are not valid (64 hex characters, a parseable coordinate, an
 absolute IRI) produce no link triple; the tag index triple is still written.
 
-| Source                                     | Predicate                 | Object                             |
-| ------------------------------------------ | ------------------------- | ---------------------------------- |
-| every `e` tag                              | `nostr:references`        | Event IRI                          |
-| every `q` tag (event id)                   | `nostr:quotes`            | Event IRI                          |
-| every `a` tag                              | `nostr:referencesAddress` | Address IRI                        |
-| every `p` tag, except in kinds 3 and 10000 | `nostr:mentions`          | Pubkey IRI                         |
-| kind 3: every `p` tag (NIP-02)             | `nostr:follows`           | Pubkey IRI                         |
-| kind 10000: every `p` tag (NIP-51)         | `nostr:mutes`             | Pubkey IRI                         |
-| kind 7: the last `e` tag (NIP-25)          | `nostr:reactsTo`          | Event IRI                          |
-| kinds 6 and 16: the last `e` tag (NIP-18)  | `nostr:reposts`           | Event IRI                          |
-| kind 5: every `e` tag (NIP-09)             | `nostr:deletes`           | Event IRI                          |
-| kind 5: every `a` tag (NIP-09)             | `nostr:deletesAddress`    | Address IRI                        |
-| kinds 30000–39999                          | `nostr:address`           | Address IRI of (kind, pubkey, `d`) |
+| Source                                         | Predicate                 | Object                             |
+| ---------------------------------------------- | ------------------------- | ---------------------------------- |
+| every `e` tag                                  | `nostr:references`        | Event IRI                          |
+| every `q` tag (event id)                       | `nostr:quotes`            | Event IRI                          |
+| every `a` tag                                  | `nostr:referencesAddress` | Address IRI                        |
+| every `p` tag, except in kinds 3 and 10000     | `nostr:mentions`          | Pubkey IRI                         |
+| kind 3: every `p` tag (NIP-02), no `tag:p`     | `nostr:follows`           | Pubkey IRI                         |
+| kind 10000: every `p` tag (NIP-51), no `tag:p` | `nostr:mutes`             | Pubkey IRI                         |
+| kind 7: the last `e` tag (NIP-25)              | `nostr:reactsTo`          | Event IRI                          |
+| kinds 6 and 16: the last `e` tag (NIP-18)      | `nostr:reposts`           | Event IRI                          |
+| kind 5: every `e` tag (NIP-09)                 | `nostr:deletes`           | Event IRI                          |
+| kind 5: every `a` tag (NIP-09)                 | `nostr:deletesAddress`    | Address IRI                        |
+| kinds 30000–39999                              | `nostr:address`           | Address IRI of (kind, pubkey, `d`) |
 
 Threading:
 
@@ -190,7 +209,13 @@ again is rejected, whichever arrived first.
 **Order and repair.** A group of events is inserted as one document: each
 event's triples complete with its `nostr:sig` (written last, so an event counts
 as stored once it has it), then the `nostr:seenOn` additions, then the
-`supersededBy` / `deletedBy` bookkeeping.
+`supersededBy` / `deletedBy` bookkeeping. The stub of a stale follow or mute
+list carries its own `supersededBy` before its `nostr:sig`; the version it
+points at is complete in the graph or earlier in the document. Every backend
+writes a document in this order: the embedded store loads it at once and appends
+it to its log, the endpoint store sends it in requests of consecutive lines, one
+after the other (a split inside an event leaves that event incomplete), and the
+QLever store writes it as one file.
 
 The invariant: **a bookkeeping triple is only written after the event it points
 at is complete.** The graph only grows, so bookkeeping that points at an event
@@ -225,6 +250,50 @@ bookkeeping, then signatures) and cut before the signatures can hold
 They cannot be removed and the queries do not look for them; the repair does not
 treat such an event as a winner, and once the event is received again it is the
 current version.
+
+#### Stale follow and mute lists
+
+A follow list (kind 3) or mute list (kind 10000) that loses on arrival to a
+version that is already current, in the graph or earlier in the same group, is
+written as a stub:
+
+| Predicate                                                     | Object                                 |
+| ------------------------------------------------------------- | -------------------------------------- |
+| `nostr:author`, `nostr:kind`, `nostr:createdAt`, `nostr:date` | As for every event                     |
+| `nostr:seenOn`                                                | The relay it was received from, if any |
+| `nostr:supersededBy`                                          | The version it lost to                 |
+| `nostr:sig`                                                   | The signature, last                    |
+
+It has no `nostr:content`, no `nostr:tags`, no tag index and no link triple.
+Such a version is never served, and its list can be long. Replication pages the
+replaceable kinds backwards in time, so a relay that keeps old versions hands
+over an author's whole history newest first, and nearly every version arrives
+superseded. Written in full, each version added its whole list again.
+
+Otherwise a stub is an event like any other: the add is `stored`, subscribers
+are told, its id is known (also after a restart), it is counted, and offered
+again it is a `duplicate` that may still add a `nostr:seenOn`. Its `e`-tag
+deletion is recorded as usual.
+
+`supersededBy` is one of the stub's own triples, before its `nostr:sig`, not
+part of the bookkeeping at the end of the document. A complete stub without it
+would read as the current version, an empty list, and would be served as an
+event with empty tags and an invalid id. Written this way, an insert cut off
+anywhere leaves either an incomplete stub (no `nostr:sig`: ignored, and planned
+again when offered again) or a complete stub that is already superseded. The
+triple points at an event that is complete in the graph or earlier in the same
+document, so the invariant of
+[Order and repair](#bookkeeping-added-by-the-store) holds.
+
+A stub is recognisable as a kind 3 or 10000 event with `nostr:supersededBy` and
+without `nostr:tags`. A genuine empty list has no `nostr:tags` either; once it
+is superseded it looks the same, and neither is ever served.
+
+Only these two kinds are stubbed; superseded versions of every other kind
+(profiles, relay lists, articles, …) are stored in full. A list version that is
+the newest when it arrives is stored in full, and keeps all its triples when a
+newer one supersedes it later. Stores written before this rule keep the stale
+versions they hold in full, with `tag:p` as well: nothing is removed.
 
 ## Blobs
 
