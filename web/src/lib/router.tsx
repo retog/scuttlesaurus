@@ -26,6 +26,7 @@ export type RouteName =
   | "search"
   | "network"
   | "settings"
+  | "share"
   | "gallery"
   | "notFound";
 
@@ -44,6 +45,7 @@ export const ROUTES: readonly { name: RouteName; pattern: string }[] = [
   { name: "search", pattern: "/search" },
   { name: "network", pattern: "/network" },
   { name: "settings", pattern: "/settings" },
+  { name: "share", pattern: "/share" },
   { name: "gallery", pattern: "/dev/gallery" },
 ];
 

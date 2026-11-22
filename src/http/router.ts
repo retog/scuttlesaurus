@@ -8,6 +8,7 @@ import type { Node } from "../types.ts";
 import { type ApiContext, handleApi } from "./api.ts";
 import { handleSparql } from "./sparql.ts";
 import { nip05Response } from "./nip05.ts";
+import { receiveShare, SHARE_PATH } from "./share.ts";
 import { serveWebClient } from "./static.ts";
 
 /** What the router is built from: the node, the web directory and API state. */
@@ -45,6 +46,9 @@ export async function route(
     (reading || request.method === "HEAD")
   ) {
     return nip05Response(node.configManager.config, request);
+  }
+  if (path === SHARE_PATH && request.method === "POST") {
+    return await receiveShare(request);
   }
   const blossom = await node.blossom.handle(request);
   if (blossom !== null) return blossom;

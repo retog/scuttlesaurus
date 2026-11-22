@@ -356,6 +356,7 @@ One port, evaluated in this order:
 | `GET`, `POST /sparql`                         | SPARQL 1.1 Protocol, queries only                      |
 | `/api/…`                                      | Node API, below                                        |
 | `GET /.well-known/nostr.json`                 | NIP-05 for the owner (`_`)                             |
+| `POST /share`                                 | Share target fallback: `303` to the client's `/share`  |
 | Blossom paths                                 | Blossom                                                |
 | any other `GET`                               | Web client: a file from `web/dist/`, else `index.html` |
 
@@ -468,6 +469,22 @@ events to the node's relay, and listens on the same relay for new events.
 | `/search`                  | People, notes and articles                                         |
 | `/network`                 | The node: social graph, relays, replication, SPARQL console        |
 | `/settings`                | Owner settings                                                     |
+| `/share`                   | Share target: what another app shared, as the draft of a new note  |
+
+**Installable app (PWA).** `web/static/manifest.webmanifest` and the service
+worker `web/static/sw.js` (registered by `lib/pwa.ts`, only in a secure context)
+make the client installable. The service worker keeps the shell (index.html,
+bundle, styles, icons) network-first, so the installed app opens offline; relay,
+API, SPARQL and Blossom requests never touch it. The manifest declares a share
+target: `POST /share` with `title`, `text`, `url` and image or video `files`.
+The service worker answers it, puts the files in the `scuttlesaurus-share` cache
+and redirects to `/share?title=…&text=…&url=…&files=<n>`; the view
+(`lib/share.ts`) turns title, text and link into the draft (a link in the text,
+as several Android apps send it, counts as the link), offers to open a shared
+Nostr reference (`npub…`, `nostr:note…`, `https://njump.me/nevent…`) in the
+client, and uploads the files to Blossom and attaches them. Should the browser
+post before the service worker controls the page, the node answers `POST /share`
+itself (`src/http/share.ts`) with the same redirect, without the files.
 
 Identity is one of: a NIP-07 browser extension, a signer app over NIP-46, a
 private key kept in the browser's local storage, or a public key only
