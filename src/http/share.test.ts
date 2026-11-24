@@ -57,3 +57,25 @@ Deno.test("a share too large to read still lands on the share view", async () =>
     await fixture.close();
   }
 });
+
+Deno.test("the text of a share too large to read is kept", async () => {
+  const fixture = await makeFixture();
+  try {
+    const form = new FormData();
+    form.set("title", "Grüße");
+    form.set("text", "line one\r\nline two");
+    form.set("url", "https://example.org/a");
+    form.append("files", new File([new Uint8Array(512 * 1024)], "big.mp4"));
+    const response = await fixture.handler(
+      new Request(`${BASE}/share`, { method: "POST", body: form }),
+    );
+    assertEquals(response.status, 303);
+    const location = new URL(response.headers.get("location")!, BASE);
+    assertEquals(location.searchParams.get("title"), "Grüße");
+    assertEquals(location.searchParams.get("text"), "line one\r\nline two");
+    assertEquals(location.searchParams.get("url"), "https://example.org/a");
+    assertEquals(location.searchParams.get("files"), "dropped");
+  } finally {
+    await fixture.close();
+  }
+});

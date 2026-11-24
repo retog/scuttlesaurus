@@ -38,6 +38,16 @@ Deno.test("a link only in the text, as Android apps share it", () => {
   assertEquals(composeShared(shared), "A page\n\nhttps://example.org/a");
 });
 
+Deno.test("only web addresses become the link of a share", () => {
+  assertEquals(sharedLink({ url: "javascript:alert(1)" }), undefined);
+  assertEquals(sharedLink({ url: "data:text/html,<b>x</b>" }), undefined);
+  assertEquals(
+    sharedLink({ url: "javascript:alert(1)", text: "see https://x.org/a" }),
+    "https://x.org/a",
+  );
+  assertEquals(sharedLink({ url: "HTTPS://x.org/" }), "HTTPS://x.org/");
+});
+
 Deno.test("a title that is the link or part of the text is dropped", () => {
   assertEquals(
     composeShared({ title: "https://x.org", url: "https://x.org" }),

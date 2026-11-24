@@ -29,11 +29,26 @@ export function sharedFromQuery(query: URLSearchParams): SharedData {
 }
 
 /**
- * The link of a share: the `url` field, or else the first web address in the
- * text, which is where several Android apps put it.
+ * The link of a share: the `url` field if it is a web address, or else the
+ * first web address in the text, which is where several Android apps put it.
  */
 export function sharedLink(data: SharedData): string | undefined {
-  return data.url ?? data.text?.match(WEB_URL)?.[0];
+  if (data.url && isWebUrl(data.url)) return data.url;
+  return data.text?.match(WEB_URL)?.[0];
+}
+
+/**
+ * Whether a shared value is an `http:` or `https:` URL. The query of `/share`
+ * can come from anywhere, so nothing else (`javascript:`, `data:`) is ever
+ * made a link.
+ */
+export function isWebUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 /**
