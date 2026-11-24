@@ -36,6 +36,48 @@ Deno.test("literal escapes and round-trips awkward strings", () => {
   for (const sample of samples) assertEquals(roundTrip(sample), sample);
 });
 
+/** What a SPARQL engine may do to the whole query text before tokenising. */
+function preprocessCodepointEscapes(text: string): string {
+  return text.replace(
+    /\\u([0-9a-fA-F]{4})|\\U([0-9a-fA-F]{8})/g,
+    (_, short, long) => String.fromCodePoint(parseInt(short ?? long, 16)),
+  );
+}
+
+Deno.test("literal survives the SPARQL pre-processing of \\u escapes", () => {
+  const samples = [
+    "\\u0026",
+    '{"about":"CTO \\u0026 co"}',
+    "C:\\users\\Uwe",
+    "\\\\u0026 and \\\\\\u0026",
+    "ends with a backslash \\",
+    "\\u",
+    "\\U0001F995 and a real \u0001 control after \\\u0001",
+  ];
+  for (const sample of samples) {
+    const text = literal(sample);
+    assertEquals(roundTrip(sample), sample, "N-Triples");
+    const update = `INSERT DATA { <urn:s> <urn:p> ${
+      preprocessCodepointEscapes(text)
+    } }`;
+    const store = new oxigraph.Store();
+    store.update(update);
+    const json = store.query("SELECT ?o WHERE { ?s ?p ?o }", {
+      results_format: "application/sparql-results+json",
+    }) as string;
+    assertEquals(
+      JSON.parse(json).results.bindings[0].o.value,
+      sample,
+      "SPARQL",
+    );
+  }
+});
+
+Deno.test("literal never leaves a backslash directly before u or U", () => {
+  assertEquals(literal("\\u0026"), '"\\\\\\u0075' + '0026"');
+  assertEquals(literal("\\U0001"), '"\\\\\\u0055' + '0001"');
+});
+
 Deno.test("literal refuses ill-formed Unicode", () => {
   assertThrows(() => literal("lone \ud800 surrogate"));
 });
