@@ -41,6 +41,8 @@ import { setupFinished, SetupFlow } from "./SetupFlow.tsx";
 import { SignerStatus } from "./SignerStatus.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { ToastHost } from "./Toast.tsx";
+import { ReadAloudBar } from "./ReadAloud.tsx";
+import { player } from "../lib/speech.ts";
 
 interface NavEntry {
   to: string;
@@ -169,7 +171,7 @@ export function Shell({ children }: ShellProps) {
   const compose = () => session.value ? openCompose() : openLogin();
 
   return (
-    <div class="shell">
+    <div class={`shell${player.value ? " shell--player" : ""}`}>
       <a class="skip-link" href="#main">Skip to content</a>
       <aside class="shell__rail" aria-label="Sidebar">
         <Link class="rail-brand" to="/" aria-label="Scuttlesaurus home">
@@ -231,6 +233,7 @@ export function Shell({ children }: ShellProps) {
 
       <main class="shell__main" id="main" tabIndex={-1}>
         {children}
+        <ReadAloudBar />
       </main>
 
       <aside class="shell__aside" aria-label="About this node">

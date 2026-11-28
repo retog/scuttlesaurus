@@ -131,6 +131,32 @@ export function useProfile(pubkey: string): Profile {
   return (cache.get(pubkey) ?? slot(pubkey)).value;
 }
 
+/**
+ * The profile of `pubkey` once loaded, outside components. Resolves with the
+ * fallback (`loaded: false`) after `timeoutMs` when the node does not answer.
+ */
+export function loadProfile(
+  pubkey: string,
+  timeoutMs = 4000,
+): Promise<Profile> {
+  prefetchProfile(pubkey);
+  const s = cache.get(pubkey) ?? slot(pubkey);
+  if (s.peek().loaded) return Promise.resolve(s.peek());
+  return new Promise((resolve) => {
+    // Not loaded yet (checked above), so the first, synchronous call of the
+    // subscriber does not touch `unsubscribe` or `timer` before they exist.
+    const unsubscribe = s.subscribe((profile) => {
+      if (profile.loaded) finish(profile);
+    });
+    const timer = setTimeout(() => finish(s.peek()), timeoutMs);
+    function finish(profile: Profile) {
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(profile);
+    }
+  });
+}
+
 /** The best name to show: display name, name, or a shortened npub. */
 export function displayNameOf(
   profile: Pick<Profile, "name" | "displayName"> | undefined,

@@ -142,6 +142,7 @@ export default function ReadsView() {
         resetKey={`${scope}|${viewer ?? ""}|${tag ?? ""}`}
         loadPage={(until, limit) =>
           fetchArticles({ scope, viewer, tag, until, limit })}
+        readAloudTitle={tag ? `Reads · #${tag}` : "Reads"}
         empty={empty}
       />
     </div>

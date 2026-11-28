@@ -513,3 +513,27 @@ exchanges NIP-44-encrypted kind 24133 events with the signer over a relay.
   be reached.
 - `scripts/fake_signer.ts` stands in for a signer app in development; see
   [DEVELOPMENT.md](DEVELOPMENT.md#testing-remote-signing).
+
+**Read aloud (`lib/speech.ts`, `lib/read_aloud.ts`, `lib/speech_text.ts`).** The
+browser's own speech synthesis (Web Speech API) reads an article, a list of
+articles (Reads, a profile's articles) or a note feed (Home, a profile, search
+results). Nothing is sent anywhere; in a browser without speech synthesis the
+buttons are not shown.
+
+- A _source_ hands the player one item at a time and loads the next page of the
+  list with the same loader the list uses, so a feed is read past what is on
+  screen. A feed is read from the first note that is mostly on screen; an
+  article list loads each article in full.
+- Each item becomes plain text: Markdown loses its markup, code blocks are
+  announced rather than read, mentions become names, links become "link to
+  host", media "image" or "video". A note starts with "Alice wrote:", "Alice
+  replied:" or "Bob reposted Alice:".
+- The text is spoken in chunks of a sentence or a few (at most 220 characters),
+  because browsers stall on long utterances. Pausing cancels the synthesizer and
+  resuming repeats the current chunk, since `pause()` and `resume()` are
+  unreliable across browsers.
+- The player is docked at the bottom of the main column and keeps reading across
+  navigation: previous, pause, next, speed (0.75× to 2×) and voice. The speed
+  and voice are kept in `localStorage`. Without a chosen voice, a note with a
+  NIP-32 `l` label (`ISO-639-1`) is read with a voice of its language. The note
+  being read is outlined and scrolled into view.

@@ -7,7 +7,7 @@
  */
 import type { ComponentChildren } from "preact";
 import { Repeat2, Trash2 } from "lucide-preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   deleteNote,
   hiddenNotes,
@@ -18,6 +18,7 @@ import {
 } from "../lib/actions.ts";
 import { type NoteRow, toEvent } from "../lib/feed.ts";
 import { session } from "../lib/session.ts";
+import { speakingKey } from "../lib/speech.ts";
 import { openCompose } from "../lib/ui.ts";
 import { AuthorName } from "./AuthorName.tsx";
 import { Button, IconButton } from "./Button.tsx";
@@ -40,6 +41,14 @@ export function NoteItem(
   const stats = useNoteStats(note.id);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const speaking = speakingKey.value === note.key;
+  useEffect(() => {
+    // Follow the reading: bring the note being read into view.
+    if (speaking) {
+      root.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [speaking]);
   if (hiddenNotes.value.has(note.id)) return null;
   if (note.repostedBy && hiddenNotes.value.has(note.repostedBy.id)) return null;
   const event = toEvent(note);
@@ -62,7 +71,15 @@ export function NoteItem(
     )
     : context;
   return (
-    <div class={`note-item note-item--${variant}`}>
+    <div
+      ref={root}
+      class={`note-item note-item--${variant}${
+        speaking ? " note-item--speaking" : ""
+      }`}
+      data-note-key={note.key}
+      data-note-at={note.at}
+      aria-current={speaking ? "true" : undefined}
+    >
       <NoteCard
         note={event}
         variant={variant}

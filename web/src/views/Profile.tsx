@@ -87,6 +87,9 @@ function Panel(
               withReplies: tab === "replies",
               until,
             })}
+          readAloudTitle={`${name} · ${
+            tab === "replies" ? "Replies" : "Notes"
+          }`}
           empty={
             <EmptyState
               title={isMine
@@ -106,6 +109,7 @@ function Panel(
           resetKey={key}
           loadPage={(until, limit) =>
             fetchArticles({ scope: "network", author: pubkey, until, limit })}
+          readAloudTitle={`${name} · Articles`}
           empty={{
             title: isMine
               ? "You have not published an article yet"

@@ -67,6 +67,13 @@ export interface ArticleRow {
   content?: string;
 }
 
+/** The body without a leading `# Title` line that repeats the article's title. */
+export function bodyWithoutTitle(content: string, title: string): string {
+  const match = /^#\s+(.+?)\s*(\r?\n|$)/.exec(content);
+  if (!match || match[1].trim() !== title.trim()) return content;
+  return content.slice(match[0].length).replace(/^\s+/, "");
+}
+
 /** The fields of an article that the reader and the editor need to address it. */
 export interface ArticleRef {
   kind: number;

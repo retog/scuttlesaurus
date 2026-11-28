@@ -153,6 +153,7 @@ function Notes({ q }: { q: string }) {
         id
           ? until === undefined ? fetchNotes([id]) : Promise.resolve([])
           : searchNotes(q, { until })}
+      readAloudTitle={`Search · ${q}`}
       empty={
         <EmptyState title="No notes found" icon={<SearchX size={36} />}>
           {q.startsWith("#")

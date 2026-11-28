@@ -55,7 +55,8 @@ Then open <http://localhost:7777>. See
   subscribed, so the events arrive as they are published.
 - **Web client.** Notes with threads, reactions and reposts; long-form articles
   with an editor and comments; profiles, search, notifications, a page on the
-  node itself, and the owner's settings.
+  node itself, and the owner's settings. Articles and feeds can be read aloud,
+  one post after the other.
 - **Remote signing.** Sign in with a signer app such as Amber (NIP-46): the key
   stays in the app, the browser holds a connection key only. The relay carries
   the encrypted requests, from any author, without storing them.
