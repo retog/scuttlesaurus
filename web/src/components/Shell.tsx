@@ -41,6 +41,7 @@ import { setupFinished, SetupFlow } from "./SetupFlow.tsx";
 import { SignerStatus } from "./SignerStatus.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { ToastHost } from "./Toast.tsx";
+import { ReadAloudBar } from "./ReadAloud.tsx";
 
 interface NavEntry {
   to: string;
@@ -231,6 +232,7 @@ export function Shell({ children }: ShellProps) {
 
       <main class="shell__main" id="main" tabIndex={-1}>
         {children}
+        <ReadAloudBar />
       </main>
 
       <aside class="shell__aside" aria-label="About this node">

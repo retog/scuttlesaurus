@@ -1133,3 +1133,157 @@ body:has(dialog[open]) .signer-status--page {
 .article-sheet {
   padding: var(--s-6) var(--s-5);
 }
+
+/* --- Read aloud ------------------------------------------------------------------------------- */
+/* Sticky, so that reading can start from wherever the reader has scrolled
+   to. The row itself lets clicks through to the note below. */
+.feed-toolbar {
+  position: sticky;
+  z-index: 5;
+  top: var(--s-3);
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-2);
+  pointer-events: none;
+}
+.feed-toolbar > * {
+  pointer-events: auto;
+}
+.read-aloud-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+}
+.read-aloud-btn .btn__icon {
+  color: var(--primary);
+}
+
+/* The player docks at the bottom of the main column, above the tab bar on
+   small screens. */
+.read-aloud {
+  position: sticky;
+  z-index: 15;
+  bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
+  margin-top: var(--s-5);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+}
+.read-aloud__main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.read-aloud__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.read-aloud__icon.is-playing {
+  animation: read-aloud-pulse 1.6s ease-in-out infinite;
+}
+@keyframes read-aloud-pulse {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .read-aloud__icon.is-playing {
+    animation: none;
+  }
+}
+.read-aloud__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.read-aloud__title {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.read-aloud__item {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.read-aloud__item a {
+  color: inherit;
+}
+.read-aloud__controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.read-aloud__rate {
+  min-width: 44px;
+  padding: 6px var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.read-aloud__rate:hover {
+  background: var(--surface-2);
+}
+.read-aloud__rate:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.read-aloud__voice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+.read-aloud__voice .field__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px var(--s-2);
+}
+
+/* The note being read. */
+.note-item--speaking {
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+@media (max-width: 699px) {
+  .feed-toolbar {
+    top: calc(56px + var(--s-2));
+  }
+  .read-aloud {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    margin-left: calc(var(--s-2) * -1);
+    margin-right: calc(var(--s-2) * -1);
+  }
+  .read-aloud__main {
+    flex-wrap: wrap;
+  }
+  .read-aloud__controls {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+.read-aloud__error {
+  color: var(--danger);
+}

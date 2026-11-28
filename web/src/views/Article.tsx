@@ -17,9 +17,11 @@ import {
 import { ConfirmButton } from "../components/ConfirmButton.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { Markdown } from "../components/Markdown.tsx";
+import { ReadAloudButton } from "../components/ReadAloud.tsx";
 import { Skeleton } from "../components/Spinner.tsx";
 import { toast } from "../components/Toast.tsx";
 import {
+  bodyWithoutTitle,
   deleteAddress,
   explainError,
   fetchArticle,
@@ -35,13 +37,8 @@ import { articlePath, decodeNip19 } from "../lib/nostr.ts";
 import { Link, navigate, useRoute } from "../lib/router.tsx";
 import { canSign, session } from "../lib/session.ts";
 import { openLogin } from "../lib/ui.ts";
-
-/** The body without a leading `# Title` line that repeats the article's title. */
-function bodyWithoutTitle(content: string, title: string): string {
-  const match = /^#\s+(.+?)\s*(\r?\n|$)/.exec(content);
-  if (!match || match[1].trim() !== title.trim()) return content;
-  return content.slice(match[0].length).replace(/^\s+/, "");
-}
+import { articleItem } from "../lib/read_aloud.ts";
+import { playItem } from "../lib/speech.ts";
 
 /** The reader of one article, addressed by `/a/:naddr`. */
 export default function ArticleView() {
@@ -198,6 +195,11 @@ export default function ArticleView() {
               />
             }
             onClick={toggleLike}
+          />
+          <ReadAloudButton
+            look="icon"
+            label="Listen to this article"
+            onStart={() => playItem("Article", () => articleItem(data))}
           />
           <IconButton
             label="Copy link"

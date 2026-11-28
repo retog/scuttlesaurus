@@ -15,6 +15,9 @@ import { Button } from "./Button.tsx";
 import { ArticleCard, type ArticleSummary } from "./ArticleCard.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { Skeleton } from "./Spinner.tsx";
+import { articleListSource } from "../lib/read_aloud.ts";
+import { play } from "../lib/speech.ts";
+import { ReadAloudButton } from "./ReadAloud.tsx";
 
 /** Props of {@link ArticleList}. */
 export interface ArticleListProps {
@@ -34,6 +37,11 @@ export interface ArticleListProps {
   };
   /** Articles per page (default 10). */
   pageSize?: number;
+  /**
+   * Name of the list in the read-aloud player, e.g. "Reads". Without it the
+   * list has no "Read aloud" button.
+   */
+  readAloudTitle?: string;
 }
 
 /** The card data of an article row. */
@@ -51,7 +59,8 @@ function toSummary(row: ArticleRow): ArticleSummary {
 
 /** A list of article cards with paging. */
 export function ArticleList(
-  { loadPage, resetKey, empty, pageSize = 10 }: ArticleListProps,
+  { loadPage, resetKey, empty, pageSize = 10, readAloudTitle }:
+    ArticleListProps,
 ) {
   const [items, setItems] = useState<ArticleRow[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -126,6 +135,20 @@ export function ArticleList(
   }
   return (
     <div class="article-list">
+      {readAloudTitle && (
+        <div class="feed-toolbar">
+          <ReadAloudButton
+            title="Read the articles aloud, one after the other"
+            onStart={() =>
+              play(
+                articleListSource(readAloudTitle, {
+                  load: loader.current,
+                  pageSize,
+                }),
+              )}
+          />
+        </div>
+      )}
       <div class="stack">
         {items.map((row) => (
           <ArticleCard key={row.naddr} article={toSummary(row)} />

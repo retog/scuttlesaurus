@@ -232,6 +232,9 @@ export default function HomeView() {
           <NoteFeed
             resetKey={`${scope}:${viewer}`}
             load={(until) => fetchFeed({ scope, viewer, until })}
+            readAloudTitle={scope === "following"
+              ? "Home · Following"
+              : "Home · Network"}
             prepend={added}
             empty={
               <EmptyFeed
