@@ -21,6 +21,8 @@ export interface ComposerProps {
   placeholder?: string;
   submitLabel?: string;
   initialValue?: string;
+  /** Files to upload and attach as soon as the session can sign. */
+  initialFiles?: File[];
   autoFocus?: boolean;
   /** Disable everything (e.g. while the parent is busy). */
   disabled?: boolean;
@@ -36,6 +38,7 @@ export function Composer(props: ComposerProps) {
   const [error, setError] = useState<string>();
   const area = useRef<HTMLTextAreaElement>(null);
   const files = useRef<HTMLInputElement>(null);
+  const attached = useRef<File[] | undefined>(undefined);
   const signedIn = canSign.value;
 
   const grow = () => {
@@ -72,6 +75,13 @@ export function Composer(props: ComposerProps) {
       }
     }
   };
+
+  useEffect(() => {
+    const initial = props.initialFiles;
+    if (!signedIn || !initial?.length || attached.current === initial) return;
+    attached.current = initial;
+    upload(initial);
+  }, [props.initialFiles, signedIn]);
 
   const submit = async () => {
     const content = text.trim();

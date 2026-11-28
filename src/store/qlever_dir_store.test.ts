@@ -29,10 +29,18 @@ interface Fixture {
 async function listFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
   const walk = async (current: string) => {
-    for await (const entry of Deno.readDir(current)) {
-      const path = join(current, entry.name);
-      if (entry.isDirectory) await walk(path);
-      else out.push(path.slice(dir.length + 1));
+    try {
+      for await (const entry of Deno.readDir(current)) {
+        const path = join(current, entry.name);
+        if (entry.isDirectory) await walk(path);
+        else out.push(path.slice(dir.length + 1));
+      }
+    } catch (error) {
+      // A consolidation running beside the test may remove a day directory
+      // between listing its parent and reading it: then it holds no files.
+      if (!(error instanceof Deno.errors.NotFound) || current === dir) {
+        throw error;
+      }
     }
   };
   await walk(dir);
