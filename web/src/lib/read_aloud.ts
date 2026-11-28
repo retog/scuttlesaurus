@@ -92,7 +92,7 @@ export async function articleItem(
 }
 
 /** How a source pages through a list. */
-interface Paging<T> {
+export interface Paging<T> {
   load: (cursor?: number) => Promise<T[]>;
   cursorOf: (row: T) => number;
   keyOf: (row: T) => string;
@@ -109,8 +109,11 @@ interface Paging<T> {
   toItem: (row: T) => Promise<SpeechItem | null>;
 }
 
-/** A source that reads rows one after the other, loading pages as needed. */
-function pagedSource<T>(title: string, paging: Paging<T>): SpeechSource {
+/**
+ * A source that reads rows one after the other, loading pages as needed.
+ * Exported for tests.
+ */
+export function pagedSource<T>(title: string, paging: Paging<T>): SpeechSource {
   const { load, cursorOf, keyOf, pageSize, skip, toItem, onPage } = paging;
   const seen = new Set<string>();
   let buffer: T[] = [];
@@ -118,39 +121,49 @@ function pagedSource<T>(title: string, paging: Paging<T>): SpeechSource {
   let end = false;
   let started = false;
 
-  const take = (rows: readonly T[]) =>
-    rows.filter((row) => {
+  /**
+   * The rows not read yet and not skipped, and whether the page had any row
+   * not seen before (a page of hidden rows does not end the list, a page of
+   * repeats does: the cursor is inclusive).
+   */
+  const take = (rows: readonly T[]) => {
+    let anyNew = false;
+    const fresh = rows.filter((row) => {
       const key = keyOf(row);
-      if (seen.has(key) || skip?.(row)) return false;
+      if (seen.has(key)) return false;
       seen.add(key);
-      return true;
+      anyNew = true;
+      return !skip?.(row);
     });
+    return { fresh, anyNew };
+  };
 
   const fill = async () => {
     if (!started) {
-      started = true;
       const start = paging.start;
       const first = paging.first ?? [];
       const at = start ? first.findIndex((r) => keyOf(r) === start.key) : 0;
       if (!start || at >= 0) {
-        buffer = take(first.slice(Math.max(at, 0)));
+        buffer = take(first.slice(Math.max(at, 0))).fresh;
       } else {
-        cursor = start.cursor;
-        const page = await load(cursor);
+        // Nothing is kept until the page is in, so a failure can be retried.
+        const page = await load(start.cursor);
+        const from = page.findIndex((r) => keyOf(r) === start.key);
+        const { fresh } = take(page.slice(Math.max(from, 0)));
         if (page.length < pageSize) end = true;
         if (page.length) cursor = cursorOf(page[page.length - 1]);
-        const from = page.findIndex((r) => keyOf(r) === start.key);
-        buffer = take(page.slice(Math.max(from, 0)));
+        else cursor = start.cursor;
+        buffer = fresh;
         await onPage?.(buffer);
       }
+      started = true;
       if (buffer.length) return;
     }
     while (!buffer.length && !end) {
       const page = await load(cursor);
-      if (page.length < pageSize) end = true;
+      const { fresh, anyNew } = take(page);
+      if (page.length < pageSize || !anyNew) end = true;
       if (page.length) cursor = cursorOf(page[page.length - 1]);
-      const fresh = take(page);
-      if (!fresh.length) end = true;
       await onPage?.(fresh);
       buffer = fresh;
     }
@@ -161,9 +174,12 @@ function pagedSource<T>(title: string, paging: Paging<T>): SpeechSource {
     async next() {
       while (true) {
         if (!buffer.length) await fill();
-        const row = buffer.shift();
+        const row = buffer[0];
         if (row === undefined) return null;
+        // The row leaves the buffer only once it is spoken for, so that a
+        // failure is retried on the same row.
         const item = await toItem(row);
+        buffer.shift();
         if (item) return item;
       }
     },

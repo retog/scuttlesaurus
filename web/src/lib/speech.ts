@@ -39,7 +39,9 @@ export interface SpeechSource {
 /** What the player bar shows. */
 export interface PlayerState {
   title: string;
-  status: "loading" | "playing" | "paused";
+  status: "loading" | "playing" | "paused" | "error";
+  /** Why the next item could not be loaded (status `error`). */
+  error?: string;
   item?: SpeechItem;
   /** 0-based position of the item in the source. */
   index: number;
@@ -114,6 +116,8 @@ interface Run {
   chunks: string[];
   chunk: number;
   done: boolean;
+  /** An item is being loaded; navigation waits for it. */
+  busy: boolean;
 }
 
 let run: Run | null = null;
@@ -122,7 +126,7 @@ let generation = 0;
 /** Keeps the utterance alive: Chrome drops `onend` of collected ones. */
 let _current: SpeechSynthesisUtterance | null = null;
 
-function publish(status: PlayerState["status"]): void {
+function publish(status: PlayerState["status"], error?: string): void {
   if (!run) {
     player.value = null;
     return;
@@ -133,6 +137,7 @@ function publish(status: PlayerState["status"]): void {
     item: run.items[run.index],
     index: run.index,
     hasPrevious: run.index > 0,
+    error,
   };
 }
 
@@ -191,7 +196,8 @@ function speak(): void {
 /** Moves `step` items forward (or back), loading the next one if needed. */
 async function advance(step: 1 | -1): Promise<void> {
   const r = run;
-  if (!r) return;
+  // One move at a time: a second one while an item loads would load another.
+  if (!r || r.busy) return;
   generation++;
   speechSynthesis.cancel();
   const target = r.index + step;
@@ -206,11 +212,20 @@ async function advance(step: 1 | -1): Promise<void> {
       return;
     }
     publish("loading");
+    r.busy = true;
     let item: SpeechItem | null;
     try {
       item = await r.source.next();
-    } catch {
-      item = null;
+    } catch (reason) {
+      if (run !== r) return;
+      // Not the end of the list: the player stays, and resuming retries.
+      publish(
+        "error",
+        reason instanceof Error ? reason.message : String(reason),
+      );
+      return;
+    } finally {
+      r.busy = false;
     }
     if (run !== r) return;
     if (!item) {
@@ -230,7 +245,15 @@ async function advance(step: 1 | -1): Promise<void> {
 export function play(source: SpeechSource): void {
   if (!speechSupported) return;
   stop();
-  run = { source, items: [], index: -1, chunks: [], chunk: 0, done: false };
+  run = {
+    source,
+    items: [],
+    index: -1,
+    chunks: [],
+    chunk: 0,
+    done: false,
+    busy: false,
+  };
   publish("loading");
   void advance(1);
 }
@@ -256,15 +279,21 @@ export function pause(): void {
   publish("paused");
 }
 
-/** Resumes at the start of the chunk that was cut short. */
+/**
+ * Resumes at the start of the chunk that was cut short, or after a failed
+ * load tries to load the next item again.
+ */
 export function resume(): void {
-  if (!run || player.value?.status !== "paused") return;
-  speak();
+  const status = player.value?.status;
+  if (!run) return;
+  if (status === "error") void advance(1);
+  else if (status === "paused") speak();
 }
 
-/** Pause or resume. */
+/** Pause or resume (or retry after an error). */
 export function togglePause(): void {
-  if (player.value?.status === "paused") resume();
+  const status = player.value?.status;
+  if (status === "paused" || status === "error") resume();
   else pause();
 }
 
@@ -275,7 +304,7 @@ export function next(): void {
 
 /** Back to the previous item, or to the start of the first one. */
 export function previous(): void {
-  if (!run) return;
+  if (!run || run.busy) return;
   // Well into an item, "back" restarts it, as in a music player.
   if (run.chunk > 1 || run.index === 0) {
     generation++;

@@ -83,6 +83,7 @@ export function ReadAloudBar() {
   const { item, status } = state;
   const loading = status === "loading";
   const playing = status === "playing";
+  const failed = status === "error";
   const current = rate.value;
   const nextRate = RATES[
     (RATES.indexOf(current as typeof RATES[number]) + 1) %
@@ -103,6 +104,12 @@ export function ReadAloudBar() {
           <span class="read-aloud__item">
             {loading
               ? "Loading…"
+              : failed
+              ? (
+                <span class="read-aloud__error" title={state.error}>
+                  Could not load the next post
+                </span>
+              )
               : item?.path
               ? <Link to={item.path}>{item.label}</Link>
               : item?.label}
@@ -117,7 +124,7 @@ export function ReadAloudBar() {
             onClick={previous}
           />
           <IconButton
-            label={playing ? "Pause" : "Resume"}
+            label={playing ? "Pause" : failed ? "Try again" : "Resume"}
             variant="primary"
             disabled={loading}
             icon={playing ? <Pause size={18} /> : <Play size={18} />}
