@@ -21,6 +21,7 @@ import Profile from "./views/Profile.tsx";
 import Reads from "./views/Reads.tsx";
 import Search from "./views/Search.tsx";
 import Settings from "./views/Settings.tsx";
+import Share from "./views/Share.tsx";
 import Write from "./views/Write.tsx";
 
 /** The view component for each route name. */
@@ -35,6 +36,7 @@ export const VIEWS = {
   search: Search,
   network: Network,
   settings: Settings,
+  share: Share,
   gallery: Gallery,
   notFound: NotFound,
 } satisfies Record<RouteName, ComponentType>;
