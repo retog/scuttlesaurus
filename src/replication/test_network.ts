@@ -6,6 +6,7 @@
  * @module
  */
 import { delay } from "@std/async/delay";
+import { matchFilter } from "@nostr/tools/filter";
 import {
   finalizeEvent,
   generateSecretKey,
@@ -100,8 +101,23 @@ export interface Upstream {
   close(): Promise<void>;
 }
 
-/** Serve a relay that lets everybody in `allowed` publish to it. */
-export async function startUpstream(allowed: Person[] = []): Promise<Upstream> {
+/** Options of {@link startUpstream}. */
+export interface UpstreamOptions {
+  /**
+   * Answer queries with every version of replaceable events, as relays that
+   * keep the history do, instead of the current ones only.
+   */
+  keepHistory?: boolean;
+}
+
+/**
+ * Serve a relay that lets everybody in `allowed` publish to it.
+ */
+export async function startUpstream(
+  allowed: Person[] = [],
+  upstreamOptions: UpstreamOptions = {},
+): Promise<Upstream> {
+  const history: NostrEvent[] = [];
   // The relay only takes writes once it has an owner.
   const config = testConfig({ owner: people(1)[0].pubkey });
   const store = await openEventStore(new MemoryTripleStore(), config);
@@ -111,7 +127,16 @@ export async function startUpstream(allowed: Person[] = []): Promise<Upstream> {
       if (property === "query") {
         return (filters: Filter[]) => {
           requests.push(...filters.map((f) => structuredClone(f)));
-          return target.query(filters);
+          if (!upstreamOptions.keepHistory) return target.query(filters);
+          const found = new Map<string, NostrEvent>();
+          for (const filter of filters) {
+            history
+              .filter((e) => matchFilter(filter, e))
+              .sort((a, b) => b.created_at - a.created_at)
+              .slice(0, filter.limit ?? Infinity)
+              .forEach((e) => found.set(e.id, e));
+          }
+          return Promise.resolve([...found.values()]);
         };
       }
       const value = Reflect.get(target, property);
@@ -141,6 +166,7 @@ export async function startUpstream(allowed: Person[] = []): Promise<Upstream> {
       for (const event of events) {
         const result = await store.add(event);
         if (result.status === "rejected") throw new Error(result.reason);
+        history.push(event);
       }
     },
     async close() {

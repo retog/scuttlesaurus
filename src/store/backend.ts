@@ -5,12 +5,22 @@
  *
  * @module
  */
-import type { QueryOptions, SparqlBinding, TripleStore } from "../types.ts";
+import type {
+  InsertOptions,
+  QueryOptions,
+  SparqlBinding,
+  TripleStore,
+} from "../types.ts";
 import { queryForm, resultType } from "./sparql_form.ts";
 
 /** The operations a storage engine must provide. */
 export interface Backend {
-  insert(ntriples: string): Promise<void>;
+  /**
+   * Add triples. A backend whose writes are durable before they are visible
+   * calls `options.onDurable` in between; {@link tripleStore} calls it for
+   * the others once the insert has resolved.
+   */
+  insert(ntriples: string, options?: InsertOptions): Promise<void>;
   /** Evaluate a query; `body` is in the media type of `resultType(form)`. */
   evaluate(
     sparql: string,
@@ -29,8 +39,17 @@ export function tripleStore(backend: Backend): TripleStore {
     return { form, contentType: resultType(form), body };
   };
   return {
-    insert: (ntriples) =>
-      ntriples === "" ? Promise.resolve() : backend.insert(ntriples),
+    async insert(ntriples, options) {
+      if (ntriples === "") return;
+      let durable = false;
+      const onDurable = () => {
+        if (durable) return;
+        durable = true;
+        options?.onDurable?.();
+      };
+      await backend.insert(ntriples, { onDurable });
+      onDurable();
+    },
     async select(sparql) {
       const { form, body } = await run(sparql);
       if (form !== "SELECT") throw new Error("Not a SELECT query");

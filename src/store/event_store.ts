@@ -86,6 +86,9 @@ export interface GroupOptions {
 interface Pending {
   item: GroupItem;
   size: number;
+  /** Committed ahead of the others (see {@link AddOptions.priority}). */
+  priority: boolean;
+  onDurable?: (result: AddResult) => void;
   resolve: (result: AddResult) => void;
   reject: (error: unknown) => void;
 }
@@ -218,6 +221,10 @@ class Store implements EventStore {
   }
 
   add(event: NostrEvent, options: AddOptions = {}): Promise<AddResult> {
+    const settled = (result: AddResult) => {
+      options.onDurable?.(result);
+      return Promise.resolve(result);
+    };
     if (this.#closed) return Promise.reject(new Error("Event store is closed"));
     const alreadyKnown = typeof event === "object" && event !== null &&
       this.has(event.id);
@@ -231,7 +238,7 @@ class Store implements EventStore {
       if (
         !relay || recorded?.has(relay) ||
         (recorded && recorded.size >= MAX_SEEN_RELAYS)
-      ) return Promise.resolve({ status: "duplicate" });
+      ) return settled({ status: "duplicate" });
     }
     // The signature of a known event is not looked at again: only that the
     // event really is the one stored, so that a relay cannot earn `seenOn`
@@ -241,20 +248,27 @@ class Store implements EventStore {
       alreadyKnown || options.verified === true,
       Date.now() / 1000,
     );
-    if (reason) return Promise.resolve({ status: "rejected", reason });
-    if (alreadyKnown && !relay) return Promise.resolve({ status: "duplicate" });
+    if (reason) return settled({ status: "rejected", reason });
+    if (alreadyKnown && !relay) return settled({ status: "duplicate" });
     if (isEphemeral(event.kind)) {
       this.#notify(event, { seenOn: options.seenOn, stored: false });
-      return Promise.resolve({ status: "ephemeral" });
+      return settled({ status: "ephemeral" });
     }
     return new Promise((resolve, reject) => {
-      this.#pending.push({
+      const pending: Pending = {
         item: { event, seenOn: options.seenOn },
         size: alreadyKnown ? SEEN_ON_SIZE : SIZE_OVERHEAD +
           event.content.length * 2 + JSON.stringify(event.tags).length * 2,
+        priority: options.priority === true,
+        onDurable: options.onDurable,
         resolve,
         reject,
-      });
+      };
+      if (pending.priority) {
+        // Behind earlier priority events, ahead of everything else.
+        const at = this.#pending.findIndex((p) => !p.priority);
+        this.#pending.splice(at < 0 ? this.#pending.length : at, 0, pending);
+      } else this.#pending.push(pending);
       if (!this.#committing) {
         this.#committing = true;
         // Deferred so that adds issued in the same turn form one group.
@@ -277,11 +291,26 @@ class Store implements EventStore {
           group.map((p) => p.item),
           this.#seen,
         );
+        let durable = false;
+        const announceDurable = () => {
+          if (durable) return;
+          durable = true;
+          group.forEach((pending, i) => {
+            try {
+              pending.onDurable?.(plan.outcomes[i]);
+            } catch {
+              // A faulty caller must not affect the others or the writer.
+            }
+          });
+        };
         if (plan.ntriples) {
           inserting = true;
-          await this.triples.insert(plan.ntriples);
+          await this.triples.insert(plan.ntriples, {
+            onDurable: announceDurable,
+          });
           inserting = false;
         }
+        announceDurable();
         if (this.#seen.size > SEEN_CACHE_EVENTS) this.#seen = new Map();
         for (const [e, relays] of plan.seen) this.#seen.set(e, relays);
         for (const item of plan.stored) {

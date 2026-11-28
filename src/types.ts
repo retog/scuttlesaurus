@@ -212,8 +212,11 @@ export class QueryLimitError extends Error {
  * removes or changes a triple: `insert` is the only way to write.
  */
 export interface TripleStore {
-  /** Add the triples of an N-Triples document. Idempotent per triple. */
-  insert(ntriples: string): Promise<void>;
+  /**
+   * Add the triples of an N-Triples document. Idempotent per triple. Resolves
+   * once the triples are visible to queries.
+   */
+  insert(ntriples: string, options?: InsertOptions): Promise<void>;
   /** Evaluate a SPARQL SELECT query. */
   select(sparql: string): Promise<SparqlBinding[]>;
   /** Evaluate a SPARQL ASK query. */
@@ -239,6 +242,17 @@ export interface TripleStore {
   close(): Promise<void>;
 }
 
+/** Options of {@link TripleStore.insert}. */
+export interface InsertOptions {
+  /**
+   * Called once the triples are durable, which can be well before they are
+   * visible to queries (qlever-dir: the file is in place, but the index may
+   * still be rebuilding). Stores without that distinction call it right
+   * before `insert` resolves. Not called when nothing durable was written.
+   */
+  onDurable?: () => void;
+}
+
 /** Outcome of offering an event to the store. */
 export type AddResult =
   /** The event is new and is now part of the graph. */
@@ -260,6 +274,18 @@ export interface AddOptions {
   seenOn?: string;
   /** The signature has already been verified by the caller. */
   verified?: boolean;
+  /**
+   * Commit this event ahead of events offered without `priority`, such as a
+   * backlog from replication. For events a client is waiting for.
+   */
+  priority?: boolean;
+  /**
+   * Called with the outcome as soon as it is settled and, for a `stored`
+   * event, its triples are durable; possibly long before `add` resolves,
+   * which waits until queries see the event. Called at most once, and not at
+   * all when `add` rejects before the event was durably written.
+   */
+  onDurable?: (result: AddResult) => void;
 }
 
 export interface EventListenerInfo {

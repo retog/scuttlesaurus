@@ -793,3 +793,34 @@ Deno.test("a page that hit a store error is fetched again and ends up with corre
     );
   });
 });
+
+Deno.test("old versions of a follow list are not paged through", async () => {
+  await scenario(async (cleanup) => {
+    const [owner, a, b] = people(3);
+    const upstream = await startUpstream([], { keepHistory: true });
+    cleanup(() => upstream.close());
+    // a's follow list in 12 versions, newest last; a has no other list.
+    const versions = Array.from(
+      { length: 12 },
+      (_, i) => follows(a, [b], secondsAgo(1, 600 - i * 30)),
+    );
+    const profile = sign(b, 0, { content: "{}", created_at: secondsAgo(3) });
+    await upstream.add(follows(owner, [a]), ...versions, profile);
+
+    const node = await startDownstream(owner, [upstream.url], {
+      tuning: { pageSize: 2 },
+    });
+    cleanup(() => node.close());
+    await eventually(() => node.events.has(versions[11].id), "a's newest list");
+    await eventually(() => node.events.has(profile.id), "b's profile");
+    await waitIdle(node);
+
+    const stale = versions.slice(0, 10).filter((v) => node.events.has(v.id));
+    assertEquals(stale.length, 0, "superseded versions were fetched");
+    const listPages = upstream.requests.filter((f) =>
+      f.authors?.includes(a.pubkey) && f.kinds?.includes(3) &&
+      f.until !== undefined
+    );
+    assert(listPages.length <= 1, `${listPages.length} pages of a's kind 3`);
+  });
+});

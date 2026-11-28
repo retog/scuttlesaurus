@@ -28,6 +28,10 @@ services:
       # Apply each new file as soon as it is written. The default of 2 seconds
       # would delay every acknowledgement by that much.
       INCREMENTAL_DELAY: "0"
+      # A full rebuild of the index after this many changed triples (default
+      # 100000). While a new node fills up, that is every few minutes; a
+      # higher value makes rebuilds rarer (docs/INSTALL.md).
+      # COMPACTION_DELTA_TRIPLES: "1000000"
       # BASE_URI is not set here, so it is qlever-dir's default,
       # https://example.org/data/. That equals the default of the node's
       # QLEVER_DIR_BASE_URI. If one of them changes, change the other too.

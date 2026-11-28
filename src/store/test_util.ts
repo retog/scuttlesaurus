@@ -13,6 +13,7 @@ import { MemoryTripleStore, testConfig } from "../testing/mod.ts";
 import type {
   Config,
   EventStore,
+  InsertOptions,
   NostrEvent,
   QueryOptions,
   SparqlBinding,
@@ -111,14 +112,18 @@ export class CountingStore implements TripleStore {
     return this.selects + this.asks + this.inserts;
   }
 
-  insert(ntriples: string): Promise<void> {
+  /** When set, inserts wait for it before they start. */
+  gate?: Promise<void>;
+
+  async insert(ntriples: string, options?: InsertOptions): Promise<void> {
     this.inserts++;
+    if (this.gate) await this.gate;
     const error = this.failNextInsert;
     if (error) {
       this.failNextInsert = undefined;
-      return Promise.reject(error);
+      throw error;
     }
-    return this.inner.insert(ntriples);
+    return this.inner.insert(ntriples, options);
   }
   select(sparql: string): Promise<SparqlBinding[]> {
     this.selects++;

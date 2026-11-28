@@ -87,7 +87,32 @@ export class FakeEventStore implements EventStore {
     return { started, release };
   }
 
-  add(event: NostrEvent, _options?: AddOptions): Promise<AddResult> {
+  /** The options of every `add` call, in order. */
+  readonly addOptions: (AddOptions | undefined)[] = [];
+  #addGate: Promise<void> | undefined;
+
+  /**
+   * Makes the next stored `add` report itself durable at once and resolve
+   * only after `release`, like a store whose index is still rebuilding.
+   */
+  holdNextAdd(): { release: () => void } {
+    let release = () => {};
+    this.#addGate = new Promise<void>((resolve) => release = resolve);
+    return { release };
+  }
+
+  async add(event: NostrEvent, options?: AddOptions): Promise<AddResult> {
+    this.addOptions.push(options);
+    const gate = this.#addGate;
+    if (gate && this.nextRejection === undefined && !this.has(event.id)) {
+      this.#addGate = undefined;
+      options?.onDurable?.({ status: "stored" });
+      await gate;
+    }
+    return this.#add(event);
+  }
+
+  #add(event: NostrEvent): Promise<AddResult> {
     if (this.nextRejection !== undefined) {
       const reason = this.nextRejection;
       this.nextRejection = undefined;

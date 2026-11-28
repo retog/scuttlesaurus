@@ -496,3 +496,47 @@ Deno.test("group: windows still work after grouped adds across many days", async
     );
   });
 });
+
+Deno.test("group: a priority event is committed ahead of a backlog", async () => {
+  await withStore(async ({ store, counting }) => {
+    let open!: () => void;
+    counting.gate = new Promise((resolve) => (open = resolve));
+    const order: string[] = [];
+    const first = store.add(sign(alice, 1, { content: "first" }));
+    await new Promise((r) => setTimeout(r, 0));
+    // The first group is waiting in its insert; these queue behind it.
+    const backlog = Array.from(
+      { length: 6 },
+      (_, i) => sign(bob, 1, { content: `backlog ${i}` }),
+    );
+    const done = backlog.map((e) =>
+      store.add(e).then(() => order.push("backlog"))
+    );
+    const mine = sign(alice, 1, { content: "mine" });
+    const priority = store.add(mine, {
+      priority: true,
+      onDurable: (result) => order.push(`durable ${result.status}`),
+    }).then(() => order.push("mine"));
+    open();
+    await Promise.all([first, priority, ...done]);
+    assertEquals(order.slice(0, 2), ["durable stored", "mine"]);
+    assertEquals(order.filter((o) => o === "backlog").length, 6);
+  }, { maxEvents: 2 });
+});
+
+Deno.test("group: onDurable reports settled outcomes without a commit", async () => {
+  await withStore(async ({ store }) => {
+    const event = sign(alice, 1, { content: "once" });
+    await store.add(event);
+    const outcomes: string[] = [];
+    const result = await store.add(event, {
+      onDurable: (r) => outcomes.push(r.status),
+    });
+    assertEquals(result.status, "duplicate");
+    assertEquals(outcomes, ["duplicate"]);
+    await store.add({ ...event, sig: "0".repeat(128), id: "1".repeat(64) }, {
+      onDurable: (r) => outcomes.push(r.status),
+    });
+    assertEquals(outcomes, ["duplicate", "rejected"]);
+  });
+});

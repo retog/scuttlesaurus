@@ -381,8 +381,13 @@ These settings must agree with qlever-dir's:
   rebuilds the index in the background. A lower value means more rebuilds. A
   higher one lets unmerged changes pile up, which slows queries, as qlever-dir's
   README explains. Merging the node's day files also causes a rebuild, because
-  removing a directory is a structural change. Leave the default, 100000, unless
-  you have measured a need to change it.
+  removing a directory is a structural change. The default is 100000. While a
+  new node backfills its neighbourhood, that is reached every few minutes: on a
+  test node with about 60,000 events and 1.3 million triples, qlever-dir rebuilt
+  every 3 to 4 minutes for about 2.5 minutes each time, and files written during
+  a rebuild became visible only after it. With
+  `COMPACTION_DELTA_TRIPLES=1000000` rebuilds were much rarer. Consider that
+  value for a node that is still filling up, and watch query times.
 
 The directory must be on a local filesystem. qlever-dir detects changes with
 inotify, which does not work reliably on NFS or on Docker Desktop for macOS and
@@ -394,6 +399,13 @@ Windows.
   0.6.0 and `INCREMENTAL_DELAY=0`, a file of 10 triples could be queried 1.0 s
   after it was written, and a file of 5,000 triples 1.4 s after. qlever-dir
   applies the files one after another, about 80 ms each.
+- **During a rebuild, writes wait.** A file written while qlever-dir rebuilds
+  its index becomes visible only after the rebuild, which can take minutes on a
+  large graph. The relay answers `OK` as soon as an event's file is written, not
+  when it is visible, so clients are not left waiting; the event shows up in
+  queries once the rebuild is done. When a file is not visible after 120 s, the
+  node logs `qlever-dir endpoint … did not show <file> within 120 s`. The file
+  is kept and indexed when qlever-dir catches up.
 - **Bulk loads are slow.** Each write waits until its file is visible. Seeding
   the demo world through the relay took 211 s with this store, and about 7 s
   with the embedded store.

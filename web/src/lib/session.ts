@@ -25,7 +25,8 @@ import {
 import * as nip19 from "@nostr/tools/nip19";
 import { bytesToHex, hexToBytes } from "@nostr/tools/utils";
 import { parsePubkey } from "./nostr.ts";
-import { publish as publishToRelay } from "./relay.ts";
+import { publish as publishToRelay, UnconfirmedError } from "./relay.ts";
+import { UnconfirmedEvents } from "./unconfirmed.ts";
 import {
   disconnectRemote,
   type RemoteConnectionData,
@@ -261,9 +262,26 @@ export async function signEvent(template: EventTemplate): Promise<Event> {
   return finalizeEvent(template, hexToBytes(secret));
 }
 
-/** Sign `template` and publish it to the node's relay. Returns the event. */
+const unconfirmed = new UnconfirmedEvents();
+
+/**
+ * Sign `template` and publish it to the node's relay. Returns the event.
+ *
+ * If an earlier publication of the same content was never confirmed (an
+ * {@link UnconfirmedError}), that signed event is sent again instead, so that
+ * trying again cannot post the same thing twice.
+ */
 export async function publish(template: EventTemplate): Promise<Event> {
-  const event = await signEvent(template);
-  await publishToRelay(event);
+  const pubkey = session.value?.pubkey;
+  const event = (pubkey && unconfirmed.find(pubkey, template)) ||
+    await signEvent(template);
+  try {
+    await publishToRelay(event);
+  } catch (error) {
+    if (error instanceof UnconfirmedError) unconfirmed.keep(event);
+    else unconfirmed.forget(event);
+    throw error;
+  }
+  unconfirmed.forget(event);
   return event;
 }

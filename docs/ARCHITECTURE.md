@@ -270,7 +270,11 @@ is how the graph is discovered in the first place.
 | 2 and further | 0, 3, 10002, 10063, 30023 · 1, 5, 6, 16, 1111           | `horizonDays[n]` (14 days) |
 
 Replaceable and addressable kinds (before the `·`) are fetched without a time
-limit, since there is only one current version of each.
+limit, since there is only one current version of each. Pages come newest first,
+so once an author's event of a plain replaceable kind (0, 3, 10000–19999) has
+arrived, the paging goes on only for the kinds of that author not seen yet: a
+relay that keeps old versions of follow lists does not hand over their whole
+history. Addressable kinds (30023) are paged to the end.
 
 **Executing.** Per relay, authors are asked for in batches. An author who has
 not been fetched from before is backfilled by paging backwards with `until`
@@ -321,6 +325,11 @@ A NIP-01 relay on the WebSocket endpoint `/`.
   slots. Any other event, and a 24133 event that does not meet the condition and
   whose author is outside the graph, is refused as before. `NOSTR_CONNECT=off`
   removes the exception and the NIP-11 entry.
+
+  An accepted event is answered with `OK true` as soon as the store has settled
+  its outcome and written it durably, which with qlever-dir can be well before
+  queries see it (while the index is rebuilt); its forwarding starts then too.
+  Events from clients are committed ahead of a replication backlog.
 - `REQ`: stored events, `EOSE`, then live events matching the filters.
 - `CLOSE`, and `COUNT` (NIP-45).
 - Limits: number of subscriptions and filters per connection, `limit` capped at

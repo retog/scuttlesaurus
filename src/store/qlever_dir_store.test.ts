@@ -133,6 +133,51 @@ Deno.test("qlever-dir: insert does not resolve before the graph is visible", asy
   }, 300);
 });
 
+Deno.test("qlever-dir: onDurable fires once the file is in place, before it is visible", async () => {
+  await withFixture(async (f) => {
+    const store = await f.open();
+    let durable = false;
+    let settled = false;
+    const done = store.insert(triple(1), { onDurable: () => (durable = true) })
+      .then(() => (settled = true));
+    await new Promise((r) => setTimeout(r, 150));
+    assertEquals(durable, true);
+    assertEquals(settled, false);
+    assertEquals((await f.files()).length, 1);
+    await done;
+  }, 300);
+});
+
+Deno.test("qlever-dir: the event store answers durable events before they are visible", async () => {
+  await withFixture(async (f) => {
+    const events = await createEventStore(await f.open(), testConfig());
+    const [alice] = identities(1);
+    const event = sign(alice, 1, { content: "hello" });
+    let early: string | undefined;
+    let settled = false;
+    const done = events.add(event, {
+      onDurable: (result) => (early = result.status),
+    }).then(() => (settled = true));
+    await new Promise((r) => setTimeout(r, 150));
+    assertEquals(early, "stored");
+    assertEquals(settled, false);
+    await done;
+    assertEquals(events.has(event.id), true);
+  }, 400);
+});
+
+Deno.test("qlever-dir: an insert that times out was still durable", async () => {
+  await withFixture(async (f) => {
+    const store = await f.open({ visibleTimeoutMs: 100 });
+    let durable = false;
+    await assertRejects(() =>
+      store.insert(triple(1), { onDurable: () => (durable = true) })
+    );
+    assertEquals(durable, true);
+    assertEquals((await f.files()).length, 1);
+  }, 60_000);
+});
+
 Deno.test("qlever-dir: a timeout names the file and keeps it", async () => {
   await withFixture(async (f) => {
     const store = await f.open({ visibleTimeoutMs: 150 });

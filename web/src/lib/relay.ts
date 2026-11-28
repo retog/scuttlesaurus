@@ -32,10 +32,51 @@ interface Subscription {
 }
 
 interface PendingOk {
-  resolve: () => void;
-  reject: (error: Error) => void;
+  event: Event;
+  /** Everyone waiting for this event's `OK`: true for an answer, false for none. */
+  waiters: {
+    resolve: (answered: boolean) => void;
+    reject: (e: Error) => void;
+  }[];
   timer: ReturnType<typeof setTimeout>;
 }
+
+/** A published event the relay has not confirmed after a few seconds. */
+export interface SlowPublish {
+  id: string;
+  kind: number;
+  startedAt: number;
+}
+
+/**
+ * Publications that are taking long: the node may be busy writing (with the
+ * QLever store, while its index is rebuilt). Shown as "still saving".
+ */
+export const slowPublishes = signal<SlowPublish[]>([]);
+
+/**
+ * The relay did not confirm the event in time. It may still have been
+ * stored; publishing the same signed event again is safe (a duplicate is
+ * answered with `OK true`) and never creates a second post.
+ */
+export class UnconfirmedError extends Error {
+  constructor(readonly event: Event) {
+    super(
+      "The node has not confirmed this yet. It may still be saved; sending again will not post it twice.",
+    );
+    this.name = "UnconfirmedError";
+  }
+}
+
+/** After this long a publication counts as slow (see {@link slowPublishes}). */
+const SLOW_AFTER_MS = 4_000;
+/**
+ * How long a publication waits for `OK` by default: longer than the node's
+ * store may take to make a write visible (120 s with qlever-dir), plus a
+ * margin. The connection may drop and come back meanwhile; the event is then
+ * sent again.
+ */
+const PUBLISH_PATIENCE_MS = 150_000;
 
 let socket: WebSocket | undefined;
 let attempts = 0;
@@ -43,7 +84,6 @@ let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let counter = 0;
 const subscriptions = new Map<string, Subscription>();
 const pendingOk = new Map<string, PendingOk>();
-const openWaiters = new Set<() => void>();
 
 function send(message: unknown[]): boolean {
   if (socket?.readyState !== WebSocket.OPEN) return false;
@@ -68,8 +108,8 @@ export function connect(): void {
     attempts = 0;
     relayState.value = "open";
     for (const [id, sub] of subscriptions) send(["REQ", id, ...sub.filters]);
-    for (const wake of [...openWaiters]) wake();
-    openWaiters.clear();
+    // Events sent before the connection dropped may never have arrived.
+    for (const pending of pendingOk.values()) send(["EVENT", pending.event]);
   };
   ws.onmessage = (message) => {
     let data: unknown;
@@ -92,10 +132,7 @@ export function connect(): void {
 }
 
 function scheduleReconnect(): void {
-  if (
-    subscriptions.size === 0 && pendingOk.size === 0 &&
-    openWaiters.size === 0 && attempts > 0
-  ) {
+  if (subscriptions.size === 0 && pendingOk.size === 0 && attempts > 0) {
     // Nobody is waiting: stay down until the next use.
     relayState.value = "closed";
     return;
@@ -116,8 +153,10 @@ function handle(data: unknown[]): void {
     if (!pending) return;
     pendingOk.delete(a);
     clearTimeout(pending.timer);
-    if (b === true) pending.resolve();
-    else pending.reject(new Error(String(c || "rejected by relay")));
+    for (const waiter of pending.waiters) {
+      if (b === true) waiter.resolve(true);
+      else waiter.reject(new Error(String(c || "rejected by relay")));
+    }
   } else if (type === "CLOSED") {
     const sub = subscriptions.get(a);
     if (sub) {
@@ -127,40 +166,71 @@ function handle(data: unknown[]): void {
   }
 }
 
-function whenOpen(timeoutMs: number): Promise<void> {
-  if (socket?.readyState === WebSocket.OPEN) return Promise.resolve();
-  connect();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      openWaiters.delete(wake);
-      reject(new Error("Relay unreachable"));
-    }, timeoutMs);
-    const wake = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    openWaiters.add(wake);
-  });
+/**
+ * Publish a signed event. Resolves on `OK true`; rejects with the relay's
+ * message on `OK false`. A relay that is slow to answer is waited for, and
+ * the event is sent again after a reconnect, for up to `timeoutMs` (default
+ * 150 s). Without an answer by then the node is asked whether it has the
+ * event; if not, this rejects with an {@link UnconfirmedError}.
+ */
+export async function publish(
+  event: Event,
+  timeoutMs = PUBLISH_PATIENCE_MS,
+): Promise<void> {
+  const slow = setTimeout(() => {
+    slowPublishes.value = [
+      ...slowPublishes.value,
+      { id: event.id, kind: event.kind, startedAt: Date.now() - SLOW_AFTER_MS },
+    ];
+  }, SLOW_AFTER_MS);
+  try {
+    const answered = await waitForOk(event, timeoutMs);
+    if (!answered && !(await relayHas(event.id))) {
+      throw new UnconfirmedError(event);
+    }
+  } finally {
+    clearTimeout(slow);
+    if (slowPublishes.value.some((p) => p.id === event.id)) {
+      slowPublishes.value = slowPublishes.value.filter((p) =>
+        p.id !== event.id
+      );
+    }
+  }
 }
 
 /**
- * Publish a signed event. Resolves on `OK true`; rejects with the relay's
- * message on `OK false` and with an error on timeout (default 10 s).
+ * Send the event and wait for its `OK`. True on `OK true`, false when the
+ * time ran out; rejects on `OK false`.
  */
-export async function publish(event: Event, timeoutMs = 10_000): Promise<void> {
-  await whenOpen(timeoutMs);
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingOk.delete(event.id);
-      reject(new Error("Relay did not answer in time"));
-    }, timeoutMs);
-    pendingOk.set(event.id, { resolve, reject, timer });
-    if (!send(["EVENT", event])) {
-      clearTimeout(timer);
-      pendingOk.delete(event.id);
-      reject(new Error("Relay connection lost"));
+function waitForOk(event: Event, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const earlier = pendingOk.get(event.id);
+    if (earlier) {
+      // The same event is already waiting: share its answer.
+      earlier.waiters.push({ resolve, reject });
+      return;
     }
+    const pending: PendingOk = {
+      event,
+      waiters: [{ resolve, reject }],
+      timer: setTimeout(() => {
+        pendingOk.delete(event.id);
+        for (const waiter of pending.waiters) waiter.resolve(false);
+      }, timeoutMs),
+    };
+    pendingOk.set(event.id, pending);
+    // Otherwise it is sent when the connection (re)opens.
+    if (!send(["EVENT", event])) connect();
   });
+}
+
+/** Whether the node's relay returns the event with this id. */
+async function relayHas(id: string): Promise<boolean> {
+  try {
+    return (await fetchEvents([{ ids: [id] }], 10_000)).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**

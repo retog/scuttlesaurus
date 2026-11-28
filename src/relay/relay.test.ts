@@ -47,6 +47,24 @@ Deno.test("REQ sends stored events newest first, then EOSE", () =>
     assertEquals(messages[2], ["EOSE", "sub"]);
   }));
 
+Deno.test("OK is sent once the event is durable, before queries see it", () =>
+  withRelay(async ({ store, friend, connect, accepted }) => {
+    const { release } = store.holdNextAdd();
+    const client = await connect();
+    const note = signedEvent(friend, { content: "slow index" });
+    client.send(["EVENT", note]);
+    assertEquals(await client.next(), ["OK", note.id, true, ""]);
+    assertEquals(accepted.map((e) => e.id), [note.id]);
+    assertFalse(store.has(note.id));
+    assertEquals(store.addOptions[0]?.priority, true);
+    release();
+    await waitFor(() => store.has(note.id));
+    // No second OK once the add resolves.
+    client.send(["COUNT", "barrier", { kinds: [1] }]);
+    assertEquals((await client.next())[0], "COUNT");
+    assertEquals(accepted.length, 1);
+  }));
+
 Deno.test("live events reach matching subscriptions and not others", () =>
   withRelay(async ({ friend, store, connect }) => {
     const client = await connect();

@@ -22,6 +22,7 @@ import type { ResolvedOptions } from "./options.ts";
 import { missingRanges, type SyncState } from "./sync_state.ts";
 import {
   horizonStart,
+  isPlainReplaceable,
   liveFilter,
   rangeFilter,
   replaceableFilter,
@@ -71,6 +72,8 @@ interface LiveGroup {
 interface Page {
   count: number;
   oldest: number;
+  /** `pubkey|kind` of every event of the page. */
+  seen: Set<string>;
 }
 
 const memberKey = (author: string, wanted: Wanted) => `${author}|${wanted.key}`;
@@ -391,39 +394,14 @@ export class RelayFeed {
   }
 
   async #execute(task: Task): Promise<void> {
-    const { sync, options } = this.#deps;
     const authors = task.authors.filter((a) => this.#assignment.has(a));
     try {
-      let until: number | undefined = task.type === "range"
-        ? task.to
-        : undefined;
-      while (authors.length > 0) {
-        const filter = task.type === "range"
-          ? rangeFilter(
-            task.wanted,
-            authors,
-            task.from,
-            until!,
-            options.pageSize,
-          )
-          : replaceableFilter(task.wanted, authors, until, options.pageSize);
-        const page = await this.#page(task, filter, authors);
-        if (!page) {
-          this.#fail(task);
-          return;
-        }
-        if (page.count === 0) break;
-        // Pages arrive newest first, so everything from the top of the range
-        // down to the oldest event of this page is now covered.
-        if (task.type === "range") {
-          sync.extend(this.url, authors, page.oldest, task.to, true);
-        }
-        const next = page.oldest - 1;
-        if (next < task.from) break;
-        until = next;
-      }
-      if (task.type === "range") {
-        sync.extend(this.url, authors, task.from, task.to, false);
+      const complete = task.type === "range"
+        ? await this.#executeRange(task, authors)
+        : await this.#executeReplaceable(task, authors);
+      if (!complete) {
+        this.#fail(task);
+        return;
       }
       for (const key of task.keys) this.#progress.set(key, "done");
       this.#failures = 0;
@@ -431,6 +409,86 @@ export class RelayFeed {
       this.#lastError = describe(error);
       this.#fail(task);
     }
+  }
+
+  /** Page backwards through the regular events of `[from, to]`. */
+  async #executeRange(task: Task, authors: string[]): Promise<boolean> {
+    const { sync, options } = this.#deps;
+    let until = task.to;
+    while (authors.length > 0) {
+      const filter = rangeFilter(
+        task.wanted,
+        authors,
+        task.from,
+        until,
+        options.pageSize,
+      );
+      const page = await this.#page(task, filter, authors);
+      if (!page) return false;
+      if (page.count === 0) break;
+      // Pages arrive newest first, so everything from the top of the range
+      // down to the oldest event of this page is now covered.
+      sync.extend(this.url, authors, page.oldest, task.to, true);
+      const next = page.oldest - 1;
+      if (next < task.from) break;
+      until = next;
+    }
+    sync.extend(this.url, authors, task.from, task.to, false);
+    return true;
+  }
+
+  /**
+   * The current versions of the replaceable and addressable kinds. Addressable
+   * kinds (several current events per author, one per `d` tag) are paged to
+   * the end. A plain replaceable kind has one current event per author, and
+   * pages come newest first, so once an author's event of a kind has been
+   * seen, older pages would hold only superseded versions of it: a relay that
+   * keeps the history of follow lists would otherwise hand all of it over.
+   * The paging goes on only for the (author, kind) pairs not seen yet.
+   */
+  async #executeReplaceable(task: Task, authors: string[]): Promise<boolean> {
+    const { options } = this.#deps;
+    const plain = task.wanted.replaceable.filter(isPlainReplaceable);
+    const addressable = task.wanted.replaceable.filter((k) =>
+      !isPlainReplaceable(k)
+    );
+    const parts: { authors: string[]; kinds: number[]; until?: number }[] = [];
+    if (plain.length > 0) parts.push({ authors, kinds: plain });
+    if (addressable.length > 0) parts.push({ authors, kinds: addressable });
+    const seen = new Set<string>();
+    while (parts.length > 0) {
+      const part = parts.shift()!;
+      if (part.authors.length === 0) continue;
+      const filter = replaceableFilter(
+        task.wanted,
+        part.authors,
+        part.until,
+        options.pageSize,
+        part.kinds,
+      );
+      const page = await this.#page(task, filter, part.authors);
+      if (!page) return false;
+      if (page.count === 0) continue;
+      const until = page.oldest - 1;
+      if (until < 0) continue;
+      if (!part.kinds.every(isPlainReplaceable)) {
+        parts.unshift({ ...part, until });
+        continue;
+      }
+      // Group the authors by the kinds still missing; each group pages on.
+      for (const key of page.seen) seen.add(key);
+      const groups = new Map<string, { authors: string[]; kinds: number[] }>();
+      for (const author of part.authors) {
+        const missing = part.kinds.filter((k) => !seen.has(`${author}|${k}`));
+        if (missing.length === 0) continue;
+        const id = missing.join(",");
+        const group = groups.get(id) ?? { authors: [], kinds: missing };
+        group.authors.push(author);
+        groups.set(id, group);
+      }
+      for (const group of groups.values()) parts.unshift({ ...group, until });
+    }
+    return true;
   }
 
   /** One request, from `REQ` to `EOSE`; undefined when it did not complete. */
@@ -447,6 +505,7 @@ export class RelayFeed {
       let storeFailed = false;
       let count = 0;
       let oldest = Number.MAX_SAFE_INTEGER;
+      const seen = new Set<string>();
       let settled = false;
 
       const finish = (complete: boolean, error?: string) => {
@@ -461,7 +520,7 @@ export class RelayFeed {
         // stored, and not at all if the store failed on one of them: that
         // event is not fetched yet, so the page is planned again later.
         Promise.allSettled(stored).then(() => {
-          if (!storeFailed) return resolve({ count, oldest });
+          if (!storeFailed) return resolve({ count, oldest, seen });
           this.#lastError = "the store failed on an event of the page";
           resolve(undefined);
         });
@@ -480,6 +539,7 @@ export class RelayFeed {
           ) return;
           count++;
           oldest = Math.min(oldest, event.created_at);
+          seen.add(`${event.pubkey}|${event.kind}`);
           stored.push(
             this.#receive(event, wanted).then((outcome) => {
               if (outcome === "error") storeFailed = true;

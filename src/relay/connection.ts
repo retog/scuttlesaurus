@@ -204,12 +204,36 @@ export class ClientConnection {
       }
     }
 
-    let result: AddResult;
+    // The answer goes out as soon as the outcome is settled and the event is
+    // durable. With qlever-dir that can be long before queries see it, while
+    // the index is rebuilt; waiting for that would outlast clients' timeouts
+    // for events the node does accept.
+    let answered = false;
+    const answer = (result: AddResult) => {
+      if (answered) return;
+      answered = true;
+      this.#answer(event, result);
+    };
     try {
-      result = await events.add(event, { verified: true });
+      answer(
+        await events.add(event, {
+          verified: true,
+          priority: true,
+          onDurable: answer,
+        }),
+      );
     } catch (error) {
-      return this.#send(["OK", id, false, `error: ${errorMessage(error)}`]);
+      if (!answered) {
+        answered = true;
+        this.#send(["OK", id, false, `error: ${errorMessage(error)}`]);
+      }
     }
+  }
+
+  /** The `OK` for an event the store has settled, and what follows it. */
+  #answer(event: NostrEvent, result: AddResult): void {
+    const { id } = event;
+    const { config } = this.#options;
     switch (result.status) {
       case "ephemeral":
         // A well-formed Nostr Connect event is also kept for a short while for

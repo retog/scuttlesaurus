@@ -90,14 +90,26 @@ export function horizonStart(wanted: Wanted, now: number): number {
     : Math.max(0, now - wanted.horizonDays * SECONDS_PER_DAY);
 }
 
-/** Current versions of the replaceable kinds, newest first, optionally paged. */
+/**
+ * Whether a kind is replaceable without a `d` tag (NIP-01: 0, 3 and
+ * 10000–19999): an author has at most one current event of it.
+ */
+export function isPlainReplaceable(kind: number): boolean {
+  return kind === 0 || kind === 3 || (kind >= 10000 && kind < 20000);
+}
+
+/**
+ * Current versions of the replaceable kinds (or of `kinds`, a part of them),
+ * newest first, optionally paged.
+ */
 export function replaceableFilter(
   wanted: Wanted,
   authors: string[],
   until: number | undefined,
   limit: number,
+  kinds: readonly number[] = wanted.replaceable,
 ): Filter {
-  const filter: Filter = { authors, kinds: [...wanted.replaceable], limit };
+  const filter: Filter = { authors, kinds: [...kinds], limit };
   if (until !== undefined) filter.until = until;
   return filter;
 }

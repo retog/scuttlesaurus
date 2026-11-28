@@ -11,7 +11,12 @@
  * @module
  */
 import { dirname, join } from "@std/path";
-import type { QueryOptions, StoreConfig, TripleStore } from "../types.ts";
+import type {
+  InsertOptions,
+  QueryOptions,
+  StoreConfig,
+  TripleStore,
+} from "../types.ts";
 import { type Backend, tripleStore } from "./backend.ts";
 import {
   assertPlausibleNTriples,
@@ -500,7 +505,7 @@ class QleverDirBackend implements Backend {
     throw new Error("Store is closed");
   }
 
-  async insert(ntriples: string): Promise<void> {
+  async insert(ntriples: string, options?: InsertOptions): Promise<void> {
     if (this.#closed) throw new Error("Store is closed");
     const content = ntriples.endsWith("\n") ? ntriples : ntriples + "\n";
     assertPlausibleNTriples(content);
@@ -508,6 +513,13 @@ class QleverDirBackend implements Backend {
     await this.#confirmed(async (written) => {
       await this.#write(relative, content);
       written();
+      // The file is in place: qlever-dir indexes it eventually, even if that
+      // takes longer than the wait below (a rebuild of the index).
+      try {
+        options?.onDurable?.();
+      } catch (error) {
+        this.options.log(`onDurable failed: ${error}`);
+      }
       await this.#waitVisible(relative);
     });
   }
