@@ -55,6 +55,14 @@ export function webIri(value: unknown): string | undefined {
  * A plain string literal. Escapes backslash, quote, line breaks and all other
  * control characters. Throws on strings that are not well-formed Unicode,
  * because those cannot be represented in UTF-8 and would silently change.
+ *
+ * The output is also safe to embed in a SPARQL query or update. SPARQL lets an
+ * engine replace `\uXXXX` and `\UXXXXXXXX` escapes in the whole query text
+ * before tokenising (SPARQL 1.1, section 19.2), and QLever does, so an escaped
+ * backslash followed by `u` (`\\u0026`) would turn into the invalid `\` +
+ * `&`. A `u` or `U` right after an escaped backslash is therefore written
+ * as `u` / `U`, which no pre-processing pass can combine with the
+ * backslash before it; N-Triples parsers read it as the same character.
  */
 export function literal(value: string): string {
   if (!value.isWellFormed()) {
@@ -63,8 +71,14 @@ export function literal(value: string): string {
   let out = "";
   for (let i = 0; i < value.length; i++) {
     const c = value.charCodeAt(i);
-    if (c === 0x5c) out += "\\\\";
-    else if (c === 0x22) out += '\\"';
+    if (c === 0x5c) {
+      out += "\\\\";
+      const next = value[i + 1];
+      if (next === "u" || next === "U") {
+        out += next === "u" ? "\\u0075" : "\\u0055";
+        i++;
+      }
+    } else if (c === 0x22) out += '\\"';
     else if (c === 0x0a) out += "\\n";
     else if (c === 0x0d) out += "\\r";
     else if (c < 0x20 || c === 0x7f) {
