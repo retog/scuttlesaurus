@@ -240,7 +240,9 @@ export function articleListSource(
     pageSize,
     toItem: async (row) => {
       // List rows may hold only an excerpt; read the current version in full.
-      const full = await fetchArticle(row.naddr).catch(() => undefined);
+      // An article that is gone is skipped; a failed load is an error the
+      // player shows and retries.
+      const full = await fetchArticle(row.naddr);
       return full ? articleItem(full) : null;
     },
   });

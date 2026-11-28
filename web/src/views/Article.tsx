@@ -199,8 +199,7 @@ export default function ArticleView() {
           <ReadAloudButton
             look="icon"
             label="Listen to this article"
-            onStart={() =>
-              void articleItem(data).then((item) => playItem("Article", item))}
+            onStart={() => playItem("Article", () => articleItem(data))}
           />
           <IconButton
             label="Copy link"

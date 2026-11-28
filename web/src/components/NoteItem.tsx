@@ -43,9 +43,14 @@ export function NoteItem(
   const [deleting, setDeleting] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const speaking = speakingKey.value === note.key;
+  const mounted = useRef(false);
   useEffect(() => {
-    // Follow the reading: bring the note being read into view.
-    if (speaking) {
+    // Follow the reading: bring the note into view when reading moves on to
+    // it, but not when a view that holds it is opened (that is the reader's
+    // own scrolling).
+    const moved = mounted.current;
+    mounted.current = true;
+    if (speaking && moved) {
       root.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     }
   }, [speaking]);

@@ -12,7 +12,7 @@
  * @module
  */
 import { computed, signal } from "@preact/signals";
-import { chunkText } from "./speech_text.ts";
+import { chunkText, MAX_CHUNK } from "./speech_text.ts";
 
 /** One thing to read: a note or an article. */
 export interface SpeechItem {
@@ -43,10 +43,6 @@ export interface PlayerState {
   /** Why the next item could not be loaded (status `error`). */
   error?: string;
   item?: SpeechItem;
-  /** 0-based position of the item in the source. */
-  index: number;
-  /** Whether there is an item before this one. */
-  hasPrevious: boolean;
 }
 
 /** Whether this browser can speak. */
@@ -104,7 +100,12 @@ if (speechSupported) {
   update();
   speechSynthesis.addEventListener?.("voiceschanged", update);
   // Do not keep talking after the tab is gone (some browsers do).
-  globalThis.addEventListener?.("pagehide", () => speechSynthesis.cancel());
+  // Pausing also keeps the player honest when the page comes back from the
+  // back/forward cache.
+  globalThis.addEventListener?.("pagehide", () => {
+    pause();
+    speechSynthesis.cancel();
+  });
 }
 
 interface Run {
@@ -135,14 +136,14 @@ function publish(status: PlayerState["status"], error?: string): void {
     title: run.source.title,
     status,
     item: run.items[run.index],
-    index: run.index,
-    hasPrevious: run.index > 0,
     error,
   };
 }
 
 function chunksOf(item: SpeechItem): string[] {
-  return item.paragraphs.flatMap((p) => chunkText(p));
+  // Slower speech gets shorter chunks, so that none takes much longer to say.
+  const max = Math.round(MAX_CHUNK * Math.min(1, rate.value));
+  return item.paragraphs.flatMap((p) => chunkText(p, max));
 }
 
 function pickVoice(lang: string | undefined): SpeechSynthesisVoice | undefined {
@@ -183,7 +184,12 @@ function speak(): void {
   };
   utterance.onerror = (event) => {
     if (mine !== generation || run !== r) return;
-    if (event.error === "interrupted" || event.error === "canceled") return;
+    if (event.error === "interrupted" || event.error === "canceled") {
+      // Not by the player (its own cancels bump `generation`): another tab
+      // or the system cut the voice. Show it as paused, so resume works.
+      publish("paused");
+      return;
+    }
     // A chunk the voice cannot say is skipped rather than ending the run.
     r.chunk++;
     speak();
@@ -245,6 +251,9 @@ async function advance(step: 1 | -1): Promise<void> {
 export function play(source: SpeechSource): void {
   if (!speechSupported) return;
   stop();
+  // WebKit lets speech start only from a user gesture; the first real chunk
+  // comes after a load, so an empty utterance unlocks the voice now.
+  speechSynthesis.speak(new SpeechSynthesisUtterance(""));
   run = {
     source,
     items: [],
@@ -258,15 +267,22 @@ export function play(source: SpeechSource): void {
   void advance(1);
 }
 
-/** Reads one item on its own. */
-export function playItem(title: string, item: SpeechItem): void {
+/**
+ * Reads one item on its own. The player shows at once; `load` runs as the
+ * player's first step, so a failure gets its error and retry.
+ */
+export function playItem(
+  title: string,
+  load: () => Promise<SpeechItem>,
+): void {
   let given = false;
   play({
     title,
-    next: () => {
-      if (given) return Promise.resolve(null);
+    next: async () => {
+      if (given) return null;
+      const item = await load();
       given = true;
-      return Promise.resolve(item);
+      return item;
     },
   });
 }

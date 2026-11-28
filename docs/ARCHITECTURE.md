@@ -545,10 +545,10 @@ buttons are not shown.
   announced rather than read, mentions become names, links become "link to
   host", media "image" or "video". A note starts with "Alice wrote:", "Alice
   replied:" or "Bob reposted Alice:".
-- The text is spoken in chunks of a sentence or a few (at most 220 characters),
-  because browsers stall on long utterances. Pausing cancels the synthesizer and
-  resuming repeats the current chunk, since `pause()` and `resume()` are
-  unreliable across browsers.
+- The text is spoken in chunks of a sentence or a few (at most 160 characters,
+  fewer below normal speed), because browsers stall on long utterances. Pausing
+  cancels the synthesizer and resuming repeats the current chunk, since
+  `pause()` and `resume()` are unreliable across browsers.
 - The player is docked at the bottom of the main column and keeps reading across
   navigation: previous, pause, next, speed (0.75× to 2×) and voice. The speed
   and voice are kept in `localStorage`. Without a chosen voice, a note with a

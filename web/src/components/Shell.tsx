@@ -42,7 +42,6 @@ import { SignerStatus } from "./SignerStatus.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { ToastHost } from "./Toast.tsx";
 import { ReadAloudBar } from "./ReadAloud.tsx";
-import { player } from "../lib/speech.ts";
 
 interface NavEntry {
   to: string;
@@ -171,7 +170,7 @@ export function Shell({ children }: ShellProps) {
   const compose = () => session.value ? openCompose() : openLogin();
 
   return (
-    <div class={`shell${player.value ? " shell--player" : ""}`}>
+    <div class="shell">
       <a class="skip-link" href="#main">Skip to content</a>
       <aside class="shell__rail" aria-label="Sidebar">
         <Link class="rail-brand" to="/" aria-label="Scuttlesaurus home">

@@ -73,6 +73,16 @@ Deno.test("clauses are tried before words, line breaks end a chunk", () => {
   assertEquals(chunkText("  \n\n "), []);
 });
 
+Deno.test("no text is lost when a long sentence is split", () => {
+  const sentence =
+    "We met at 10:30 and paid 1,000 francs for a 2010–2020 map, " +
+    "word ".repeat(40).trim() + ", then left.";
+  const chunks = chunkText(sentence, 60);
+  for (const chunk of chunks) assert(chunk.length <= 60, chunk);
+  assertEquals(chunks.join(" "), sentence);
+  assert(chunks[0].startsWith("We met at 10:30"));
+});
+
 Deno.test("decimal points and abbreviations-in-words do not split", () => {
   assertEquals(chunkText("Version 2.5 is out. Nice.", 12), [
     "Version 2.5",

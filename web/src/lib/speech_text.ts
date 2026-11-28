@@ -13,8 +13,11 @@ import { type Token, tokenize } from "./nostr.ts";
 /** Resolves a hex pubkey to the name to say. */
 export type NameOf = (pubkey: string) => string;
 
-/** Longest chunk handed to the synthesizer, in characters. */
-export const MAX_CHUNK = 220;
+/**
+ * Longest chunk handed to the synthesizer at normal speed, in characters:
+ * about eleven seconds, under the point where Chrome stops some voices.
+ */
+export const MAX_CHUNK = 160;
 
 function host(url: string): string {
   try {
@@ -218,7 +221,9 @@ function hardSplit(piece: string, max: number): string[] {
 // Text up to a full stop, question or exclamation mark that ends a sentence
 // (one followed by a blank, a closing quote or the end), then that mark.
 const SENTENCE = /(?:[^.!?…]|[.!?…](?![\s"'”’)\]]|$))+(?:[.!?…]+["'”’)\]]*)?/g;
-const CLAUSE = /[^,;:–—]*(?:[,;:–—]+(?=\s)|$)/g;
+// A clause ends at a comma, semicolon, colon or dash followed by a blank
+// ("10:30" and "1,000" stay whole).
+const CLAUSE_BREAK = /(?<=[,;:–—])\s+/;
 
 /**
  * Splits text into chunks of at most `max` characters: whole sentences where
@@ -238,7 +243,7 @@ export function chunkText(text: string, max = MAX_CHUNK): string[] {
     };
     for (const sentence of sentences) {
       const pieces = sentence.length <= max ? [sentence] : (
-        (sentence.match(CLAUSE) ?? []).map((c) => c.trim()).filter(Boolean)
+        sentence.split(CLAUSE_BREAK).map((c) => c.trim()).filter(Boolean)
           .flatMap((c) => c.length <= max ? [c] : hardSplit(c, max))
       );
       for (const piece of pieces) {
